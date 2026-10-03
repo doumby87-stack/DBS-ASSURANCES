@@ -4,7 +4,7 @@ Site web de DBS Assurances.
 
 ## Statut
 
-Projet en cours de démarrage : le code du site n'a pas encore été ajouté à ce dépôt.
+Site vitrine statique (HTML, CSS, JavaScript), sans base de données. Ouvrez `index.html` dans un navigateur pour le voir. Le détail des fichiers et la liste des informations à compléter avant la mise en ligne sont dans [LISEZMOI.md](LISEZMOI.md).
 
 ## Contribuer
 
