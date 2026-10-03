@@ -19,11 +19,15 @@
   <meta property="og:image" content="assets/img/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&amp;display=swap">
+  <link rel="preload" href="assets/fonts/archivo-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="assets/css/style.css">
-  <script>document.documentElement.classList.add("js");</script>
+  <script>
+    // Active les animations d'apparition. Si main.js ne s'exécute pas (réseau coupé…), le contenu est réaffiché.
+    (function (html) {
+      html.classList.add("js");
+      setTimeout(function () { if (!html.classList.contains("js-ready")) html.classList.remove("js"); }, 3000);
+    })(document.documentElement);
+  </script>
   <script src="assets/js/main.js" defer></script>
 
   <script type="application/ld+json">
@@ -103,7 +107,7 @@
   <header class="site-header">
     <div class="container header__inner">
       <a class="brand" href="#contenu">
-        <img src="assets/img/logo-dbs-assurances.png" alt="DBS-ASSURANCES, Agent Général" width="800" height="235">
+        <img src="assets/img/logo-dbs-assurances.png" alt="DBS-ASSURANCES, Agent Général" width="480" height="141">
       </a>
       <nav class="site-nav" id="site-nav" aria-label="Navigation principale">
         <ul>
@@ -597,7 +601,7 @@
   <footer class="site-footer">
     <div class="container footer__grid">
       <div class="footer__brand">
-        <img src="assets/img/logo-dbs-assurances-blanc.png" alt="DBS-ASSURANCES" width="800" height="235" loading="lazy">
+        <img src="assets/img/logo-dbs-assurances-blanc.png" alt="DBS-ASSURANCES" width="480" height="141" loading="lazy">
         <p>Agent Général SanlamAllianz Côte&nbsp;d'Ivoire Assurances, code agence 2623. Conseil, souscription et suivi de vos contrats depuis Yopougon.</p>
       </div>
       <nav class="footer__col" aria-label="Plan du site">

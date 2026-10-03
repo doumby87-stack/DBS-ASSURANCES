@@ -8,11 +8,15 @@
   <meta name="theme-color" content="#203888">
   <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&amp;display=swap">
+  <link rel="preload" href="assets/fonts/archivo-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="assets/css/style.css">
-  <script>document.documentElement.classList.add("js");</script>
+  <script>
+    // Active les animations d'apparition. Si main.js ne s'exécute pas (réseau coupé…), le contenu est réaffiché.
+    (function (html) {
+      html.classList.add("js");
+      setTimeout(function () { if (!html.classList.contains("js-ready")) html.classList.remove("js"); }, 3000);
+    })(document.documentElement);
+  </script>
   <script src="assets/js/main.js" defer></script>
 </head>
 <body>
@@ -40,7 +44,7 @@
   <header class="site-header">
     <div class="container header__inner">
       <a class="brand" href="index.html">
-        <img src="assets/img/logo-dbs-assurances.png" alt="DBS-ASSURANCES, Agent Général, retour à l'accueil" width="800" height="235">
+        <img src="assets/img/logo-dbs-assurances.png" alt="DBS-ASSURANCES, Agent Général, retour à l'accueil" width="480" height="141">
       </a>
       <nav class="site-nav" id="site-nav" aria-label="Navigation principale">
         <ul>
@@ -109,7 +113,7 @@
       </dl>
 
       <h2 id="cookies">Cookies</h2>
-      <p>Ce site ne dépose aucun cookie de mesure d'audience ni de publicité. Les polices de caractères sont chargées depuis le service Google Fonts, qui reçoit à cette occasion l'adresse IP de votre appareil.</p>
+      <p>Ce site ne dépose aucun cookie de mesure d'audience ni de publicité. Les polices de caractères, images et scripts sont hébergés avec le site&nbsp;: l'affichage des pages ne fait appel à aucun service tiers.</p>
     </div>
   </main>
 
