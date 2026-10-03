@@ -7,6 +7,8 @@ Le site fonctionne sans base de données ni logiciel à installer : ce sont de s
 
 Double-cliquez sur `index.html` : il s'ouvre dans votre navigateur.
 
+Dans cet aperçu local, Chrome et Edge bloquent la police Archivo et affichent une police de remplacement. Elle s'affiche normalement une fois le site en ligne.
+
 ## Contenu du dossier
 
 | Fichier | Rôle |
@@ -14,8 +16,11 @@ Double-cliquez sur `index.html` : il s'ouvre dans votre navigateur.
 | `index.html` | Page d'accueil : assurances, flottes, risques d'entreprise, étapes, sinistre, questions, devis |
 | `mentions-legales.html` | Mentions légales, réclamations et données personnelles |
 | `assets/css/style.css` | Couleurs et mise en page (bleu `#203888`, or `#F8C020`, tirés du logo) |
-| `assets/js/main.js` | Menu mobile et formulaire de devis (envoi par WhatsApp ou e-mail) |
+| `assets/js/main.js` | Menu mobile, bouton WhatsApp flottant et formulaire de devis (envoi par WhatsApp ou e-mail) |
 | `assets/img/` | Logo DBS (version normale et version blanche), logo SanlamAllianz Agent Général, icônes, image d'aperçu |
+| `assets/fonts/` | Police Archivo, hébergée avec le site (licence libre OFL, voir `OFL.txt`) |
+
+Si vous remplacez une image, gardez un fichier léger : les logos sont enregistrés au double de leur taille d'affichage (480 pixels de large), ce qui suffit pour les écrans haute définition.
 
 ## Modifier une information
 

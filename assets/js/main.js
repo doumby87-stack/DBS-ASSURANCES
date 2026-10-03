@@ -55,6 +55,24 @@
   } else {
     reveals.forEach(function (el) { el.classList.add("is-visible"); });
   }
+  // Signale au script de secours (dans le <head>) que les apparitions sont prises en charge
+  document.documentElement.classList.add("js-ready");
+
+  /* ---------- Bouton WhatsApp flottant ---------- */
+  // Masqué tant que la section devis ou le pied de page est à l'écran : il recouvrait
+  // les boutons du formulaire sur mobile, qui propose déjà l'envoi WhatsApp.
+  var waFloat = document.querySelector(".wa-float");
+  var waZones = Array.prototype.slice.call(document.querySelectorAll("#devis, .site-footer"));
+  if (waFloat && waZones.length && "IntersectionObserver" in window) {
+    var waZonesInView = waZones.map(function () { return false; });
+    var waObserver = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        waZonesInView[waZones.indexOf(entry.target)] = entry.isIntersecting;
+      });
+      waFloat.classList.toggle("is-hidden", waZonesInView.indexOf(true) !== -1);
+    });
+    waZones.forEach(function (el) { waObserver.observe(el); });
+  }
 
   /* ---------- Année du pied de page ---------- */
   document.querySelectorAll("[data-year]").forEach(function (el) {
