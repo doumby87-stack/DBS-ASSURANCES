@@ -1,0 +1,10 @@
+# Propose chaque semaine les mises à jour des outils de l'intégration continue.
+# Les écosystèmes npm s'ajouteront avec l'API et les applications (tâche 3).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore
