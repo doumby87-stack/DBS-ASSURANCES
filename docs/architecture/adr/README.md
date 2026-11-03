@@ -1,0 +1,33 @@
+# Décisions d'architecture (ADR)
+
+Chaque décision importante est écrite ici, avec son contexte et ses conséquences, pour qu'on sache plus tard **pourquoi** le projet est fait ainsi. Une décision ne se modifie pas : si elle change, on écrit une nouvelle ADR qui la remplace.
+
+| N° | Décision | Statut |
+| --- | --- | --- |
+| [0001](0001-depot-unique.md) | Un dépôt unique, seul le site vitrine est publié | Acceptée |
+| [0002](0002-pile-technique.md) | TypeScript de bout en bout, PostgreSQL | Proposée |
+| [0003](0003-api-seule-porte-d-acces.md) | L'API est la seule porte d'accès aux données | Acceptée |
+| [0004](0004-securite-dans-la-base.md) | Les règles critiques et les droits sont aussi appliqués par la base | Acceptée |
+| [0005](0005-authentification.md) | Deuxième facteur pour le personnel, code à usage unique pour les clients | Proposée |
+| [0006](0006-hebergement-et-localisation-des-donnees.md) | Hébergement et localisation des données | En attente (ARTCI) |
+
+## Modèle
+
+```markdown
+# NNNN — Titre
+
+- Statut : Proposée | Acceptée | Remplacée par NNNN
+- Date : AAAA-MM-JJ
+
+## Contexte
+Le problème, les contraintes.
+
+## Décision
+Ce qui est décidé.
+
+## Conséquences
+Ce que ça implique, en bien et en moins bien.
+
+## Options écartées
+Et pourquoi.
+```

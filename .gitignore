@@ -1,0 +1,40 @@
+# --- Secrets : jamais dans le dépôt (voir docs/securite/gestion-des-secrets.md) ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+.pgpass
+id_rsa*
+id_ed25519*
+
+# --- Données : jamais de vraies données clients dans le dépôt ---
+*.dump
+*.backup
+*.sql.gz
+sauvegardes-locales/
+exports/
+
+# --- Dépendances et constructions ---
+node_modules/
+dist/
+build/
+coverage/
+.vite/
+*.tsbuildinfo
+
+# --- Journaux et fichiers temporaires ---
+*.log
+tmp/
+.cache/
+
+# --- Systèmes et éditeurs ---
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
