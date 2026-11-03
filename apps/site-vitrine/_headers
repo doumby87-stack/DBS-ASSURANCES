@@ -1,0 +1,18 @@
+# En-têtes de sécurité HTTP du site vitrine.
+# Lus automatiquement par Netlify et Cloudflare Pages (même syntaxe).
+# Explications : docs/securite/en-tetes-http.md
+#
+# Le petit script placé dans le <head> de index.html et mentions-legales.html est autorisé
+# par son empreinte (sha256-…). Si vous modifiez ce script, l'empreinte change : lancez
+# `node scripts/verifier-site.mjs` à la racine du dépôt, qui affiche la nouvelle valeur.
+
+/*
+  Content-Security-Policy: default-src 'none'; script-src 'self' 'sha256-KNWMTl3bmkIY1l5VWWin4emXRAT7xlM8A93dUAnUVrY='; style-src 'self'; img-src 'self' data:; font-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'; upgrade-insecure-requests
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=()
+  Cross-Origin-Opener-Policy: same-origin-allow-popups
+  Cross-Origin-Resource-Policy: same-origin
+  X-Permitted-Cross-Domain-Policies: none

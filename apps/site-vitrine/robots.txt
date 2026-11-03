@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+# Une fois le nom de domaine choisi, ajoutez la ligne suivante (avec votre domaine) :
+# Sitemap: https://www.votre-domaine.ci/sitemap.xml

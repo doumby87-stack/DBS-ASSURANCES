@@ -470,6 +470,10 @@
             <div class="faq__answer"><p>Depuis le 1<sup>er</sup>&nbsp;janvier 2023, les attestations d'assurance automobile sont digitales en Côte&nbsp;d'Ivoire. Émises sur la plateforme de l'ASACI, elles portent un QR code qui permet de vérifier leur authenticité lors d'un contrôle.</p></div>
           </details>
           <details>
+            <summary>Comment éviter les fausses attestations et les arnaques&nbsp;?<svg class="icon"><use href="#i-plus"/></svg></summary>
+            <div class="faq__answer"><p>Scannez le QR code de votre attestation pour vérifier qu'elle est authentique. Ne réglez votre prime qu'à l'agence ou sur les moyens de paiement que nous vous indiquons depuis le 07&nbsp;49&nbsp;36&nbsp;07&nbsp;02 ou dbs.conseils1@gmail.com, et demandez un reçu pour chaque paiement. En cas de doute sur un message reçu en notre nom, appelez-nous avant de payer.</p></div>
+          </details>
+          <details>
             <summary>Pouvez-vous assurer toute la flotte de mon entreprise&nbsp;?<svg class="icon"><use href="#i-plus"/></svg></summary>
             <div class="faq__answer"><p>Oui. Envoyez-nous la liste de vos véhicules (type, immatriculation, usage, valeur)&nbsp;: nous préparons la cotation, éditons les attestations en lot et suivons les renouvellements.</p></div>
           </details>
@@ -553,12 +557,12 @@
           <div class="grid-2">
             <div class="field">
               <label for="f-nom">Nom et prénoms ou raison sociale <span class="req" aria-hidden="true">*</span></label>
-              <input class="input" id="f-nom" name="nom" type="text" autocomplete="name" required aria-describedby="e-nom">
+              <input class="input" id="f-nom" name="nom" type="text" autocomplete="name" maxlength="120" required aria-describedby="e-nom">
               <p class="field__error" id="e-nom"></p>
             </div>
             <div class="field">
               <label for="f-tel">Téléphone <span class="req" aria-hidden="true">*</span></label>
-              <input class="input" id="f-tel" name="tel" type="tel" inputmode="tel" autocomplete="tel" placeholder="07 00 00 00 00" required aria-describedby="e-tel">
+              <input class="input" id="f-tel" name="tel" type="tel" inputmode="tel" autocomplete="tel" placeholder="07 00 00 00 00" maxlength="20" required aria-describedby="e-tel">
               <p class="field__error" id="e-tel"></p>
             </div>
           </div>
@@ -566,18 +570,18 @@
           <div class="grid-2">
             <div class="field">
               <label for="f-email">E-mail <span class="opt">(facultatif)</span></label>
-              <input class="input" id="f-email" name="email" type="email" autocomplete="email" aria-describedby="e-email">
+              <input class="input" id="f-email" name="email" type="email" autocomplete="email" maxlength="120" aria-describedby="e-email">
               <p class="field__error" id="e-email"></p>
             </div>
             <div class="field">
               <label for="f-ville">Commune ou ville <span class="opt">(facultatif)</span></label>
-              <input class="input" id="f-ville" name="ville" type="text" autocomplete="address-level2" placeholder="Yopougon, Cocody, Bouaké…">
+              <input class="input" id="f-ville" name="ville" type="text" autocomplete="address-level2" maxlength="80" placeholder="Yopougon, Cocody, Bouaké…">
             </div>
           </div>
 
           <div class="field">
             <label for="f-besoin">Votre besoin <span class="opt">(facultatif)</span></label>
-            <textarea class="input" id="f-besoin" name="besoin" rows="4" placeholder="Décrivez votre besoin en quelques mots…" aria-describedby="h-besoin"></textarea>
+            <textarea class="input" id="f-besoin" name="besoin" rows="4" maxlength="1500" placeholder="Décrivez votre besoin en quelques mots…" aria-describedby="h-besoin"></textarea>
             <p class="field__hint" id="h-besoin"></p>
           </div>
 

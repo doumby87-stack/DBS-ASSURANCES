@@ -131,17 +131,28 @@
     return !message;
   }
 
+  // Numéro ivoirien à 10 chiffres (avec ou sans 225), ou numéro étranger commençant par + ou 00
+  function telValide(valeur) {
+    var brut = valeur.trim();
+    var digits = brut.replace(/\D/g, "");
+    if (/^(\+|00)/.test(brut)) {
+      if (brut.indexOf("00") === 0) digits = digits.slice(2);
+      if (digits.indexOf("225") === 0) return digits.length === 13;
+      return digits.length >= 8 && digits.length <= 15;
+    }
+    return digits.length === 10 || (digits.length === 13 && digits.indexOf("225") === 0);
+  }
+
   function validate() {
     var first = null;
     function check(input, message) {
       if (!setError(input, message) && !first) first = input;
     }
     var nom = fields.nom.value.trim();
-    var digits = fields.tel.value.replace(/\D/g, "");
     var email = fields.email.value.trim();
 
     check(fields.nom, nom.length < 2 ? "Indiquez votre nom ou celui de votre entreprise." : "");
-    check(fields.tel, digits.length < 8 || digits.length > 15 ? "Indiquez un numéro valide, par exemple 07 49 36 07 02." : "");
+    check(fields.tel, telValide(fields.tel.value) ? "" : "Indiquez un numéro à 10 chiffres, par exemple 07 49 36 07 02, ou un numéro étranger commençant par +.");
     check(fields.email, email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) ? "Cette adresse e-mail semble incomplète." : "");
     check(fields.consent, fields.consent.checked ? "" : "Cochez cette case pour que nous puissions vous répondre.");
 
