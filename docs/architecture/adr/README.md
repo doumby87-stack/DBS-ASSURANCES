@@ -5,10 +5,10 @@ Chaque décision importante est écrite ici, avec son contexte et ses conséquen
 | N° | Décision | Statut |
 | --- | --- | --- |
 | [0001](0001-depot-unique.md) | Un dépôt unique, seul le site vitrine est publié | Acceptée |
-| [0002](0002-pile-technique.md) | TypeScript de bout en bout, PostgreSQL | Proposée |
+| [0002](0002-pile-technique.md) | TypeScript de bout en bout, PostgreSQL | Acceptée |
 | [0003](0003-api-seule-porte-d-acces.md) | L'API est la seule porte d'accès aux données | Acceptée |
 | [0004](0004-securite-dans-la-base.md) | Les règles critiques et les droits sont aussi appliqués par la base | Acceptée |
-| [0005](0005-authentification.md) | Deuxième facteur pour le personnel, code à usage unique pour les clients | Proposée |
+| [0005](0005-authentification.md) | Deuxième facteur pour le personnel, code à usage unique pour les clients | Acceptée (personnel en place) |
 | [0006](0006-hebergement-et-localisation-des-donnees.md) | Hébergement et localisation des données | En attente (ARTCI) |
 
 ## Modèle

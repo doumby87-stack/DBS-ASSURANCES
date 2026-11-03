@@ -29,13 +29,11 @@ Légende : ✅ terminé · 🔜 prochaine · ⏳ plus tard · 🧑‍💼 tâche
 - [ ] Demander au comptable quelles factures de l'agence relèvent de la **FNE** ([facturation](conformite/facturation-fne.md)).
 - [ ] Activer les **protections GitHub** ([paramètres GitHub](securite/parametres-github.md)).
 
-## 🔜 Tâche 3 — API : socle sécurisé
+## ✅ Tâche 3 — API : socle sécurisé
 
-Connexion du personnel (mot de passe + deuxième facteur), sessions, rôles, transaction qui déclare l'utilisateur à la base, journal technique, limitation des tentatives, tests de sécurité automatiques. Aucun écran métier encore.
+Connexion du personnel (mot de passe + deuxième facteur), sessions, rôles, transaction qui déclare l'utilisateur à la base, journal de sécurité, limitation des tentatives, tests de sécurité automatiques. Aucun écran métier encore ([API](../apps/api/README.md)).
 
-*Terminé quand :* un gérant se connecte avec son deuxième facteur, crée un compte, et les tests de sécurité de l'API passent en intégration continue.
-
-## ⏳ Tâche 4 — Back-office : clients, contrats, échéancier
+## 🔜 Tâche 4 — Back-office : clients, contrats, échéancier
 
 Fiche client unique, contrats, import des états de SanlamAllianz, tableau des échéances à J-30/J-15/J-7. **C'est la tâche qui tient la promesse du site** : « nous surveillons les échéances à votre place ».
 

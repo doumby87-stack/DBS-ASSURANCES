@@ -1,6 +1,6 @@
 # 0002 — TypeScript de bout en bout, PostgreSQL
 
-- Statut : Proposée (à confirmer au démarrage de la tâche 3)
+- Statut : Acceptée (validée par l'agence le 2026-11-03)
 - Date : 2026-11-03
 
 ## Contexte

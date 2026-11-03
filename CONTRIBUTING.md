@@ -19,9 +19,9 @@ Types : `feat` (fonctionnalité), `fix` (correction), `docs`, `refactor`, `test`
 ## Avant d'ouvrir une pull request
 
 ```bash
-node scripts/verifier-site.mjs
-node scripts/verifier-liens-docs.mjs
-./database/tests/executer.sh   # si la base est touchée
+npm run verifier                 # site, documentation, types et tests unitaires de l'API
+./database/tests/executer.sh     # si la base est touchée
+npm run test -w @dbs/api         # si l'API est touchée (PostgreSQL de test requis)
 ```
 
 Puis remplir le modèle de pull request, en particulier la partie sécurité.
