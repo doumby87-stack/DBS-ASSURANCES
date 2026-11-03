@@ -15,7 +15,7 @@ PostgreSQL 16 (ou plus récent). C'est ici que vivent les données des clients, 
 
 ## Ce que la base garantit
 
-Ces garanties sont vérifiées par `tests/01_securite_et_regles.sql` (64 contrôles) :
+Ces garanties sont vérifiées par `tests/01_securite_et_regles.sql` et `tests/02_authentification.sql` (90 contrôles) :
 
 - **Fermeture par défaut.** Sans utilisateur authentifié dans la transaction, aucune donnée métier n'est lisible ni modifiable.
 - **Cloisonnement par rôle**, ligne par ligne : l'apporteur ne voit que ses clients, le commercial ne voit pas la caisse, l'auditeur ne modifie rien. Matrice complète : [`docs/securite/controle-des-acces.md`](../docs/securite/controle-des-acces.md).
@@ -26,6 +26,7 @@ Ces garanties sont vérifiées par `tests/01_securite_et_regles.sql` (64 contrô
 - **Références obligatoires** pour le Mobile Money, les chèques et les virements, et pas de double enregistrement d'une même transaction.
 - **Code CIMA, art. 13** : un contrat ne passe « en vigueur » qu'une fois la prime entièrement payée.
 - **Reversements à la compagnie** : un bordereau préparé par une personne est validé par une autre (principe des quatre yeux), puis figé une fois versé. Le délai de 30 jours (art. 542) est suivi dans `app.v_encaissements_a_reverser`.
+- **Identifiants jamais en clair** : mots de passe hachés (Argon2id, contrôlé par la base), secrets du deuxième facteur chiffrés, jetons de session réduits à leur empreinte. Une fois un utilisateur déclaré, seul un gérant touche aux identifiants d'un autre. Journal de sécurité en ajout seul.
 - **Journal d'audit** en ajout seul : chaque écriture est consignée avec son auteur. Chaque ligne contient l'empreinte de la précédente, si bien qu'une falsification, même par un administrateur, est détectée par `audit.verifier_chaine()`.
 
 ## Comptes de la base
@@ -49,9 +50,10 @@ psql -U postgres -d postgres -v base=dbs -f database/initialisation/01_roles_et_
 # 2. Schéma (compte propriétaire)
 PGUSER=dbs_proprietaire PGDATABASE=dbs ./database/migrer.sh
 
-# 3. Premier gérant
+# 3. Premier gérant, puis son mot de passe provisoire (apps/api/README.md)
 psql -U dbs_proprietaire -d dbs -v email=prenom.nom@exemple.ci -v nom='Prénom NOM' \
      -f database/initialisation/02_premier_gerant.sql
+DATABASE_URL_PROPRIETAIRE=… npm run premier-acces -w @dbs/api -- prenom.nom@exemple.ci
 ```
 
 ## Comment l'API s'en sert
