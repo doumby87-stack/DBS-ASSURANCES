@@ -1,0 +1,90 @@
+# Vérifications lancées sur chaque pull request et sur main.
+# Les noms des tâches (« Site vitrine », etc.) sont ceux à rendre obligatoires
+# dans la règle de protection de main (docs/securite/parametres-github.md).
+name: Vérifications
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Le jeton GitHub de ces tâches ne peut que lire le dépôt
+permissions:
+  contents: read
+
+concurrency:
+  group: verifications-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  site:
+    name: Site vitrine
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Liens, images, politique de sécurité du contenu, secrets
+        run: node scripts/verifier-site.mjs
+
+  documentation:
+    name: Liens de la documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/verifier-liens-docs.mjs
+
+  base-de-donnees:
+    name: Base de données
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          # Serveur jetable, détruit à la fin de la tâche
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Migrations et tests de sécurité
+        run: ./database/tests/executer.sh
+
+  secrets:
+    name: Recherche de secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Gitleaks sur tout l'historique
+        # safe.directory : le dépôt monté n'appartient pas à l'utilisateur du conteneur
+        run: >-
+          docker run --rm -v "$PWD:/depot"
+          -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/depot
+          zricethezav/gitleaks:v8.26.0 git /depot --redact --verbose --no-banner

@@ -1,0 +1,7 @@
+# Relecture obligatoire par le propriétaire du dépôt pour les zones sensibles
+# (à rendre obligatoire dans la règle de protection de main : « Require review from Code Owners »).
+*                          @doumby87-stack
+/database/                 @doumby87-stack
+/apps/site-vitrine/_headers @doumby87-stack
+/.github/                  @doumby87-stack
+/docs/securite/            @doumby87-stack
