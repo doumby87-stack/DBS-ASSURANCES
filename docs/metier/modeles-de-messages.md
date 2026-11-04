@@ -1,6 +1,6 @@
 # Modèles de messages des relances
 
-Sur WhatsApp, une entreprise ne peut écrire la première à un client qu'avec un **modèle validé par Meta**. Voici les quatre modèles à soumettre, mot pour mot : l'API les envoie sous ces noms, avec ces textes. Un test (`apps/api/tests/unitaires/relances-modeles.test.ts`) vérifie que ce document et le code restent identiques.
+Sur WhatsApp, une entreprise ne peut écrire la première à un client qu'avec un **modèle validé par Meta**. Voici les cinq modèles à soumettre, mot pour mot : l'API les envoie sous ces noms, avec ces textes. Un test (`apps/api/tests/unitaires/relances-modeles.test.ts`) vérifie que ce document et le code restent identiques.
 
 ## Soumettre les modèles (tâche de l'agence)
 

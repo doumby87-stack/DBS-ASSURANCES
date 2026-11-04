@@ -16,20 +16,24 @@ Légende : ✅ terminé · 🔜 prochaine · ⏳ plus tard · 🧑‍💼 tâche
 
 ## 🧑‍💼 Tâche 2 — Décisions et démarches de l'agence
 
-À lancer **dès maintenant**, en parallèle du code : certaines démarches prennent des semaines.
+À lancer **dès maintenant**, en parallèle du code : certaines démarches prennent des semaines. C'est la liste unique de ce que l'agence doit faire elle-même ; les tâches suivantes y renvoient.
 
 - [ ] Déclarer le traitement des données clients à l'**ARTCI** et demander, si l'hébergement est hors de Côte d'Ivoire, l'autorisation de transfert ([données personnelles](conformite/donnees-personnelles.md)).
 - [ ] Choisir l'**hébergeur** de l'application ([ADR 0006](architecture/adr/0006-hebergement-et-localisation-des-donnees.md)).
 - [ ] Choisir et réserver le **nom de domaine**, puis créer une adresse e-mail professionnelle (fin de l'adresse Gmail) avec protection contre l'usurpation (SPF, DKIM, DMARC).
-- [ ] Demander à **SanlamAllianz** : ce que fournit son extranet, le format de ses états de production et de commissions, sa procédure de lutte contre le blanchiment pour les agents, et son accord sur l'usage du logo.
+- [ ] Demander à **SanlamAllianz** : ce que fournit son extranet, le format de ses états de production et de commissions, sa procédure de lutte contre le blanchiment pour les agents, et son accord sur l'usage du logo ; pour la caisse, le format des bordereaux, les taux de commission par branche et le paiement fractionné de la prime ; pour les flottes, les frais d'avenant éventuels, la ristourne minimale ou la retenue sur un retrait, et le format attendu pour la cotation en lot.
+- [ ] Demander à l'**ASACI** (ou à SanlamAllianz) l'accès à la plateforme des attestations digitales : émission et vérification par l'agence, et s'il existe un moyen de l'interroger depuis l'application (tâche 10).
 - [ ] Confirmer la **source réglementaire du plafond d'espèces** de 1 000 000 F CFA par police, appliqué par la base.
 - [ ] Ouvrir un **compte marchand** de paiement Mobile Money (par exemple CinetPay) au nom de la société, plutôt que d'utiliser un numéro personnel.
-- [ ] Faire vérifier l'entreprise et le compte **WhatsApp Business** de l'agence par Meta (sur un numéro dédié), puis soumettre les **quatre modèles de messages** des relances ([modèles](metier/modeles-de-messages.md)).
+- [ ] Faire vérifier l'entreprise et le compte **WhatsApp Business** de l'agence par Meta (sur un numéro dédié), puis soumettre les **cinq modèles de messages** des relances ([modèles](metier/modeles-de-messages.md)), et recueillir l'accord des clients existants (WhatsApp, SMS) au guichet ou par téléphone.
 - [ ] Choisir l'**opérateur SMS** des relances (agréé, nom d'expéditeur « DBS-ASSUR », accusés de réception, réponses « STOP ») ([ADR 0007](architecture/adr/0007-relances-whatsapp-et-sms.md)).
 - [ ] Compléter les **mentions légales** : n° d'agrément ou de carte professionnelle, hébergeur, horaires.
 - [ ] Valider les engagements proposés pour les **réclamations** (délais de réponse).
 - [ ] Demander au comptable quelles factures de l'agence relèvent de la **FNE** ([facturation](conformite/facturation-fne.md)).
 - [ ] Activer les **protections GitHub** ([paramètres GitHub](securite/parametres-github.md)).
+- [ ] Préparer la **reprise des données** : liste des clients, contrats en cours (n° de police, dates, primes, véhicules) et encaissements non encore reversés, sous forme d'export de l'extranet ou de classeur Excel ; un outil d'import contrôlé, sur le modèle de celui des flottes, sera fait à partir d'un fichier réel.
+- [ ] Désigner le **personnel** qui aura un compte et son rôle (gérant, chargé de clientèle, caissier, commercial, apporteur, auditeur) ; chacun installe une application d'authentification (deuxième facteur) sur son téléphone.
+- [ ] Une fois l'hébergeur choisi : installer le démon **ClamAV** à côté de l'API, renseigner les variables (`URL_SITE_VITRINE`, `ANTIVIRUS_ADRESSE`, clés WhatsApp et SMS) dans l'API et `URL_API` dans Netlify, puis **tester une restauration** de sauvegarde ([sauvegardes](securite/sauvegardes-et-reprise.md)).
 
 ## ✅ Tâche 3 — API : socle sécurisé
 
@@ -62,6 +66,8 @@ Le formulaire du site enregistre la demande, avec la carte grise (photo ou PDF, 
 ## ✅ Tâche 8 — Flottes
 
 Écran « Flotte » de chaque client : import de la liste des véhicules (classeur Excel ou CSV) contrôlée ligne par ligne, avec toutes les erreurs affichées avant tout enregistrement ; échéances de visite technique, vignette et carte de transport, rappelées sur WhatsApp à J-30, J-7 et à l'échéance en un seul message par client et par étape (règles de la tâche 6) ; composition des contrats flotte et avenants d'incorporation ou de retrait (plusieurs véhicules par avenant, réintégration, annulation d'un avenant saisi par erreur) au prorata, calculés par la base et suivis en caisse ; export pour la cotation en lot ([ADR 0010](architecture/adr/0010-flottes.md)).
+
+Revue d'ensemble après la tâche 8 : un contrat échu passe de lui-même à « expiré » ; le renouvellement reprend les véhicules encore couverts ; plus aucun rappel de documents pour un véhicule vendu ou un client parti.
 
 *À confirmer avec SanlamAllianz (tâche 2) :* frais d'avenant, ristourne minimale sur un retrait, format attendu pour la cotation en lot. *À faire valider par Meta :* le modèle `dbs_documents_vehicules` ([modèles de messages](metier/modeles-de-messages.md)).
 
