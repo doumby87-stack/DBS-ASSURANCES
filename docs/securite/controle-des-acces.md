@@ -36,9 +36,13 @@ L = lire · C = créer · M = modifier · — = aucun accès
 | Sinistres | L C M | L C M | — | L | — | L |
 | Devis | L C M | L C M | — | L C M | ses clients : L C | L |
 | Échanges (ajout seul) | L C | L C | L C | L C | ses clients : L C | L |
+| Consentements aux relances (ajout seul) | L C | L C | L | L C | ses clients : L | L |
+| Relances | L, annulation avant l'envoi | L, annulation avant l'envoi | — | L | — | L |
 | Journal d'audit | via le rôle `dbs_audit` | — | — | — | — | via le rôle `dbs_audit` |
 
 Personne, pas même le gérant, ne modifie un encaissement, ne valide son propre bordereau, ne vise sa propre clôture de caisse ou ne supprime une ligne. Les exports de données (bordereaux) sont réservés au gérant et consignés au journal de sécurité.
+
+Personne ne crée une relance à la main ni ne réécrit un consentement : les relances sont créées par le planificateur de l'API, qui travaille sans utilisateur connecté au moyen de cinq fonctions de la base limitées à cet usage ([ADR 0007](../architecture/adr/0007-relances-whatsapp-et-sms.md)). Un « STOP » reçu sur WhatsApp est enregistré par la base sans auteur, comme réponse du client.
 
 ## Vie des comptes
 

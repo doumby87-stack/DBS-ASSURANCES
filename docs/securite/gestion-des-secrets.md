@@ -18,7 +18,7 @@ Un secret est tout ce qui donne un accès : mot de passe, clé d'API, clé de ch
 | Mot de passe `dbs_application` | API | Gestionnaire de secrets de l'hébergeur |
 | Clé de chiffrement (`CLE_CHIFFREMENT_DONNEES` : secrets du deuxième facteur, pièces d'identité) | API | Gestionnaire de secrets ; copie de secours scellée, hors ligne. Sa perte oblige à réinitialiser l'accès de tout le personnel. |
 | Clés du prestataire de paiement | API | Gestionnaire de secrets |
-| Jeton WhatsApp Business et secret de signature des webhooks | API | Gestionnaire de secrets |
+| Jeton WhatsApp Business (`WHATSAPP_JETON`), secret de l'application Meta qui signe les notifications (`WHATSAPP_SECRET_APPLICATION`), jeton de vérification des notifications (`WHATSAPP_JETON_VERIFICATION`) | API | Gestionnaire de secrets ; jeton d'un utilisateur système Meta, réservé à l'envoi de messages |
 | Accès FNE (DGI) | API | Gestionnaire de secrets |
 | Comptes hébergeur, GitHub, domaine | Personnes | Coffre-fort d'équipe, deuxième facteur obligatoire |
 

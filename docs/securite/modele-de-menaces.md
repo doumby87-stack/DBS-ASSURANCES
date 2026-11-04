@@ -36,7 +36,9 @@ Statut : ✅ en place · 🔜 prévu (n° de tâche de la [feuille de route](../
 | **Secret publié par erreur** | Clé de paiement poussée dans le dépôt | Recherche de secrets en intégration continue et à la publication du site, protection GitHub contre l'envoi de secrets | ✅ |
 | **Dépendance compromise** | Bibliothèque piégée | Dépendances limitées et verrouillées, Dependabot, revue des mises à jour | ✅ Actions · 🔜 3 |
 | **Blocage volontaire d'un compte** | Quelqu'un se trompe exprès de mot de passe pour bloquer le gérant | Blocage limité dans le temps, déblocage par un autre gérant (réinitialisation), pare-feu applicatif | ✅ · 🔜 11 |
-| **Perte du téléphone WhatsApp de l'agence** | Conversations clients accessibles | API WhatsApp Business multi-utilisateurs au lieu d'un seul téléphone, verrouillage de l'appareil | 🔜 6 |
+| **Perte du téléphone WhatsApp de l'agence** | Conversations clients accessibles | API WhatsApp Business multi-utilisateurs au lieu d'un seul téléphone, verrouillage de l'appareil | ✅ 6 (relances) |
+| **Fausse notification WhatsApp** | Requête fabriquée qui marque des messages « lus » ou désinscrit des clients | Signature de Meta vérifiée sur le corps exact reçu, en temps constant ; sans elle, refus | ✅ |
+| **Relances indésirables** | Client relancé sans l'avoir accepté, ou malgré un « STOP » | Accord par canal noté avec sa preuve, « STOP » appliqué sans intervention et revérifié avant chaque envoi, une seule relance par étape, jamais la nuit | ✅ |
 | **Site vitrine défiguré** | Page modifiée chez l'hébergeur | Déploiement uniquement depuis GitHub, accès hébergeur avec deuxième facteur, site sans donnée | ✅ · 🔜 2 |
 
 ## Hors de portée

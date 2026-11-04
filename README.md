@@ -10,8 +10,8 @@ L'objectif dépasse la vitrine : donner à l'agence un outil qui tient ses prome
 | --- | --- | --- |
 | Site vitrine | [`apps/site-vitrine`](apps/site-vitrine) | ✅ En place, protégé par des en-têtes de sécurité |
 | Base de données | [`database`](database) | ✅ Schéma sécurisé et testé (règles CIMA, contrôle d'accès, journal d'audit) |
-| API | [`apps/api`](apps/api) | 🟡 Connexion du personnel, comptes, clients, contrats, véhicules, devis, échanges, échéances, caisse, reversements, commissions |
-| Back-office de l'agence | [`apps/admin`](apps/admin) | 🟡 Connexion, échéances, clients, fiche client, caisse et reçus, reversements, commissions, personnel |
+| API | [`apps/api`](apps/api) | 🟡 Connexion du personnel, comptes, clients, contrats, véhicules, devis, échanges, échéances, caisse, reversements, commissions, relances automatiques (WhatsApp, SMS) |
+| Back-office de l'agence | [`apps/admin`](apps/admin) | 🟡 Connexion, échéances, clients, fiche client, caisse et reçus, reversements, commissions, relances et consentements, personnel |
 | Espace client | [`apps/espace-client`](apps/espace-client) | ⏳ |
 
 Le détail, tâche par tâche : [feuille de route](docs/feuille-de-route.md).
