@@ -16,6 +16,7 @@ import { creerAntivirus, type Antivirus } from "./integrations/antivirus/clamav.
 import { routesNotificationsWhatsApp } from "./integrations/whatsapp/notifications.js";
 import { routesCaisse } from "./modules/encaissements/caisse.js";
 import { routesEncaissements } from "./modules/encaissements/routes.js";
+import { routesFlottes } from "./modules/flottes/routes.js";
 import { creerMessagerie, type Messagerie } from "./modules/relances/messagerie.js";
 import { routesRelances } from "./modules/relances/routes.js";
 import { routesReversements } from "./modules/reversements/routes.js";
@@ -104,6 +105,7 @@ export async function construireApplication(dependances: DependancesApplication)
   await app.register(routesClients, { pool, gardes });
   await app.register(routesContrats, { pool, gardes });
   await app.register(routesVehicules, { pool, gardes });
+  await app.register(routesFlottes, { pool, gardes });
   await app.register(routesDevis, { pool, gardes });
   const antivirus = dependances.antivirus ?? creerAntivirus(config.antivirus);
   await app.register(routesDemandesSiteBackOffice, { pool, gardes, cleChiffrement: config.cleChiffrement, antivirus });

@@ -75,6 +75,20 @@ Bonjour {{1}}, votre sinistre du {{2}} (assurance {{3}}) : {{4}}. Pour toute que
 
 Étapes possibles : « votre déclaration est bien enregistrée », « votre dossier a été transmis à SanlamAllianz », « l'expertise est en cours », « la compagnie a fait une offre d'indemnisation, contactez-nous pour en parler », « votre dossier est réglé », « la compagnie a refusé la prise en charge, contactez-nous pour en connaître les raisons », « votre dossier est classé sans suite ».
 
+### `dbs_documents_vehicules`
+
+Rappel des documents des véhicules d'un client (visite technique, vignette, carte de transport) : à J-30, à J-7, puis une fois échus (dans les 15 jours). **Un seul message par client et par étape**, qui liste ses véhicules : un transporteur ne reçoit pas un message par camion. Chaque document n'est annoncé qu'une fois par étape.
+
+```text
+Bonjour {{1}}, {{2}} : {{3}}. Pour rouler en règle, pensez à les renouveler à temps. Pour toute question, répondez à ce message ou appelez DBS-ASSURANCES au 07 49 36 07 02.
+```
+
+| Variable | Contenu | Exemple pour Meta |
+| --- | --- | --- |
+| `{{1}}` | Nom du client | Transports Yao |
+| `{{2}}` | Nombre de documents et échéance | 3 documents de vos véhicules arrivent à échéance, le premier le 24/11/2026 |
+| `{{3}}` | Les documents (cinq au plus, puis « et N autres ») | visite technique 9011 AB 01 le 24/11, vignette 9011 AB 01 le 29/11 et 1 autre |
+
 ## Par SMS
 
 Le même texte, rempli, suivi de : `Ne plus recevoir ces SMS : 07 49 36 07 02.` Un SMS de relance fait environ 220 caractères, soit deux SMS facturés. Le canal SMS ne sera actif qu'une fois l'opérateur choisi ([ADR 0007](../architecture/adr/0007-relances-whatsapp-et-sms.md)).
