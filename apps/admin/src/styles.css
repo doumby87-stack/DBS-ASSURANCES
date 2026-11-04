@@ -251,3 +251,12 @@ a.bouton--principal { color: var(--blanc); }
 @media (max-width: 640px) {
   .details div { grid-template-columns: 1fr; gap: 0.1rem; }
 }
+
+/* Flottes (tâche 8) */
+.carte--orange .carte__nombre { color: #9a5b00; }
+.apercu-import { margin-top: 1rem; padding: 1rem; background: var(--fond); border-radius: var(--rayon); }
+.apercu-import p { margin: 0 0 0.5rem; }
+.avenant { margin-top: 1rem; padding: 1rem; background: var(--fond); border-radius: var(--rayon); }
+.avenant .alerte { grid-column: 1 / -1; margin: 0; }
+.avenant .formulaire__actions { grid-column: 1 / -1; flex-wrap: wrap; }
+.sous-titre { margin: 1.5rem 0 0.5rem; }

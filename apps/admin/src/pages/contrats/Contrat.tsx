@@ -21,6 +21,10 @@ export interface SoldeContrat {
   dateEcheance: string;
   primeTtc: number;
   primeNette: number | null;
+  /** Avenants de flotte : primes ajoutées, ristournes retranchées */
+  primesAvenants: number;
+  primeDue: number;
+  aRembourser: number;
   encaisse: number;
   especes: number;
   plafondEspeces: number;
@@ -73,6 +77,9 @@ export function Contrat({ id }: { id: string }) {
         <div><dt>Statut</dt><dd><Badge ton={contrat.statut === "en_vigueur" ? "vert" : "orange"}>{STATUTS_CONTRAT[contrat.statut]}</Badge></dd></div>
         <div><dt>Période</dt><dd>{dateCourte(contrat.dateEffet)} → {dateCourte(contrat.dateEcheance)}</dd></div>
         <div><dt>Prime TTC</dt><dd>{montant(contrat.primeTtc)}</dd></div>
+        {contrat.primesAvenants !== 0 && (
+          <div><dt>Avenants de flotte</dt><dd>{contrat.primesAvenants > 0 ? "+ " : "− "}{montant(Math.abs(contrat.primesAvenants))}</dd></div>
+        )}
         <div><dt>Encaissé</dt><dd>{montant(contrat.encaisse)}</dd></div>
         <div><dt>Reste à payer</dt><dd>{montant(contrat.resteAPayer)}</dd></div>
         <div><dt>Encore possible en espèces</dt><dd>{montant(contrat.especesPossibles)}</dd></div>
@@ -80,7 +87,17 @@ export function Contrat({ id }: { id: string }) {
       <Alerte>{erreur}</Alerte>
 
       {peut("gerant", "caissier") && contrat.resteAPayer > 0 && <Encaisser contrat={contrat} />}
-      {contrat.resteAPayer === 0 && <Alerte type="succes">Prime entièrement payée : le contrat est en vigueur.</Alerte>}
+      {contrat.resteAPayer === 0 && contrat.aRembourser === 0 && (
+        <Alerte type="succes">
+          {contrat.primesAvenants === 0 ? "Prime entièrement payée : le contrat est en vigueur." : "Prime et avenants entièrement payés."}
+        </Alerte>
+      )}
+      {contrat.aRembourser > 0 && (
+        <Alerte type="info">Ristourne d'avenant : {montant(contrat.aRembourser)} payés en trop, à rembourser au client ou à déduire de sa prochaine prime.</Alerte>
+      )}
+      {contrat.resteAPayer > 0 && contrat.statut === "en_vigueur" && contrat.primesAvenants > 0 && (
+        <Alerte type="info">Prime de départ payée ; {montant(contrat.resteAPayer)} d'avenant restent à encaisser.</Alerte>
+      )}
 
       <Section titre="Reçus">
         {encaissements.length === 0 ? <Vide>Aucun paiement enregistré.</Vide> : (

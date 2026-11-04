@@ -156,7 +156,13 @@ export function FicheClient({ id }: { id: string }) {
         )}
       </Section>
 
-      <Section titre="Véhicules" actions={peut("gerant", "charge_clientele", "commercial") && <Repliable libelle="Ajouter un véhicule"><NouveauVehicule clientId={client.id} apres={charger} /></Repliable>}>
+      <Section
+        titre="Véhicules"
+        actions={<>
+          <Lien className="bouton bouton--petit" href={`/clients/${client.id}/flotte`}>Flotte : import, échéances, avenants</Lien>
+          {peut("gerant", "charge_clientele", "commercial") && <Repliable libelle="Ajouter un véhicule"><NouveauVehicule clientId={client.id} apres={charger} /></Repliable>}
+        </>}
+      >
         {fiche.vehicules.length === 0 ? <Vide>Aucun véhicule.</Vide> : (
           <div className="tableau-defilant">
             <table className="tableau">
