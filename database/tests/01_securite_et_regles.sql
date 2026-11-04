@@ -109,8 +109,9 @@ SELECT tests.doit_echouer($q$INSERT INTO app.encaissements (contrat_id, montant,
   VALUES ('30000000-0000-4000-8000-000000000001', 500000, 'mobile_money')$q$, 'encaissements_reference');
 INSERT INTO app.encaissements (id, contrat_id, montant, mode, reference_externe)
 VALUES ('40000000-0000-4000-8000-000000000003', '30000000-0000-4000-8000-000000000001', 500000, 'mobile_money', 'MP-0001');
+-- Même transaction Mobile Money présentée une seconde fois, même sur un autre contrat : refusée
 SELECT tests.doit_echouer($q$INSERT INTO app.encaissements (contrat_id, montant, mode, reference_externe)
-  VALUES ('30000000-0000-4000-8000-000000000001', 500000, 'mobile_money', 'MP-0001')$q$, 'encaissements_reference_unique');
+  VALUES ('30000000-0000-4000-8000-000000000002', 1000, 'mobile_money', 'MP-0001')$q$, 'encaissements_reference_unique');
 SELECT tests.doit_echouer($q$UPDATE app.encaissements SET montant = 1 WHERE id = '40000000-0000-4000-8000-000000000001'$q$,
                           'permission denied');
 SELECT tests.doit_echouer($q$DELETE FROM app.encaissements WHERE id = '40000000-0000-4000-8000-000000000001'$q$,
