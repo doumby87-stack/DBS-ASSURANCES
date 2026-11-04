@@ -31,7 +31,8 @@ Statut : ✅ en place · 🔜 prévu (n° de tâche de la [feuille de route](../
 | **Script injecté dans une page (XSS)** | Nom de client contenant du code | Politique de sécurité du contenu stricte, échappement systématique à l'affichage | ✅ site · 🔜 4 |
 | **Requête forcée depuis un autre site (CSRF)** | Lien piégé qui valide un bordereau | Cookies `SameSite=Strict` et `__Host-`, contrôle de l'origine, JSON uniquement | ✅ |
 | **Faux avis de paiement** | Notification « paiement reçu » fabriquée | Signature vérifiée, confirmation auprès du prestataire, référence enregistrée une seule fois | ✅ base · 🔜 9 |
-| **Fichier piégé** | Pièce jointe malveillante déposée comme « constat » | Types et tailles contrôlés, analyse antivirus, stockage hors du serveur web, téléchargement sous un nom neutre | 🔜 7 |
+| **Fichier piégé** | Pièce jointe malveillante déposée comme « carte grise » ou « constat » | Type reconnu d'après le contenu (JPEG, PNG, PDF), taille limitée, fichier chiffré en base et jamais servi par le site, téléchargement en pièce jointe sous un nom neutre ✅ ; analyse antivirus avec le stockage de fichiers 🔜 | ✅ 7 · 🔜 11 |
+| **Envoi massif de demandes** | Robot qui remplit le formulaire du site des milliers de fois | Route réservée à l'origine du site, champ piège, 5 demandes par heure et par adresse et 300 par jour appliqués par la base, corps limité ✅ ; pare-feu applicatif 🔜 | ✅ 7 · 🔜 11 |
 | **Rançongiciel ou panne** | Serveur chiffré par un attaquant | Sauvegardes hors site immuables, restauration testée chaque mois | 🔜 11 |
 | **Secret publié par erreur** | Clé de paiement poussée dans le dépôt | Recherche de secrets en intégration continue et à la publication du site, protection GitHub contre l'envoi de secrets | ✅ |
 | **Dépendance compromise** | Bibliothèque piégée | Dépendances limitées et verrouillées, Dependabot, revue des mises à jour | ✅ Actions · 🔜 3 |

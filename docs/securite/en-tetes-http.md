@@ -40,6 +40,10 @@ npm run test:navigateur -w @dbs/site-vitrine
 
 Le premier contrôle lit les pages construites ; le second les ouvre dans Chromium avec ces en-têtes (`tests/serveur.mjs`) et échoue à la moindre violation. Netlify et l'intégration continue refusent la publication tant que ce n'est pas corrigé.
 
+### Formulaire relié à l'API (tâche 7)
+
+Quand le site est construit avec l'adresse de l'API (`URL_API`), la construction ajoute `connect-src <origine de l'API>` à la politique : le formulaire peut envoyer la demande à cette API, et à aucun autre site. `scripts/verifier-site.mjs` refuse un formulaire relié à une API que `_headers` n'autorise pas.
+
 ### Hébergeur sans fichier `_headers`
 
 Sur un hébergeur classique (Apache), demander l'équivalent dans la configuration du serveur ou dans un fichier `.htaccess`, avec exactement les mêmes valeurs.
