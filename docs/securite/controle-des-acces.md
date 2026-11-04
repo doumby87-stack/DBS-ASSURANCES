@@ -38,7 +38,7 @@ L = lire · C = créer · M = modifier · — = aucun accès
 | Échanges (ajout seul) | L C | L C | L C | L C | ses clients : L C | L |
 | Consentements aux relances (ajout seul) | L C | L C | L | L C | ses clients : L | L |
 | Relances | L, annulation avant l'envoi | L, annulation avant l'envoi | — | L | — | L |
-| Avenants de flotte (ajout seul) | L C | L C | L | L | ses clients : L | L |
+| Avenants de flotte (ajout seul ; une erreur se corrige par un avenant d'annulation) | L C | L C | L | L | ses clients : L | L |
 | Demandes reçues par le site | L, traitement | L, traitement | — | L, traitement | — | L |
 | Cartes grises jointes aux demandes | L (téléchargement consigné) | L (téléchargement consigné) | — | L (téléchargement consigné) | — | — |
 | Journal d'audit | via le rôle `dbs_audit` | — | — | — | — | via le rôle `dbs_audit` |

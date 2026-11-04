@@ -23,7 +23,9 @@ erDiagram
   CLIENTS ||--o{ CONSENTEMENTS : "accepte ou refuse"
   CLIENTS ||--o{ RELANCES : "reçoit"
   CONTRATS ||--o{ AVENANTS_FLOTTE : "modifié par"
-  VEHICULES ||--o{ AVENANTS_FLOTTE : "ajouté ou retiré"
+  AVENANTS_FLOTTE ||--|{ AVENANTS_FLOTTE_LIGNES : "détaille"
+  VEHICULES ||--o{ AVENANTS_FLOTTE_LIGNES : "incorporé ou retiré"
+  AVENANTS_FLOTTE |o--o| AVENANTS_FLOTTE : "annule"
   VEHICULES ||--o{ ANNONCES_DOCUMENTS : "documents rappelés"
   RELANCES ||--o{ ANNONCES_DOCUMENTS : "annonce"
   DEMANDES_SITE |o--o| DEVIS : "devient"
@@ -67,8 +69,11 @@ erDiagram
   CONTRATS_VEHICULES {
     uuid id
     text numero_attestation "ASACI"
-    date ajoute_le
+    date ajoute_le "une ligne par période : un véhicule réintégré en a plusieurs"
     date retire_le
+    bigint prime_vehicule "base du prorata d'un retrait"
+    uuid incorpore_par "avenant qui a ouvert la période"
+    uuid retire_par "avenant qui l'a fermée"
   }
   ENCAISSEMENTS {
     uuid id
@@ -138,11 +143,17 @@ erDiagram
   AVENANTS_FLOTTE {
     uuid id
     bigint numero "continu, attribué par la base"
-    nature_avenant nature "ajout ou retrait"
-    date date_effet
+    nature_avenant nature "mouvement ou annulation"
+    date date_effet "la même pour tous ses véhicules"
+    bigint montant "somme des lignes, calculée par la base"
+    uuid annule_avenant_id "avenant défait par une annulation"
+    text motif "obligatoire pour une annulation"
+  }
+  AVENANTS_FLOTTE_LIGNES {
+    mouvement_flotte mouvement "incorporation ou retrait"
     bigint prime_vehicule "pour toute la période du contrat"
     integer jours_restants "calculé par la base"
-    bigint montant "prorata : positif à l'ajout, ristourne au retrait"
+    bigint montant "prorata : positif à l'incorporation, ristourne au retrait"
   }
   ANNONCES_DOCUMENTS {
     text document "visite technique, vignette, carte de transport"
@@ -193,7 +204,7 @@ erDiagram
 | `app.v_echeances_vehicules` | Visite technique, vignette, carte de transport à renouveler dans les 60 jours. |
 | `app.v_sinistres_suivi` | Délai de déclaration et, pour un sinistre corporel, date limite indicative de l'offre. |
 | `app.v_consentements` | Dernier choix de chaque client pour chaque canal de relance. |
-| `app.v_avenants_flotte` | Avenants de flotte avec leur règlement : les encaissements au-delà de la prime de départ règlent les avenants dans l'ordre. |
+| `app.v_avenants_flotte` | Avenants de flotte avec leur règlement (les encaissements au-delà de la prime de départ règlent les avenants dans l'ordre) et leur annulation éventuelle. |
 | `app.v_relances_dues` | Relances dues aujourd'hui (échéance à J-30, J-15, J-7 et le jour même, contrat expiré depuis moins de 7 jours, devis sans réponse depuis 3 jours, avancement d'un sinistre) qui ne sont pas encore planifiées. |
 
 Toutes les vues appliquent les droits de la personne qui les consulte (`security_invoker`).

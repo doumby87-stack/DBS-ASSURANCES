@@ -61,7 +61,7 @@ Le formulaire du site enregistre la demande, avec la carte grise (photo ou PDF, 
 
 ## ✅ Tâche 8 — Flottes
 
-Écran « Flotte » de chaque client : import de la liste des véhicules (classeur Excel ou CSV) contrôlée ligne par ligne, avec toutes les erreurs affichées avant tout enregistrement ; échéances de visite technique, vignette et carte de transport, rappelées sur WhatsApp à J-30, J-7 et à l'échéance en un seul message par client et par étape (règles de la tâche 6) ; composition des contrats flotte et avenants d'ajout ou de retrait au prorata, calculés par la base et suivis en caisse ; export pour la cotation en lot ([ADR 0010](architecture/adr/0010-flottes.md)).
+Écran « Flotte » de chaque client : import de la liste des véhicules (classeur Excel ou CSV) contrôlée ligne par ligne, avec toutes les erreurs affichées avant tout enregistrement ; échéances de visite technique, vignette et carte de transport, rappelées sur WhatsApp à J-30, J-7 et à l'échéance en un seul message par client et par étape (règles de la tâche 6) ; composition des contrats flotte et avenants d'incorporation ou de retrait (plusieurs véhicules par avenant, réintégration, annulation d'un avenant saisi par erreur) au prorata, calculés par la base et suivis en caisse ; export pour la cotation en lot ([ADR 0010](architecture/adr/0010-flottes.md)).
 
 *À confirmer avec SanlamAllianz (tâche 2) :* frais d'avenant, ristourne minimale sur un retrait, format attendu pour la cotation en lot. *À faire valider par Meta :* le modèle `dbs_documents_vehicules` ([modèles de messages](metier/modeles-de-messages.md)).
 

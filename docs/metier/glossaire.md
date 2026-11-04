@@ -9,7 +9,7 @@ Les mots du métier, tels qu'ils sont utilisés dans le code, la base et la docu
 | **ARTCI** | Autorité de régulation des télécommunications de Côte d'Ivoire, autorité de protection des données personnelles. |
 | **ASACI** | Association des sociétés d'assurances de Côte d'Ivoire ; gère la plateforme des attestations automobiles digitales. |
 | **Attestation digitale** | Attestation d'assurance automobile électronique avec QR code vérifiable, obligatoire depuis le 1er janvier 2023. Une par véhicule. |
-| **Avenant** | Modification d'un contrat en cours (ajout d'un véhicule, changement de garantie). |
+| **Avenant** | Modification d'un contrat en cours (incorporation ou retrait d'un véhicule, changement de garantie). |
 | **Billetage** | Décompte des espèces par coupure (billets de 10 000, 5 000… pièces de 500, 250…) lors de la clôture de caisse. |
 | **Bénéficiaire effectif** | Personne physique qui possède ou contrôle, en dernier ressort, un client entreprise. |
 | **Bordereau de reversement** | Liste des primes encaissées remises à la compagnie sur une période. Table `app.reversements`. |
@@ -21,15 +21,17 @@ Les mots du métier, tels qu'ils sont utilisés dans le code, la base et la docu
 | **Encaissement** | Paiement reçu par l'agence, avec un numéro de reçu. Table `app.encaissements`. |
 | **Flotte** | Ensemble des véhicules d'une entreprise, assurés dans un même contrat. |
 | **FNE** | Facture normalisée électronique de la Direction générale des impôts. |
+| **Incorporation** | Entrée d'un véhicule dans un contrat flotte en cours, par avenant, avec une prime au prorata des jours restants. Une **réintégration** est l'incorporation d'un véhicule qui était sorti du même contrat. |
 | **LBC/FT** | Lutte contre le blanchiment de capitaux et le financement du terrorisme. |
 | **Police** | Le contrat d'assurance ; son numéro est attribué par la compagnie. |
 | **Prime nette** | Prime hors taxes et accessoires : base de calcul de la commission. |
 | **Prime TTC** | Montant total payé par l'assuré, taxes et accessoires compris. En francs CFA, entier. |
-| **Prorata** | Part de prime correspondant à une fraction de l'année (véhicule ajouté ou retiré en cours de contrat). |
+| **Prorata** | Part de prime correspondant à une fraction de la période du contrat (véhicule incorporé ou retiré en cours de contrat). |
 | **Quatre yeux** | Principe selon lequel une opération sensible est préparée par une personne et validée par une autre. |
 | **Quittance** | Reçu de prime émis par la compagnie. |
 | **Reçu** | Document remis au client pour chaque paiement à l'agence, numéroté sans trou par la base, avec le montant en lettres. |
 | **RC** | Responsabilité civile : dommages causés à autrui. Obligatoire pour les véhicules (art. 200). |
+| **Retrait** | Sortie d'un véhicule d'un contrat flotte en cours, par avenant, qui donne droit à une ristourne au prorata des jours restants. |
 | **Reversement** | Versement à la compagnie des primes encaissées par l'agence, sous 30 jours (art. 542). |
 | **Sinistre** | Événement couvert par le contrat (accident, vol, incendie…) qui donne lieu à indemnisation. |
 | **TRC** | Tous risques chantier. |
