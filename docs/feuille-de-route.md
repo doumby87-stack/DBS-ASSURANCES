@@ -25,7 +25,7 @@ Légende : ✅ terminé · 🔜 prochaine · ⏳ plus tard · 🧑‍💼 tâche
 - [ ] Demander à l'**ASACI** (ou à SanlamAllianz) l'accès à la plateforme des attestations digitales : émission et vérification par l'agence, et s'il existe un moyen de l'interroger depuis l'application (tâche 10).
 - [ ] Confirmer la **source réglementaire du plafond d'espèces** de 1 000 000 F CFA par police, appliqué par la base.
 - [ ] Ouvrir un **compte marchand** de paiement Mobile Money (par exemple CinetPay) au nom de la société, plutôt que d'utiliser un numéro personnel.
-- [ ] Faire vérifier l'entreprise et le compte **WhatsApp Business** de l'agence par Meta (sur un numéro dédié), puis soumettre les **cinq modèles de messages** des relances ([modèles](metier/modeles-de-messages.md)), et recueillir l'accord des clients existants (WhatsApp, SMS) au guichet ou par téléphone.
+- [ ] Faire vérifier l'entreprise et le compte **WhatsApp Business** de l'agence par Meta (sur un numéro dédié), puis soumettre les **six modèles de messages** (cinq relances et le code de connexion au portail) ([modèles](metier/modeles-de-messages.md)), et recueillir l'accord des clients existants (WhatsApp, SMS) au guichet ou par téléphone.
 - [ ] Choisir l'**opérateur SMS** des relances (agréé, nom d'expéditeur « DBS-ASSUR », accusés de réception, réponses « STOP ») ([ADR 0007](architecture/adr/0007-relances-whatsapp-et-sms.md)).
 - [ ] Compléter les **mentions légales** : n° d'agrément ou de carte professionnelle, hébergeur, horaires.
 - [ ] Valider les engagements proposés pour les **réclamations** (délais de réponse).
@@ -73,11 +73,23 @@ Revue d'ensemble après la tâche 8 : un contrat échu passe de lui-même à « 
 
 ## 🔜 Tâche 9 — Espace client et paiement Mobile Money
 
-Connexion par code WhatsApp ou SMS, contrats et attestations, paiement par Wave, Orange Money, MTN MoMo ou Moov Money avec confirmation signée, déclaration et suivi des sinistres.
+Pour les particuliers : contrats et attestations, paiement par Wave, Orange Money, MTN MoMo ou Moov Money avec confirmation signée, déclaration des sinistres en ligne. La connexion par code, les sessions et le rôle restreint de la base viennent du portail des entreprises (tâche 10).
 
-## ⏳ Tâche 10 — Portail des entreprises et transporteurs
+## ✅ Tâche 10 — Portail des entreprises et transporteurs
 
-Tableau de bord de flotte, plusieurs gestionnaires par entreprise, attestations en lot, historique des sinistres par véhicule.
+Nouvelle application `apps/portail`, sur sa propre adresse, pour les entreprises et les transporteurs ([ADR 0011](architecture/adr/0011-portail-des-entreprises.md)) :
+
+- **connexion** par le numéro WhatsApp et un code à usage unique, sans mot de passe ;
+- **plusieurs accès par entreprise** : le titulaire, créé par l'agence, ajoute ou retire ses collaborateurs ;
+- **tableau de bord de la flotte** : véhicules assurés, documents à renouveler, sinistres en cours, reste à payer, contrats ;
+- **attestations** déposées par l'agence (en lot, analysées, chiffrées), téléchargées une à une ou toutes ensemble ;
+- **historique des sinistres par véhicule**, avec leur déclaration et leur suivi au back-office ;
+- **isolement des entreprises par la base** (rôle `dbs_portail`) : une entreprise ne voit jamais les données d'une autre.
+
+*Avant la mise en service (tâche 2) :*
+- faire valider par Meta le modèle d'authentification `dbs_code_connexion` ;
+- relancer `database/initialisation/01_roles_et_base.sql` sur la base installée (nouveau rôle) ;
+- servir le portail sur sa propre adresse, avec l'API derrière `/api`, et la renseigner dans `URL_PORTAIL`.
 
 ## ⏳ Tâche 11 — Mise en production
 

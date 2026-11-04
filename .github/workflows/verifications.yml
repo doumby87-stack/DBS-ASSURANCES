@@ -167,6 +167,44 @@ jobs:
       - name: Parcours complet dans le navigateur (base, API, back-office et ses en-têtes de sécurité)
         run: npm run test:e2e -w @dbs/admin
 
+  portail:
+    name: Portail des entreprises
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - name: Dépendances (versions exactes du fichier de verrouillage)
+        run: npm ci
+      - name: Vérification des types
+        run: npm run verifier-types -w @dbs/portail
+      - name: Navigateur Chromium pour le test de bout en bout
+        run: npx playwright install --with-deps chromium
+      - name: Parcours d'un transporteur dans le navigateur (base, API, portail et ses en-têtes de sécurité)
+        run: npm run test:e2e -w @dbs/portail
+
   secrets:
     name: Recherche de secrets
     runs-on: ubuntu-latest

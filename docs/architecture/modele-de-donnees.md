@@ -21,6 +21,8 @@ erDiagram
   TAUX_COMMISSION }o--|| CONTRATS : "par branche"
   VEHICULES |o--o{ SINISTRES : "concerné par"
   CLIENTS ||--o{ CONSENTEMENTS : "accepte ou refuse"
+  CLIENTS ||--o{ GESTIONNAIRES_PORTAIL : "accède au portail par"
+  CONTRATS_VEHICULES ||--o| ATTESTATIONS_VEHICULES : "attestée par"
   CLIENTS ||--o{ RELANCES : "reçoit"
   CONTRATS ||--o{ AVENANTS_FLOTTE : "modifié par"
   AVENANTS_FLOTTE ||--|{ AVENANTS_FLOTTE_LIGNES : "détaille"
@@ -149,6 +151,18 @@ erDiagram
     uuid annule_avenant_id "avenant défait par une annulation"
     text motif "obligatoire pour une annulation"
   }
+  GESTIONNAIRES_PORTAIL {
+    uuid id
+    text telephone "reçoit le code ; un accès actif par numéro"
+    role_gestionnaire role "titulaire ou collaborateur"
+    boolean actif
+    timestamptz derniere_connexion_le
+  }
+  ATTESTATIONS_VEHICULES {
+    bytea contenu_chiffre "PDF chiffré (AES-256-GCM)"
+    bytea empreinte "SHA-256 du PDF"
+    analyse_piece etat_analyse "jamais infectée"
+  }
   AVENANTS_FLOTTE_LIGNES {
     mouvement_flotte mouvement "incorporation ou retrait"
     bigint prime_vehicule "pour toute la période du contrat"
@@ -205,6 +219,8 @@ erDiagram
 | `app.v_sinistres_suivi` | Délai de déclaration et, pour un sinistre corporel, date limite indicative de l'offre. |
 | `app.v_consentements` | Dernier choix de chaque client pour chaque canal de relance. |
 | `app.v_avenants_flotte` | Avenants de flotte avec leur règlement (les encaissements au-delà de la prime de départ règlent les avenants dans l'ordre) et leur annulation éventuelle. |
+
+Le schéma `portail` (tables `codes_connexion`, `sessions`, `evenements`) n'est accessible que par ses fonctions : codes de connexion (empreinte seule), sessions du portail et journal de ses connexions et téléchargements ([ADR 0011](adr/0011-portail-des-entreprises.md)).
 | `app.v_relances_dues` | Relances dues aujourd'hui (échéance à J-30, J-15, J-7 et le jour même, contrat expiré depuis moins de 7 jours, devis sans réponse depuis 3 jours, avancement d'un sinistre) qui ne sont pas encore planifiées. |
 
 Toutes les vues appliquent les droits de la personne qui les consulte (`security_invoker`).

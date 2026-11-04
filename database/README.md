@@ -15,7 +15,7 @@ PostgreSQL 16 (ou plus récent). C'est ici que vivent les données des clients, 
 
 ## Ce que la base garantit
 
-Ces garanties sont vérifiées par les fichiers de `tests/` (221 contrôles) :
+Ces garanties sont vérifiées par les fichiers de `tests/` (442 contrôles) :
 
 - **Fermeture par défaut.** Sans utilisateur authentifié dans la transaction, aucune donnée métier n'est lisible ni modifiable.
 - **Cloisonnement par rôle**, ligne par ligne : l'apporteur ne voit que ses clients, le commercial ne voit pas la caisse, l'auditeur ne modifie rien. Matrice complète : [`docs/securite/controle-des-acces.md`](../docs/securite/controle-des-acces.md).
@@ -39,8 +39,9 @@ Ces garanties sont vérifiées par les fichiers de `tests/` (221 contrôles) :
 | Compte | Peut se connecter | Usage |
 | --- | --- | --- |
 | `dbs_proprietaire` | oui | Migrations uniquement. Jamais utilisé par l'application. |
-| `dbs_application` | oui | Compte de l'API. Hérite de `dbs_api`, rien de plus. |
-| `dbs_api` | non | Droits de l'application : lecture et écriture filtrées ligne par ligne, aucun droit de suppression. |
+| `dbs_application` | oui | Compte de l'API. Hérite de `dbs_api` ; peut prendre le rôle `dbs_portail`, sans en hériter. |
+| `dbs_api` | non | Droits de l'application : lecture et écriture filtrées ligne par ligne, aucun droit de suppression (seule exception : détacher un véhicule rattaché par erreur à un contrat pas encore payé, consigné au journal). |
+| `dbs_portail` | non | Requêtes du portail des entreprises : l'API prend ce rôle (`SET ROLE`) sans en hériter les droits ; il ne voit que l'entreprise de la personne connectée ([ADR 0011](../docs/architecture/adr/0011-portail-des-entreprises.md)). |
 | `dbs_audit` | non | Lecture et vérification du journal d'audit, sans accès aux données métier. |
 
 Les mots de passe ne sont jamais écrits dans le dépôt : voir [`docs/securite/gestion-des-secrets.md`](../docs/securite/gestion-des-secrets.md).
@@ -48,7 +49,8 @@ Les mots de passe ne sont jamais écrits dans le dépôt : voir [`docs/securite/
 ## Installer une base
 
 ```bash
-# 1. Comptes et base (administrateur du serveur, une seule fois)
+# 1. Comptes et base (administrateur du serveur ; à relancer quand un rôle est ajouté, comme dbs_portail
+#    pour la migration 0012 : le script ne recrée rien de ce qui existe)
 psql -U postgres -d postgres -v base=dbs -f database/initialisation/01_roles_et_base.sql
 # puis définir les mots de passe : \password dbs_proprietaire et \password dbs_application
 
