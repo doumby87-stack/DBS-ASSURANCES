@@ -11,7 +11,8 @@
 --     en tiennent compte ; la mise en vigueur reste liée à la prime de départ (Code CIMA, art. 13) ;
 --   · relances des documents des véhicules (visite technique, vignette, carte de transport) : un seul
 --     message par client et par étape (J-30, J-7, échu), qui liste ses véhicules, pour qu'un transporteur
---     ne reçoive pas un message par camion. Chaque document n'est annoncé qu'une fois par étape.
+--     ne reçoive pas un message par camion. Chaque document n'est annoncé qu'une fois par étape. Plus aucun
+--     rappel pour un véhicule vendu ou retiré de la flotte, ni pour les véhicules d'un client parti.
 -- Conception : docs/architecture/adr/0010-flottes.md
 -- =====================================================================
 
@@ -481,6 +482,34 @@ LEFT JOIN app.avenants_flotte x ON x.annule_avenant_id = a.id;
 -- ---------------------------------------------------------------------
 -- Relances des documents des véhicules, groupées par client
 -- ---------------------------------------------------------------------
+-- Véhicule suivi par l'agence : couvert par un contrat en cours (en vigueur ou qui attend son paiement,
+-- renouvellement compris), ou jamais rattaché à un contrat (flotte importée, en cours de cotation). Un véhicule
+-- vendu ou retiré de la flotte, comme ceux d'un client parti, ne fait plus l'objet d'aucun rappel.
+CREATE FUNCTION app.vehicule_suivi(p_vehicule uuid) RETURNS boolean
+LANGUAGE sql STABLE
+SET search_path = pg_catalog
+AS $$
+  SELECT EXISTS (SELECT 1 FROM app.contrats_vehicules cv JOIN app.contrats k ON k.id = cv.contrat_id
+                 WHERE cv.vehicule_id = p_vehicule AND cv.retire_le IS NULL
+                   AND k.statut IN ('en_attente_paiement', 'en_vigueur'))
+      OR NOT EXISTS (SELECT 1 FROM app.contrats_vehicules cv WHERE cv.vehicule_id = p_vehicule)
+$$;
+GRANT EXECUTE ON FUNCTION app.vehicule_suivi(uuid) TO dbs_api;
+
+-- Tableau des échéances (0002) : mêmes colonnes, véhicules suivis seulement
+CREATE OR REPLACE VIEW app.v_echeances_vehicules WITH (security_invoker = true) AS
+SELECT v.id AS vehicule_id, v.client_id, v.immatriculation, e.document, e.echeance,
+       e.echeance - (now() AT TIME ZONE 'Africa/Abidjan')::date AS jours_restants
+FROM app.vehicules v
+CROSS JOIN LATERAL (VALUES
+  ('visite_technique', v.echeance_visite_technique),
+  ('vignette', v.echeance_vignette),
+  ('carte_de_transport', v.echeance_carte_transport)
+) AS e(document, echeance)
+WHERE e.echeance IS NOT NULL
+  AND e.echeance <= (now() AT TIME ZONE 'Africa/Abidjan')::date + 60
+  AND app.vehicule_suivi(v.id);
+
 -- Ce qui a déjà été annoncé : un document (à une échéance donnée) n'est annoncé qu'une fois par étape
 CREATE TABLE app.annonces_documents (
   vehicule_id  uuid NOT NULL REFERENCES app.vehicules (id),
@@ -507,8 +536,8 @@ END);
 -- nouveau message, sans répéter ceux déjà annoncés.
 CREATE OR REPLACE VIEW app.v_relances_dues WITH (security_invoker = true) AS
 WITH candidats AS (
-  -- Contrats en vigueur, pas encore renouvelés : une étape à J-30, J-15, J-7, le jour de l'échéance,
-  -- puis « vous n'êtes plus couvert » dans les 7 jours qui suivent
+  -- Contrats en vigueur (ou expirés, 0011), pas encore renouvelés : une étape à J-30, J-15, J-7, le jour de
+  -- l'échéance, puis « vous n'êtes plus couvert » dans les 7 jours qui suivent
   SELECT (CASE WHEN e.j BETWEEN 16 AND 30 THEN 'echeance_j30'
                WHEN e.j BETWEEN 8 AND 15 THEN 'echeance_j15'
                WHEN e.j BETWEEN 1 AND 7 THEN 'echeance_j7'
@@ -519,7 +548,7 @@ WITH candidats AS (
   FROM (SELECT k.id, k.client_id, k.branche, k.numero_police, k.date_echeance, k.statut,
                k.date_echeance - (now() AT TIME ZONE 'Africa/Abidjan')::date AS j
         FROM app.contrats k) e
-  WHERE e.statut = 'en_vigueur' AND e.j BETWEEN -7 AND 30
+  WHERE e.statut IN ('en_vigueur', 'expire') AND e.j BETWEEN -7 AND 30
     AND NOT EXISTS (SELECT 1 FROM app.contrats r WHERE r.renouvelle_id = e.id)
   UNION ALL
   -- Devis envoyé resté sans réponse (au-delà d'un mois, il n'est plus relancé)
@@ -559,7 +588,7 @@ WITH candidats AS (
                 ('carte_de_transport', v.echeance_carte_transport)) AS doc(document, echeance)
               CROSS JOIN LATERAL (SELECT doc.document, doc.echeance,
                                          doc.echeance - (now() AT TIME ZONE 'Africa/Abidjan')::date AS j) e
-              WHERE e.echeance IS NOT NULL AND e.j BETWEEN -15 AND 30) d
+              WHERE e.echeance IS NOT NULL AND e.j BETWEEN -15 AND 30 AND app.vehicule_suivi(v.id)) d
         WHERE NOT EXISTS (SELECT 1 FROM app.annonces_documents a
                           WHERE a.vehicule_id = d.vehicule_id AND a.document = d.document
                             AND a.echeance = d.echeance AND a.etape = d.etape)
