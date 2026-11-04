@@ -1,13 +1,43 @@
 # DBS-ASSURANCES
 
-Site web de DBS Assurances.
+Site et outils de gestion de **DBS-ASSURANCES**, Agent Général SanlamAllianz Côte d'Ivoire (code agence 2623), Yopougon, Abidjan.
 
-## Statut
+L'objectif dépasse la vitrine : donner à l'agence un outil qui tient ses promesses aux clients (échéances surveillées, attestations en lot, sinistres suivis) et qui sécurise la caisse et les reversements à la compagnie.
 
-Site vitrine statique (HTML, CSS, JavaScript), sans base de données. Ouvrez `index.html` dans un navigateur pour le voir. Le détail des fichiers et la liste des informations à compléter avant la mise en ligne sont dans [LISEZMOI.md](LISEZMOI.md).
+## Où en est le projet
+
+| Brique | Dossier | Statut |
+| --- | --- | --- |
+| Site vitrine | [`apps/site-vitrine`](apps/site-vitrine) | ✅ En place, protégé par des en-têtes de sécurité |
+| Base de données | [`database`](database) | ✅ Schéma sécurisé et testé (règles CIMA, contrôle d'accès, journal d'audit) |
+| API | [`apps/api`](apps/api) | 🟡 Connexion du personnel, comptes, clients, contrats, véhicules, devis, échanges, échéances, caisse, reversements, commissions |
+| Back-office de l'agence | [`apps/admin`](apps/admin) | 🟡 Connexion, échéances, clients, fiche client, caisse et reçus, reversements, commissions, personnel |
+| Espace client | [`apps/espace-client`](apps/espace-client) | ⏳ |
+
+Le détail, tâche par tâche : [feuille de route](docs/feuille-de-route.md).
+
+## Pour commencer
+
+- **Modifier le site vitrine** (téléphone, textes) : [LISEZMOI du site](apps/site-vitrine/LISEZMOI.md).
+- **Comprendre l'architecture** : [vue d'ensemble](docs/architecture/vue-d-ensemble.md).
+- **Toute la documentation** : [docs/](docs/README.md).
+
+## Vérifier avant de proposer une modification
+
+```bash
+npm ci                                # dépendances (une fois)
+npm run verifier                      # site, documentation, types et tests unitaires de l'API
+./database/tests/executer.sh          # base de données (PostgreSQL de test requis)
+npm run test -w @dbs/api              # tests de sécurité de l'API (PostgreSQL de test requis)
+npm run test:e2e -w @dbs/admin        # parcours complet dans le navigateur (PostgreSQL de test requis)
+```
+
+Les mêmes vérifications tournent automatiquement sur chaque pull request.
 
 ## Contribuer
 
-1. Créez une branche à partir de `main`.
-2. Faites vos modifications.
-3. Ouvrez une pull request vers `main`.
+Lire [CONTRIBUTING.md](CONTRIBUTING.md). En résumé : une branche par tâche, une pull request relue, aucune donnée réelle de client et aucun secret dans le dépôt.
+
+## Sécurité
+
+Pour signaler une faille : [SECURITY.md](SECURITY.md). Ne pas ouvrir de ticket public.

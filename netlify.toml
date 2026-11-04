@@ -1,0 +1,8 @@
+# Mise en ligne du site vitrine sur Netlify (dépôt GitHub relié).
+# Seul apps/site-vitrine est publié : la documentation, la base de données et les scripts restent privés.
+[build]
+  publish = "apps/site-vitrine"
+  # Refuse la mise en ligne si un lien est cassé ou si un script serait bloqué par les en-têtes de sécurité
+  command = "node scripts/verifier-site.mjs"
+
+# Les en-têtes de sécurité sont dans apps/site-vitrine/_headers

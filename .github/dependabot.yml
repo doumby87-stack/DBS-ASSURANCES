@@ -1,0 +1,19 @@
+# Propose chaque semaine les mises à jour des outils de l'intégration continue et des dépendances npm.
+# Chaque proposition passe par une pull request relue, avec toutes les vérifications.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore
+    groups:
+      outils-de-developpement:
+        dependency-type: development

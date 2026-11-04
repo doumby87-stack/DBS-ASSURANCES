@@ -1,0 +1,13 @@
+# Fins de ligne Unix partout : les scripts shell et SQL fonctionnent quel que soit le poste
+* text=auto eol=lf
+*.sh text eol=lf
+*.sql text eol=lf
+
+# Fichiers binaires
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ico binary
+*.woff2 binary
+*.pdf binary

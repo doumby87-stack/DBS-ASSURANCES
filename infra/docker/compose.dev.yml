@@ -1,0 +1,23 @@
+# Base PostgreSQL pour le développement, sur votre machine uniquement.
+#   cp .env.example .env   (puis choisissez un POSTGRES_PASSWORD)
+#   docker compose -f infra/docker/compose.dev.yml --env-file .env up -d
+# Elle n'écoute que sur 127.0.0.1 : elle n'est pas joignable depuis le réseau.
+# Jamais de vraies données clients dans cette base.
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Définissez POSTGRES_PASSWORD dans .env}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - dbs-donnees-dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  dbs-donnees-dev:
