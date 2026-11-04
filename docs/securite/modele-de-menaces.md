@@ -20,9 +20,9 @@ Statut : ✅ en place · 🔜 prévu (n° de tâche de la [feuille de route](../
 | --- | --- | --- | --- |
 | **Vol de mot de passe du personnel** | Faux e-mail « SanlamAllianz » qui demande de se reconnecter | Deuxième facteur obligatoire, codes à usage unique, blocage après 5 échecs, mots de passe divulgués refusés ✅ ; passkeys pour la caisse, alerte de connexion depuis un nouvel appareil, formation 🔜 | ✅ 3 · 🔜 11 |
 | **Usurpation de l'agence auprès des clients** | Un escroc envoie un faux numéro Mobile Money « de DBS » | FAQ anti-arnaque, compte marchand unique, adresse e-mail au nom de domaine avec DMARC, attestations vérifiables par QR code | ✅ FAQ · 🔜 2 |
-| **Détournement en caisse** | Encaissement en espèces non saisi, ou saisi puis supprimé | Reçus numérotés en continu, encaissements inaltérables, annulation réservée au gérant, clôture de caisse, rapprochement des bordereaux | ✅ base · 🔜 5 |
+| **Détournement en caisse** | Encaissement en espèces non saisi, ou saisi puis supprimé | Reçus numérotés sans trou par la base, encaissements inaltérables, annulation réservée au gérant, clôture de caisse quotidienne avec billetage, écart expliqué et visa d'un autre gérant, période clôturée fermée aux encaissements antidatés | ✅ |
 | **Contournement du plafond d'espèces** | Une prime de 1,5 M F CFA réglée en deux fois en espèces | Plafond cumulé par police, vérifié par la base même en cas d'encaissements simultanés | ✅ |
-| **Reversement oublié ou détourné** | Primes conservées au-delà de 30 jours | Compte à rebours par encaissement, alerte à J+25, validation à deux | ✅ base · 🔜 5 |
+| **Reversement oublié ou détourné** | Primes conservées au-delà de 30 jours | Compte à rebours par encaissement, alerte à J+25, bordereau validé par une autre personne que celle qui l'a préparé, puis figé une fois versé | ✅ |
 | **Employé qui dépasse ses droits** | Un commercial consulte la caisse, un apporteur les clients des autres | Sécurité ligne par ligne selon le rôle, testée | ✅ |
 | **Départ d'un employé** | Ancien employé qui garde un accès | Désactivation par le gérant, effet immédiat même sur une session ouverte | ✅ |
 | **Effacement des traces** | Un administrateur modifie le journal pour couvrir une fraude | Journal en ajout seul, chaîné par empreintes, dernière empreinte copiée chaque jour hors de la base | ✅ base · 🔜 11 |

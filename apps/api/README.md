@@ -1,6 +1,6 @@
 # API — la seule porte d'accès aux données
 
-**Statut :** connexion du personnel avec deuxième facteur, sessions, comptes (tâche 3) ; clients, contrats, véhicules, devis, échanges et échéances (tâche 4). La caisse et les reversements viennent à la tâche 5 ([feuille de route](../../docs/feuille-de-route.md)).
+**Statut :** connexion du personnel avec deuxième facteur, sessions, comptes (tâche 3) ; clients, contrats, véhicules, devis, échanges et échéances (tâche 4) ; caisse, reçus, clôtures, reversements et commissions (tâche 5). Les relances automatiques viennent à la tâche 6 ([feuille de route](../../docs/feuille-de-route.md)).
 
 L'API reçoit toutes les demandes du back-office et de l'espace client, vérifie qui les fait, puis interroge la base. Aucun navigateur ne parle directement à la base de données ([ADR 0003](../../docs/architecture/adr/0003-api-seule-porte-d-acces.md)).
 
@@ -56,14 +56,30 @@ Le mot de passe provisoire s'affiche une seule fois. Ensuite, tous les comptes s
 | `POST /utilisateurs/:id/reinitialiser-acces` | gérant | Mot de passe oublié, téléphone perdu : nouveau mot de passe provisoire, deuxième facteur à reconfigurer. |
 | `GET /clients?recherche=` | connecté | Clients visibles (l'apporteur ne voit que les siens), recherche par nom ou numéro. |
 | `POST /clients` | gérant, chargé, commercial, apporteur | Téléphone normalisé (+225…) ; si le numéro existe déjà : 409 `doublon_possible`, sauf `confirmerDoublon`. |
-| `GET /clients/:id` | connecté | Fiche : client, contrats, véhicules, devis, échanges. |
+| `GET /clients/:id` | connecté | Fiche : client, contrats (avec le reste à payer pour qui voit la caisse), véhicules, devis, échanges. |
 | `PATCH /clients/:id` | gérant, chargé, commercial | Coordonnées. |
 | `POST /clients/:id/echanges` | tous sauf auditeur | Appel, message, visite ou note (ajout seul). |
 | `POST /clients/:id/vehicules` | gérant, chargé, commercial | Véhicule et échéances administratives ; immatriculation normalisée et unique. |
 | `POST /clients/:id/devis`, `PATCH /devis/:id` | création : gérant, chargé, commercial, apporteur ; suivi : sans l'apporteur | Devis ; un refus exige son motif. |
-| `POST /contrats`, `PATCH /contrats/:id` | gérant, chargé | Contrats ; « en vigueur » refusé tant que la prime n'est pas payée (Code CIMA, art. 13). |
+| `POST /contrats`, `PATCH /contrats/:id` | gérant, chargé | Contrats et prime nette ; « en vigueur » refusé tant que la prime n'est pas payée (Code CIMA, art. 13). |
 | `POST /contrats/:id/renouveler` | gérant, chargé | Nouveau contrat à partir de l'échéance, même durée et même prime par défaut. |
 | `GET /echeances` | connecté | Contrats à renouveler (expirés, J-7, J-15, J-30, J-60) et documents de véhicules. |
+| `GET /contrats/:id/paiements` | gérant, caissier, chargé, auditeur | Reste à payer, espèces encore possibles (plafond), reçus du contrat. |
+| `POST /encaissements` | gérant, caissier | Encaissement ; jamais plus que le reste à payer, plafond des espèces, référence obligatoire hors espèces. Le contrat entre en vigueur au paiement du solde. |
+| `POST /encaissements/:id/contre-passation` | gérant | Annule exactement un encaissement, motif obligatoire, une seule fois. |
+| `GET /encaissements/:id/recu` | gérant, caissier, chargé, auditeur | Reçu : montant en lettres, reste à payer après ce paiement, identité de l'agence. |
+| `GET /encaissements?du=&au=` | gérant, caissier, chargé, auditeur | Journal des encaissements (aujourd'hui par défaut), totaux par mode. |
+| `GET /caisse` | gérant, caissier | Ma caisse depuis ma dernière clôture. |
+| `POST /caisse/clotures`, `GET /caisse/clotures` | clôture : gérant, caissier ; liste : avec l'auditeur | Clôture avec billetage ; espèces attendues calculées par la base, écart à expliquer. |
+| `POST /caisse/clotures/:id/visa` | gérant | Visa d'une clôture, jamais la sienne. |
+| `GET /reversements/a-reverser` | gérant, caissier, auditeur | Primes pas encore versées, date limite (30 jours), alerte à J+25. |
+| `POST /reversements`, `GET /reversements`, `GET /reversements/:id` | préparation : gérant, caissier ; lecture : avec l'auditeur | Bordereau de tous les encaissements hors bordereau jusqu'à une date. |
+| `POST /reversements/:id/validation` | gérant | Jamais par la personne qui a préparé (quatre yeux). |
+| `POST /reversements/:id/versement` | gérant | Date et référence du virement ; le bordereau est ensuite figé. |
+| `POST /reversements/:id/annulation` | gérant, caissier qui l'a préparé | Avant validation ; les encaissements redeviennent à reverser. |
+| `GET /reversements/:id/export.csv` | gérant | Export pour Excel, protégé contre l'injection de formules ; consigné au journal de sécurité. |
+| `GET /commissions` | gérant, auditeur | Taux par branche, rapprochement mensuel, contrats payés sans prime nette. |
+| `POST /commissions/taux`, `POST /commissions/releves` | gérant | Taux applicable à partir d'une date ; relevé de la compagnie pour un mois (créé ou corrigé). |
 
 ## Sécurité en place
 
@@ -79,7 +95,8 @@ Le mot de passe provisoire s'affiche une seule fois. Ensuite, tous les comptes s
 | Protection CSRF : toute modification doit venir de l'origine du back-office, en JSON uniquement | `src/securite/protection.ts` |
 | Champs inattendus refusés ; erreurs sans détail interne ; en-têtes de sécurité sur toutes les réponses | `src/application.ts`, `src/commun/erreurs.ts` |
 | Chaque requête métier déclare l'utilisateur à la base, qui applique ses propres droits | `src/base-de-donnees/connexion.ts` |
-| Journal de sécurité en ajout seul : connexions, échecs, blocages, créations et modifications de comptes | `securite.evenements` |
+| Journal de sécurité en ajout seul : connexions, échecs, blocages, créations et modifications de comptes, exports de données | `securite.evenements` |
+| Exports CSV : réservés au gérant, cellules qui commencent par `=`, `+`, `-`, `@` neutralisées (pas de formule exécutée par Excel) | `src/commun/csv.ts` |
 
 **Risques connus :**
 
@@ -97,9 +114,9 @@ npm run verifier-types -w @dbs/api
 
 | Dossier | Contenu |
 | --- | --- |
-| `tests/unitaires/` | Vecteurs officiels de la RFC 6238, chiffrement, politique des mots de passe, vérification des fuites, configuration, traduction des erreurs. |
+| `tests/unitaires/` | Vecteurs officiels de la RFC 6238, chiffrement, politique des mots de passe, vérification des fuites, configuration, traduction des erreurs, montant en lettres, CSV. |
 | `tests/securite/` | Parcours de connexion, rejeu d'un code, blocages, CSRF, cookies, expiration, secrets jamais en clair. |
-| `tests/integration/` | Gestion des comptes par le gérant et limites de chaque rôle. |
+| `tests/integration/` | Gestion des comptes par le gérant et limites de chaque rôle ; clients et contrats ; caisse, clôtures, reversements et commissions. |
 
 ## Structure
 
@@ -108,9 +125,9 @@ npm run verifier-types -w @dbs/api
 | `src/config/` | Lecture et validation des variables d'environnement. |
 | `src/securite/` | Connexion, deuxième facteur, sessions, limitation des tentatives, protections HTTP. |
 | `src/base-de-donnees/` | Connexions à PostgreSQL et transactions qui déclarent l'utilisateur. |
-| `src/modules/` | Un dossier par domaine métier : `utilisateurs`, `clients`, `contrats` (et échéances), `vehicules`, `devis` en place ; les autres viendront avec leurs tâches. |
+| `src/modules/` | Un dossier par domaine métier : `utilisateurs`, `clients`, `contrats` (et échéances), `vehicules`, `devis`, `encaissements` (et caisse), `reversements`, `commissions` en place ; les autres viendront avec leurs tâches. |
 | `src/integrations/` | Services extérieurs (paiement, WhatsApp, SMS, FNE, fichiers) : à venir. |
-| `src/commun/` | Erreurs et réponses. |
+| `src/commun/` | Erreurs, formats, montant en lettres, CSV, identité de l'agence imprimée sur les reçus. |
 | `src/outils/` | Outils d'installation (`premier-acces`). |
 
 ## Règles pour la suite

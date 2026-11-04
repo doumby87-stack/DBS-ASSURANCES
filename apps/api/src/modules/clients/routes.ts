@@ -10,6 +10,7 @@ import { motifRecherche, normaliserTelephone } from "../../commun/formats.js";
 import { parametreId, texteCourt } from "../../commun/schemas.js";
 import type { Gardes } from "../../securite/gardes.js";
 import { utilisateurDe } from "../../securite/gardes.js";
+import { ROLES_LECTURE_CAISSE } from "../encaissements/routes.js";
 import { exigerClientVisible } from "./visibilite.js";
 
 const TYPES = ["particulier", "professionnel", "entreprise"] as const;
@@ -130,17 +131,22 @@ app.get<{ Params: { id: string } }>(
   { preHandler: gardes.sessionComplete(), schema: { params: parametreId } },
   async (requete) => {
     const { id } = requete.params;
-    const fiche = await transactionUtilisateur(pool, utilisateurDe(requete).id, async (client) => {
+    const utilisateur = utilisateurDe(requete);
+    // Le reste à payer n'a de sens que pour qui voit la caisse : pour les autres, la base masque les encaissements
+    const voitLaCaisse = (ROLES_LECTURE_CAISSE as readonly string[]).includes(utilisateur.role);
+    const fiche = await transactionUtilisateur(pool, utilisateur.id, async (client) => {
       const { rows } = await client.query(`SELECT ${COLONNES_CLIENT} FROM app.clients c WHERE c.id = $1`, [id]);
       if (!rows[0]) return null;
         // Requêtes successives : une connexion n'exécute qu'une requête à la fois
         const contrats = await client.query(
           `SELECT k.id, k.numero_police AS "numeroPolice", k.branche, k.date_effet AS "dateEffet",
-                  k.date_echeance AS "dateEcheance", k.prime_ttc AS "primeTtc", k.statut,
+                  k.date_echeance AS "dateEcheance", k.prime_ttc AS "primeTtc", k.prime_nette AS "primeNette", k.statut,
                   k.renouvelle_id AS "renouvelleId",
-                  EXISTS (SELECT 1 FROM app.contrats r WHERE r.renouvelle_id = k.id) AS "renouvele"
+                  EXISTS (SELECT 1 FROM app.contrats r WHERE r.renouvelle_id = k.id) AS "renouvele",
+                  CASE WHEN $2 THEN (k.prime_ttc - coalesce((SELECT sum(e.montant) FROM app.encaissements e
+                                                            WHERE e.contrat_id = k.id), 0))::bigint END AS "resteAPayer"
            FROM app.contrats k WHERE k.client_id = $1 ORDER BY k.date_echeance DESC`,
-          [id],
+          [id, voitLaCaisse],
         );
         const vehicules = await client.query(
           `SELECT v.id, v.immatriculation, v.marque, v.modele, v.genre, v.usage,

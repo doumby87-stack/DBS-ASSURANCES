@@ -105,3 +105,34 @@ export function aujourdHui(decalageJours = 0): string {
   d.setDate(d.getDate() + decalageJours);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
+
+export const MODES_PAIEMENT: Record<string, string> = {
+  especes: "Espèces",
+  cheque: "Chèque",
+  mobile_money: "Mobile Money",
+  virement: "Virement",
+};
+
+/** Ce qu'il faut noter comme référence, selon le mode de paiement. */
+export const AIDE_REFERENCE: Record<string, string> = {
+  especes: "Facultatif",
+  cheque: "Banque et n° du chèque, à l'ordre de SanlamAllianz Côte d'Ivoire",
+  mobile_money: "N° de transaction (Wave, Orange Money, MTN MoMo, Moov Money)",
+  virement: "Référence du virement",
+};
+
+export const STATUTS_BORDEREAU: Record<string, string> = {
+  prepare: "À valider",
+  valide: "Validé, à verser",
+  verse: "Versé",
+  annule: "Annulé",
+};
+
+/** Coupures en circulation (BCEAO), de la plus grande à la plus petite ; billets et pièces de 500 F ensemble. */
+export const COUPURES = [10000, 5000, 2000, 1000, 500, 250, 200, 100, 50, 25, 10, 5, 1] as const;
+
+/** « 2026-11 » → « novembre 2026 » */
+export function moisEnLettres(mois: string): string {
+  const [annee, numero] = mois.split("-").map(Number);
+  return new Date(Date.UTC(annee!, numero! - 1, 1)).toLocaleDateString("fr-FR", { month: "long", year: "numeric", timeZone: "UTC" });
+}

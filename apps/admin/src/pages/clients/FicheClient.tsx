@@ -18,6 +18,8 @@ interface Contrat {
   primeTtc: number;
   statut: string;
   renouvele: boolean;
+  /** Seulement pour qui voit la caisse */
+  resteAPayer: number | null;
 }
 interface Vehicule {
   id: string;
@@ -80,6 +82,7 @@ export function FicheClient({ id }: { id: string }) {
   if (introuvable) return <><h1>Client introuvable</h1><p><Lien href="/clients">Retour à la liste des clients</Lien></p></>;
   if (!fiche) return erreur ? <Alerte>{erreur}</Alerte> : <Chargement />;
   const { client } = fiche;
+  const voitLaCaisse = peut("gerant", "caissier", "charge_clientele", "auditeur");
 
   return (
     <>
@@ -98,7 +101,12 @@ export function FicheClient({ id }: { id: string }) {
         {fiche.contrats.length === 0 ? <Vide>Aucun contrat.</Vide> : (
           <div className="tableau-defilant">
             <table className="tableau">
-              <thead><tr><th>Branche</th><th>N° de police</th><th>Période</th><th>Prime TTC</th><th>Statut</th></tr></thead>
+              <thead>
+                <tr>
+                  <th>Branche</th><th>N° de police</th><th>Période</th><th>Prime TTC</th>
+                  {voitLaCaisse && <th>Reste à payer</th>}<th>Statut</th>{voitLaCaisse && <th aria-label="Actions" />}
+                </tr>
+              </thead>
               <tbody>
                 {fiche.contrats.map((c) => (
                   <tr key={c.id}>
@@ -106,10 +114,18 @@ export function FicheClient({ id }: { id: string }) {
                     <td>{c.numeroPolice ?? "—"}</td>
                     <td>{dateCourte(c.dateEffet)} → {dateCourte(c.dateEcheance)}</td>
                     <td className="nombre">{montant(c.primeTtc)}</td>
+                    {voitLaCaisse && <td className="nombre">{montant(c.resteAPayer)}</td>}
                     <td>
                       <Badge ton={tonStatut(c.statut)}>{STATUTS_CONTRAT[c.statut]}</Badge>
                       {c.renouvele && <> <Badge ton="bleu">Renouvelé</Badge></>}
                     </td>
+                    {voitLaCaisse && (
+                      <td>
+                        <Lien href={`/contrats/${c.id}`} className="bouton bouton--petit">
+                          {peut("gerant", "caissier") && (c.resteAPayer ?? 0) > 0 ? "Encaisser" : "Paiements"}
+                        </Lien>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -198,13 +214,14 @@ function useEnvoi(apres: () => Promise<void>) {
 }
 
 function NouveauContrat({ clientId, apres }: { clientId: string; apres: () => Promise<void> }) {
-  const [c, setC] = useState({ branche: "automobile", numeroPolice: "", dateEffet: aujourdHui(), dateEcheance: aujourdHui(365), primeTtc: "" });
+  const [c, setC] = useState({ branche: "automobile", numeroPolice: "", dateEffet: aujourdHui(), dateEcheance: aujourdHui(365), primeTtc: "", primeNette: "" });
   const { erreur, envoi, envoyer } = useEnvoi(apres);
   async function soumettre(evenement: FormEvent) {
     evenement.preventDefault();
     await envoyer(() => api("/contrats", {
       corps: { clientId, branche: c.branche, dateEffet: c.dateEffet, dateEcheance: c.dateEcheance, primeTtc: Number(c.primeTtc),
-               ...(c.numeroPolice.trim() ? { numeroPolice: c.numeroPolice } : {}) },
+               ...(c.numeroPolice.trim() ? { numeroPolice: c.numeroPolice } : {}),
+               ...(c.primeNette.trim() ? { primeNette: Number(c.primeNette) } : {}) },
     }));
   }
   return (
@@ -214,9 +231,10 @@ function NouveauContrat({ clientId, apres }: { clientId: string; apres: () => Pr
       <Champ libelle="Date d'effet"><input type="date" required value={c.dateEffet} onChange={(e) => setC({ ...c, dateEffet: e.target.value })} /></Champ>
       <Champ libelle="Échéance"><input type="date" required value={c.dateEcheance} onChange={(e) => setC({ ...c, dateEcheance: e.target.value })} /></Champ>
       <Champ libelle="Prime TTC (F CFA)"><input type="number" required min={1} step={1} inputMode="numeric" value={c.primeTtc} onChange={(e) => setC({ ...c, primeTtc: e.target.value })} /></Champ>
+      <Champ libelle="Prime nette (facultatif)" aide="Hors taxes et accessoires : sert au calcul des commissions"><input type="number" min={1} step={1} inputMode="numeric" value={c.primeNette} onChange={(e) => setC({ ...c, primeNette: e.target.value })} /></Champ>
       <div className="formulaire__actions"><button className="bouton bouton--principal" disabled={envoi}>Créer le contrat</button></div>
       <Alerte>{erreur}</Alerte>
-      <p className="note">Le contrat reste « en attente de paiement » jusqu'au règlement complet de la prime (Code CIMA, art. 13).</p>
+      <p className="note">Le contrat reste « en attente de paiement » jusqu'au règlement complet de la prime, puis entre en vigueur de lui-même (Code CIMA, art. 13).</p>
     </form>
   );
 }

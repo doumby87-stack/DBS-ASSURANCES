@@ -1,10 +1,10 @@
 // Parcours complet dans un vrai navigateur : première connexion du gérant (deuxième facteur, mot de passe),
-// création d'un client et d'un contrat, relance et renouvellement depuis le tableau des échéances,
-// création d'un compte. Aucune violation de la politique de sécurité du contenu n'est tolérée.
+// création d'un client et d'un contrat, encaissement et reçu, relance et renouvellement depuis le tableau
+// des échéances, clôture de caisse, bordereau de reversement, commissions, création d'un compte.
+// Aucune violation de la politique de sécurité du contenu n'est tolérée.
 
 import { expect, test, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
-import pg from "pg";
 import { codeTotp, decoderBase32, pasDeTemps } from "../../../api/src/securite/totp";
 
 const acces = JSON.parse(readFileSync(new URL("../../.e2e/acces.json", import.meta.url), "utf8"));
@@ -16,21 +16,6 @@ function dans(jours: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** Paiement et mise en vigueur directement en base : la caisse arrive à la tâche 5. */
-async function payerEtMettreEnVigueur(contratId: string, gerantId: string) {
-  const client = new pg.Client({ connectionString: acces.urlSuperutilisateur });
-  await client.connect();
-  try {
-    await client.query("BEGIN");
-    await client.query("SELECT set_config('app.utilisateur_id', $1, true)", [gerantId]);
-    await client.query("INSERT INTO app.encaissements (contrat_id, montant, mode) SELECT id, prime_ttc, 'especes' FROM app.contrats WHERE id = $1", [contratId]);
-    await client.query("UPDATE app.contrats SET statut = 'en_vigueur' WHERE id = $1", [contratId]);
-    await client.query("COMMIT");
-  } finally {
-    await client.end();
-  }
-}
-
 function surveillerCsp(page: Page): string[] {
   const violations: string[] = [];
   page.on("console", (message) => {
@@ -40,7 +25,7 @@ function surveillerCsp(page: Page): string[] {
   return violations;
 }
 
-test("parcours du gérant, de la première connexion au renouvellement d'un contrat", async ({ page }) => {
+test("parcours du gérant, de la première connexion à la caisse et au reversement", async ({ page }) => {
   const violations = surveillerCsp(page);
 
   // --- Première connexion : mot de passe provisoire
@@ -94,13 +79,21 @@ test("parcours du gérant, de la première connexion au renouvellement d'un cont
   await page.getByRole("button", { name: "Noter" }).click();
   await expect(page.getByText("Appelé pour confirmer la liste des véhicules")).toBeVisible();
 
-  // --- Paiement (simulé) puis tableau des échéances
-  const { id: contratId } = await page.evaluate(async () => {
-    const fiche = await (await fetch(`/api${window.location.pathname}`)).json();
-    return fiche.contrats[0];
-  });
-  const { utilisateur } = await page.evaluate(async () => (await fetch("/api/auth/session")).json());
-  await payerEtMettreEnVigueur(contratId, utilisateur.id);
+  // --- Encaissement au guichet : le reçu s'ouvre, le contrat entre en vigueur de lui-même
+  await ligneContrat.getByRole("link", { name: "Encaisser" }).click();
+  await expect(page.getByRole("heading", { name: /SA-2026-0042/ })).toBeVisible();
+  await expect(page.getByLabel("Montant (F CFA)")).toHaveValue("185000");
+  await page.getByLabel("Mode de paiement").selectOption("mobile_money");
+  await page.getByRole("button", { name: "Encaisser et imprimer le reçu" }).click();
+  expect(await page.getByLabel("Référence").evaluate((champ) => (champ as HTMLInputElement).validity.valueMissing)).toBe(true);
+  await page.getByLabel("Mode de paiement").selectOption("especes");
+  await page.getByRole("button", { name: "Encaisser et imprimer le reçu" }).click();
+  await expect(page.getByRole("heading", { name: "Reçu n° 000001" })).toBeVisible();
+  await expect(page.getByText("cent quatre-vingt-cinq mille francs CFA")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Envoyer la confirmation sur WhatsApp" })).toHaveAttribute("href", /^https:\/\/wa\.me\/2250711223344/);
+  await page.getByRole("link", { name: "Retour au contrat" }).click();
+  await expect(page.getByText("Prime entièrement payée : le contrat est en vigueur.")).toBeVisible();
+  await expect(page.getByRole("row", { name: /N° 1/ })).toContainText("185 000");
 
   await page.getByRole("link", { name: "Échéances" }).click();
   await expect(page.getByRole("button", { name: /Dans 7 jours/ })).toContainText("1");
@@ -113,6 +106,40 @@ test("parcours du gérant, de la première connexion au renouvellement d'un cont
   await ligneEcheance.getByRole("button", { name: "Renouveler" }).click();
   await expect(page.getByText(/Renouvellement préparé pour Transports Kouamé & Fils/)).toBeVisible();
   await expect(page.getByRole("row", { name: /Transports Kouamé & Fils/ })).toHaveCount(0);
+  await expect(page.getByText(/de primes à reverser à SanlamAllianz/)).toBeVisible();
+
+  // --- Clôture de caisse avec billetage : 18 billets de 10 000 et 1 de 5 000
+  await page.getByRole("link", { name: "Caisse", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Ma caisse", exact: true })).toBeVisible();
+  const formulaireCloture = page.getByRole("form", { name: "Clôturer ma caisse" });
+  await formulaireCloture.getByLabel(/^10\s000 F$/).fill("18");
+  await expect(formulaireCloture.getByLabel("Explication de l'écart")).toBeVisible();
+  await formulaireCloture.getByLabel(/^5\s000 F$/).fill("1");
+  await expect(formulaireCloture.getByLabel("Explication de l'écart")).toHaveCount(0);
+  await formulaireCloture.getByRole("button", { name: "Clôturer la caisse" }).click();
+  await expect(page.getByText(/Caisse clôturée \(clôture n° 1\)/)).toBeVisible();
+  const clotures = page.locator("section", { has: page.getByRole("heading", { name: "Clôtures de caisse" }) });
+  await expect(clotures.getByRole("row").nth(1)).toContainText("À viser");
+
+  // --- Bordereau de reversement : préparé par le gérant, il doit être validé par quelqu'un d'autre
+  await page.getByRole("link", { name: "Reversements", exact: true }).click();
+  await page.getByRole("button", { name: "Préparer le bordereau" }).click();
+  await expect(page.getByRole("heading", { name: /^Bordereau BR-\d{4}-0001$/ })).toBeVisible();
+  await expect(page.getByText("une autre personne doit le valider")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Valider le bordereau" })).toHaveCount(0);
+  const telechargement = page.getByRole("link", { name: "Télécharger pour Excel" });
+  const csv = await page.evaluate(async (adresse) => {
+    const reponse = await fetch(adresse!);
+    return { type: reponse.headers.get("content-type"), texte: await reponse.text() };
+  }, await telechargement.getAttribute("href"));
+  expect(csv.type).toBe("text/csv; charset=utf-8");
+  expect(csv.texte).toContain("Transports Kouamé & Fils");
+
+  // --- Commissions : taux de la branche automobile
+  await page.getByRole("link", { name: "Commissions", exact: true }).click();
+  await page.getByLabel("Taux (%)").fill("12,5");
+  await page.getByRole("button", { name: "Ajouter le taux" }).click();
+  await expect(page.getByRole("row", { name: /Automobile/ })).toContainText("12,50 %");
 
   // --- Nouveau compte : mot de passe provisoire affiché une seule fois
   await page.getByRole("link", { name: "Personnel" }).click();

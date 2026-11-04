@@ -15,7 +15,7 @@ PostgreSQL 16 (ou plus récent). C'est ici que vivent les données des clients, 
 
 ## Ce que la base garantit
 
-Ces garanties sont vérifiées par les fichiers de `tests/` (109 contrôles) :
+Ces garanties sont vérifiées par les fichiers de `tests/` (159 contrôles) :
 
 - **Fermeture par défaut.** Sans utilisateur authentifié dans la transaction, aucune donnée métier n'est lisible ni modifiable.
 - **Cloisonnement par rôle**, ligne par ligne : l'apporteur ne voit que ses clients, le commercial ne voit pas la caisse, l'auditeur ne modifie rien. Matrice complète : [`docs/securite/controle-des-acces.md`](../docs/securite/controle-des-acces.md).
@@ -24,9 +24,12 @@ Ces garanties sont vérifiées par les fichiers de `tests/` (109 contrôles) :
 - **Caisse inaltérable** : un encaissement n'est jamais modifié ni supprimé. Une erreur se corrige par une contre-passation, réservée au gérant, exacte et unique.
 - **Plafond de 1 000 000 F CFA d'espèces par police**, vérifié même si deux caisses encaissent en même temps.
 - **Références obligatoires** pour le Mobile Money, les chèques et les virements, et pas de double enregistrement d'une même transaction.
-- **Code CIMA, art. 13** : un contrat ne passe « en vigueur » qu'une fois la prime entièrement payée.
-- **Reversements à la compagnie** : un bordereau préparé par une personne est validé par une autre (principe des quatre yeux), puis figé une fois versé. Le délai de 30 jours (art. 542) est suivi dans `app.v_encaissements_a_reverser`.
-- **Identifiants jamais en clair** : mots de passe hachés (Argon2id, contrôlé par la base), secrets du deuxième facteur chiffrés, jetons de session réduits à leur empreinte. Une fois un utilisateur déclaré, seul un gérant touche aux identifiants d'un autre. Journal de sécurité en ajout seul.
+- **Code CIMA, art. 13** : un contrat ne passe « en vigueur » qu'une fois la prime entièrement payée ; il y passe de lui-même au paiement du solde, et en sort si une contre-passation rend la prime incomplète. Un encaissement ne dépasse jamais le reste à payer.
+- **Reçus, bordereaux et clôtures numérotés sans trou**, par la base : un paiement refusé ne consomme pas de numéro, et l'application ne peut pas en choisir un.
+- **Clôture de caisse** : les espèces attendues sont calculées par la base, le billetage doit correspondre aux espèces comptées, un écart s'explique, un autre gérant vise. Une période clôturée ne reçoit plus d'encaissement antidaté.
+- **Reversements à la compagnie** : un bordereau préparé par une personne est validé par une autre (principe des quatre yeux), puis figé une fois versé. Avant validation, il peut être annulé (gérant ou personne qui l'a préparé) : ses encaissements redeviennent à reverser. Le délai de 30 jours (art. 542) est suivi dans `app.v_encaissements_a_reverser`.
+- **Commissions** : taux par branche datés, relevés de la compagnie, rapprochement mensuel (`app.v_commissions_mensuelles`), réservés au gérant et à l'auditeur.
+- **Identifiants jamais en clair** : mots de passe hachés (Argon2id, contrôlé par la base), secrets du deuxième facteur chiffrés, jetons de session réduits à leur empreinte. Une fois un utilisateur déclaré, seul un gérant touche aux identifiants d'un autre. Journal de sécurité en ajout seul, qui consigne aussi les exports de données.
 - **Devis** : un refus exige son motif. **Échanges** avec les clients en ajout seul. **Renouvellement** : même client, et le contrat renouvelé sort du tableau des échéances.
 - **Journal d'audit** en ajout seul : chaque écriture est consignée avec son auteur. Chaque ligne contient l'empreinte de la précédente, si bien qu'une falsification, même par un administrateur, est détectée par `audit.verifier_chaine()`.
 

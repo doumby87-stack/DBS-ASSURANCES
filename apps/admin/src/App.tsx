@@ -2,9 +2,15 @@
 
 import type { ReactNode } from "react";
 import { Chargement } from "./composants/communs";
+import { Caisse } from "./pages/caisse/Caisse";
+import { PageRecu } from "./pages/caisse/Recu";
 import { FicheClient } from "./pages/clients/FicheClient";
 import { ListeClients } from "./pages/clients/ListeClients";
+import { Commissions } from "./pages/commissions/Commissions";
+import { Contrat } from "./pages/contrats/Contrat";
 import { Personnel } from "./pages/parametres/Personnel";
+import { PageBordereau } from "./pages/reversements/Bordereau";
+import { Reversements } from "./pages/reversements/Reversements";
 import { TableauDeBord } from "./pages/tableau-de-bord/TableauDeBord";
 import { Lien, useChemin } from "./routeur";
 import { ChangementMotDePasse } from "./securite/ChangementMotDePasse";
@@ -41,6 +47,15 @@ function Page() {
   if (chemin === "/clients") return <ListeClients />;
   const client = /^\/clients\/([0-9a-f-]{36})$/.exec(chemin);
   if (client) return <FicheClient key={client[1]} id={client[1]!} />;
+  const contrat = /^\/contrats\/([0-9a-f-]{36})$/.exec(chemin);
+  if (contrat) return <Contrat key={contrat[1]} id={contrat[1]!} />;
+  const recu = /^\/recus\/([0-9a-f-]{36})$/.exec(chemin);
+  if (recu) return <PageRecu key={recu[1]} id={recu[1]!} />;
+  if (chemin === "/caisse") return <Caisse />;
+  if (chemin === "/reversements") return <Reversements />;
+  const bordereau = /^\/reversements\/([0-9a-f-]{36})$/.exec(chemin);
+  if (bordereau) return <PageBordereau key={bordereau[1]} id={bordereau[1]!} />;
+  if (chemin === "/commissions") return <Commissions />;
   if (chemin === "/personnel") return <Personnel />;
   if (chemin === "/mon-compte") {
     return (
@@ -69,6 +84,9 @@ function MiseEnPage({ children }: { children: ReactNode }) {
           <nav aria-label="Navigation principale" className="entete__nav">
             <Lien href="/" aria-current={actif("/")}>Échéances</Lien>
             <Lien href="/clients" aria-current={actif("/clients")}>Clients</Lien>
+            {peut("gerant", "caissier", "charge_clientele", "auditeur") && <Lien href="/caisse" aria-current={actif("/caisse")}>Caisse</Lien>}
+            {peut("gerant", "caissier", "auditeur") && <Lien href="/reversements" aria-current={actif("/reversements")}>Reversements</Lien>}
+            {peut("gerant", "auditeur") && <Lien href="/commissions" aria-current={actif("/commissions")}>Commissions</Lien>}
             {peut("gerant") && <Lien href="/personnel" aria-current={actif("/personnel")}>Personnel</Lien>}
           </nav>
           <div className="entete__compte">

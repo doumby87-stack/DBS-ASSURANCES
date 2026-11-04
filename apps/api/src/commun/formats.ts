@@ -31,3 +31,10 @@ export function normaliserImmatriculation(saisie: string): string | null {
 export function motifRecherche(saisie: string): string {
   return `%${saisie.trim().replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 }
+
+const nombre = new Intl.NumberFormat("fr-FR");
+
+/** « 100000 » → « 100 000 F CFA », pour les messages rédigés par l'API. */
+export function formaterMontant(montant: number): string {
+  return `${nombre.format(montant)} F CFA`;
+}

@@ -12,17 +12,21 @@ export const ECHECS_PAR_IP_MAX = 20;
 
 export type TypeEvenement =
   | "connexion_reussie" | "connexion_echouee" | "mfa_echoue" | "compte_bloque" | "mfa_active"
-  | "mot_de_passe_modifie" | "acces_reinitialise" | "compte_cree" | "compte_modifie" | "deconnexion";
+  | "mot_de_passe_modifie" | "acces_reinitialise" | "compte_cree" | "compte_modifie" | "deconnexion"
+  | "export_donnees";
 
 export async function consignerEvenement(
   client: Client,
   type: TypeEvenement,
-  details: { utilisateurId?: string | null; email?: string | null; ip?: string | null; auteurId?: string | null },
+  details: { utilisateurId?: string | null; email?: string | null; ip?: string | null; auteurId?: string | null; objet?: string | null },
 ): Promise<void> {
   await client.query(
-    `INSERT INTO securite.evenements (type, utilisateur_id, email, adresse_ip, auteur_id)
-     VALUES ($1, $2, $3, $4, $5)`,
-    [type, details.utilisateurId ?? null, details.email?.slice(0, 254) ?? null, details.ip ?? null, details.auteurId ?? null],
+    `INSERT INTO securite.evenements (type, utilisateur_id, email, adresse_ip, auteur_id, objet)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [
+      type, details.utilisateurId ?? null, details.email?.slice(0, 254) ?? null, details.ip ?? null, details.auteurId ?? null,
+      details.objet?.slice(0, 120) ?? null,
+    ],
   );
 }
 

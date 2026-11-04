@@ -38,17 +38,11 @@ async function creerClient(role: string, nom: string, telephone = telephoneUniqu
   return reponse;
 }
 
-/** Simule le paiement complet d'un contrat (le module de caisse arrive à la tâche 5). */
+/** Paiement au guichet, par le caissier. */
 async function payer(contratId: string, montant: number) {
-  const client = await ctx.base.connect();
-  try {
-    await client.query("BEGIN");
-    await client.query("SELECT set_config('app.utilisateur_id', $1, true)", [ids.caissier]);
-    await client.query("INSERT INTO app.encaissements (contrat_id, montant, mode) VALUES ($1, $2, 'especes')", [contratId, montant]);
-    await client.query("COMMIT");
-  } finally {
-    client.release();
-  }
+  const reponse = await envoyer(ctx, { url: "/encaissements", cookie: cookies.caissier, corps: { contratId, montant, mode: "especes" } });
+  expect(reponse.statusCode).toBe(201);
+  return reponse.json().contrat as { statut: string };
 }
 
 describe("Clients", () => {
@@ -165,8 +159,8 @@ describe("Contrats et échéances", () => {
       corps: { clientId: client.id, branche: "automobile", numeroPolice: `POL-${Date.now()}`,
                dateEffet: aujourdHuiPlus(-360), dateEcheance: aujourdHuiPlus(5), primeTtc: 60000 },
     })).json().contrat;
-    await payer(contrat.id, 60000);
-    expect((await envoyer(ctx, { methode: "PATCH", url: `/contrats/${contrat.id}`, cookie: cookies.charge_clientele, corps: { statut: "en_vigueur" } })).statusCode).toBe(200);
+    // Prime payée : le contrat entre en vigueur de lui-même (Code CIMA, art. 13)
+    expect((await payer(contrat.id, 60000)).statut).toBe("en_vigueur");
 
     const echeances = (await envoyer(ctx, { url: "/echeances", cookie: cookies.commercial })).json();
     const ligne = echeances.contrats.find((c: { contratId: string }) => c.contratId === contrat.id);

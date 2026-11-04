@@ -7,6 +7,7 @@ import { Lien } from "../../routeur";
 import { api, messageErreur } from "../../services/api";
 import { BRANCHES, DOCUMENTS_VEHICULE, dateCourte, joursRestants, lienWhatsApp, telephone } from "../../services/format";
 import { useSession } from "../../session";
+import { AlerteReversement, type ResumeAReverser } from "../reversements/Reversements";
 
 type Categorie = "expire" | "j7" | "j15" | "j30" | "j60";
 
@@ -57,14 +58,17 @@ export function TableauDeBord() {
   const [filtre, setFiltre] = useState<Categorie | null>(null);
   const [erreur, setErreur] = useState("");
   const [message, setMessage] = useState("");
+  const [reversement, setReversement] = useState<ResumeAReverser | null>(null);
+  const voitLesReversements = peut("gerant", "caissier", "auditeur");
 
   const charger = useCallback(async () => {
     try {
       setDonnees(await api<Echeances>("/echeances"));
+      if (voitLesReversements) setReversement((await api<{ resume: ResumeAReverser }>("/reversements/a-reverser")).resume);
     } catch (e) {
       setErreur(messageErreur(e));
     }
-  }, []);
+  }, [voitLesReversements]);
   useEffect(() => {
     void charger();
   }, [charger]);
@@ -87,6 +91,12 @@ export function TableauDeBord() {
   return (
     <>
       <h1>Échéances</h1>
+      {reversement && reversement.nombre > 0 && (
+        <div className="bandeau-reversement">
+          <AlerteReversement resume={reversement} />
+          <Lien href="/reversements">Voir les reversements</Lien>
+        </div>
+      )}
       <div className="cartes">
         {CARTES.map((carte) => (
           <button

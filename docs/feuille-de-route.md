@@ -39,11 +39,13 @@ Fiche client unique (contrats, véhicules, devis, échanges), contrats et renouv
 
 *Reporté :* l'import des états de production de SanlamAllianz attend leur format (tâche 2).
 
-## 🔜 Tâche 5 — Caisse et reversements
+## ✅ Tâche 5 — Caisse et reversements
 
-Encaissements avec reçus numérotés, clôture de caisse, plafond des espèces, bordereaux de reversement validés à deux, compte à rebours des 30 jours, rapprochement des commissions.
+Encaissements avec reçus numérotés sans trou et montant en lettres, mise en vigueur automatique du contrat une fois la prime payée, contre-passation par le gérant, clôture de caisse avec billetage et visa, plafond des espèces, bordereaux de reversement validés à deux et exportables, compte à rebours des 30 jours avec alerte à J+25, rapprochement mensuel des commissions ([back-office](../apps/admin/README.md)).
 
-## ⏳ Tâche 6 — Relances automatiques
+*À confirmer avec SanlamAllianz (tâche 2) :* format des bordereaux et des relevés de commissions (l'export CSV s'y adaptera), taux de commission par branche, paiement fractionné de la prime.
+
+## 🔜 Tâche 6 — Relances automatiques
 
 Messages WhatsApp (modèles validés par Meta) et SMS : échéances, contrat expiré, devis sans réponse, avancement d'un sinistre. Consentement et désinscription respectés.
 

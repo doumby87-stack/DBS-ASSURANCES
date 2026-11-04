@@ -50,6 +50,19 @@ describe("Erreurs renvoyées au navigateur", () => {
     expect(JSON.stringify(contrainte)).not.toContain("clients");
   });
 
+  it("donne un message précis pour les contrôles de caisse connus, sans reprendre le texte de la base", () => {
+    const doublon = traduireErreur({
+      code: "23505", severity: "ERROR", constraint: "encaissements_reference_unique",
+      message: 'duplicate key value violates unique constraint "encaissements_reference_unique"',
+    });
+    expect(doublon).toMatchObject({ statut: 409, corps: { code: "reference_deja_utilisee" } });
+    expect(JSON.stringify(doublon)).not.toContain("encaissements");
+    const quatreYeux = traduireErreur({
+      code: "23514", severity: "ERROR", constraint: "reversements_quatre_yeux", message: "violates check constraint",
+    });
+    expect(quatreYeux).toMatchObject({ statut: 403, corps: { code: "quatre_yeux" } });
+  });
+
   it("traduit les refus de droits et les sessions invalides", () => {
     expect(traduireErreur({ code: "42501", severity: "ERROR", message: "new row violates row-level security policy" }).statut).toBe(403);
     expect(traduireErreur({ code: "28000", severity: "ERROR", message: "Utilisateur inconnu ou désactivé" }).statut).toBe(401);

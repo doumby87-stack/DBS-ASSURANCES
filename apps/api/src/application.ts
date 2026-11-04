@@ -7,8 +7,12 @@ import { transactionSysteme } from "./base-de-donnees/connexion.js";
 import { erreurs, gestionnaireErreurs } from "./commun/erreurs.js";
 import type { Configuration } from "./config/configuration.js";
 import { routesClients } from "./modules/clients/routes.js";
+import { routesCommissions } from "./modules/commissions/routes.js";
 import { routesContrats } from "./modules/contrats/routes.js";
 import { routesDevis } from "./modules/devis/routes.js";
+import { routesCaisse } from "./modules/encaissements/caisse.js";
+import { routesEncaissements } from "./modules/encaissements/routes.js";
+import { routesReversements } from "./modules/reversements/routes.js";
 import { routesUtilisateurs } from "./modules/utilisateurs/routes.js";
 import { routesVehicules } from "./modules/vehicules/routes.js";
 import { creerGardes } from "./securite/gardes.js";
@@ -91,6 +95,10 @@ export async function construireApplication(dependances: DependancesApplication)
   await app.register(routesContrats, { pool, gardes });
   await app.register(routesVehicules, { pool, gardes });
   await app.register(routesDevis, { pool, gardes });
+  await app.register(routesEncaissements, { pool, gardes });
+  await app.register(routesCaisse, { pool, gardes });
+  await app.register(routesReversements, { pool, gardes });
+  await app.register(routesCommissions, { pool, gardes });
 
   return app;
 }
