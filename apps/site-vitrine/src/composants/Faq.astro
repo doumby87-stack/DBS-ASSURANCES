@@ -1,0 +1,18 @@
+---
+// Questions fréquentes en accordéon (details/summary : fonctionne sans script, au clavier et au lecteur d'écran).
+import type { Question } from "../donnees/faq";
+import Icone from "./Icone.astro";
+
+interface Props {
+  questions: Question[];
+}
+const { questions } = Astro.props;
+---
+<div class="faq">
+  {questions.map((q) => (
+    <details id={q.id}>
+      <summary>{q.question}<Icone nom="plus" /></summary>
+      <div class="faq__reponse"><p>{q.reponse}</p></div>
+    </details>
+  ))}
+</div>

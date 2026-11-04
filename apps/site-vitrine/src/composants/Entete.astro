@@ -1,0 +1,57 @@
+---
+// Bandeau du haut (qualité d'Agent Général, urgence sinistre) et en-tête : logo, navigation, appels à l'action.
+// Sous 1 080 px, la navigation passe dans un menu plein écran (src/scripts/menu.ts).
+import { AGENCE, LIEN_TELEPHONE, lienWhatsApp } from "../donnees/agence";
+import { NAVIGATION } from "../donnees/navigation";
+import Icone from "./Icone.astro";
+
+const chemin = Astro.url.pathname;
+const courant = (href: string) => (chemin.startsWith(href) ? "page" : undefined);
+---
+<div class="bandeau-haut">
+  <div class="conteneur bandeau-haut__interieur">
+    <p class="bandeau-haut__agent"><Icone nom="insigne" />{AGENCE.qualite} · Code agence {AGENCE.codeAgence}</p>
+    <div class="bandeau-haut__liens">
+      <a class="bandeau-haut__urgence" href={LIEN_TELEPHONE}><Icone nom="alerte" />Sinistre ? {AGENCE.telephone.affichage}</a>
+      <a class="bandeau-haut__whatsapp" href={lienWhatsApp()} target="_blank" rel="noopener noreferrer"><Icone nom="whatsapp" />WhatsApp</a>
+    </div>
+  </div>
+</div>
+
+<header class="entete">
+  <div class="conteneur entete__interieur">
+    <a class="marque" href="/" aria-label={`${AGENCE.nom}, accueil`}>
+      <img src="/images/logo-dbs-assurances.png" alt={`${AGENCE.nom}, Agent Général`} width="480" height="141" />
+    </a>
+    <nav class="navigation" aria-label="Navigation principale">
+      <ul>
+        {NAVIGATION.map((lien) => <li><a href={lien.href} aria-current={courant(lien.href)}>{lien.libelle}</a></li>)}
+      </ul>
+    </nav>
+    <div class="entete__actions">
+      <a class="entete__telephone" href={LIEN_TELEPHONE}><Icone nom="telephone" />{AGENCE.telephone.affichage}</a>
+      <a class="bouton bouton--principal bouton--petit entete__devis" href="/devis/">Devis gratuit</a>
+      <button class="bouton-menu" type="button" aria-expanded="false" aria-controls="menu-mobile" aria-label="Ouvrir le menu" data-bouton-menu>
+        <Icone nom="menu" />
+      </button>
+    </div>
+  </div>
+  <div class="menu-mobile" id="menu-mobile" data-menu-mobile>
+    <nav aria-label="Navigation principale (mobile)">
+      <ul>
+        <li><a href="/" aria-current={chemin === "/" ? "page" : undefined}>Accueil <Icone nom="chevron" /></a></li>
+        {NAVIGATION.map((lien) => <li><a href={lien.href} aria-current={courant(lien.href)}>{lien.libelle} <Icone nom="chevron" /></a></li>)}
+        <li><a href="/questions-frequentes/" aria-current={courant("/questions-frequentes/")}>Questions fréquentes <Icone nom="chevron" /></a></li>
+      </ul>
+    </nav>
+    <div class="menu-mobile__actions">
+      <a class="bouton bouton--principal bouton--grand" href="/devis/">Demander un devis gratuit <Icone nom="fleche" /></a>
+      <a class="bouton bouton--contour" href={LIEN_TELEPHONE}><Icone nom="telephone" />Appeler le {AGENCE.telephone.affichage}</a>
+      <a class="bouton bouton--whatsapp" href={lienWhatsApp()} target="_blank" rel="noopener noreferrer"><Icone nom="whatsapp" />Écrire sur WhatsApp</a>
+    </div>
+  </div>
+</header>
+
+<script>
+  import "../scripts/menu";
+</script>

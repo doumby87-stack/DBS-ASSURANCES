@@ -1,0 +1,107 @@
+---
+import EntetePage from "../composants/EntetePage.astro";
+import Faq from "../composants/Faq.astro";
+import Icone from "../composants/Icone.astro";
+import { AGENCE, LIEN_TELEPHONE, lienWhatsApp } from "../donnees/agence";
+import { question } from "../donnees/faq";
+import Base from "../mises-en-page/Base.astro";
+
+const situations = [
+  {
+    icone: "voiture" as const,
+    titre: "Accident de la route",
+    documents: ["Constat amiable signé, ou rapport de police", "Photos des véhicules et des lieux", "Carte grise et permis de conduire", "Attestation et numéro de police", "Coordonnées des témoins"],
+  },
+  {
+    icone: "cadenas" as const,
+    titre: "Vol",
+    documents: ["Récépissé du dépôt de plainte (police ou gendarmerie)", "Carte grise ou factures des biens volés", "Attestation et numéro de police"],
+  },
+  {
+    icone: "flamme" as const,
+    titre: "Incendie ou dégât des eaux",
+    documents: ["Photos des dégâts", "Factures ou justificatifs de la valeur des biens", "Rapport des pompiers s'ils sont intervenus", "Numéro de police"],
+  },
+  {
+    icone: "coeur" as const,
+    titre: "Blessure",
+    documents: ["Certificat médical initial", "Justificatifs des frais engagés", "Constat ou rapport de police s'il s'agit d'un accident de la route"],
+  },
+];
+const questions = ["que-faire", "suivi"].map(question);
+---
+<Base
+  titre="Déclarer un sinistre : accident, vol, incendie"
+  description="Accident, vol, incendie, dégât des eaux : que faire tout de suite, quels documents préparer, et comment DBS-ASSURANCES suit votre dossier avec SanlamAllianz jusqu'au règlement."
+>
+  <EntetePage surtitre="Sinistre" titre="Un accident, un vol, un dégât ? Voici quoi faire." page="Sinistre">
+    <p>Prévenez-nous au plus vite, dans le délai prévu par votre contrat : nous vous aidons à constituer le dossier et le suivons avec SanlamAllianz jusqu'à son règlement.</p>
+    <div class="heros__actions" slot="raccourcis">
+      <a class="bouton bouton--urgence bouton--grand" href={LIEN_TELEPHONE}><Icone nom="telephone" />Appeler le {AGENCE.telephone.affichage}</a>
+      <a class="bouton bouton--whatsapp bouton--grand" href={lienWhatsApp("Bonjour DBS-ASSURANCES, je souhaite déclarer un sinistre.")} target="_blank" rel="noopener noreferrer"><Icone nom="whatsapp" />Déclarer sur WhatsApp</a>
+    </div>
+  </EntetePage>
+
+  <section class="section" aria-labelledby="titre-consignes">
+    <div class="conteneur deux-colonnes">
+      <div>
+        <p class="surtitre">Tout de suite</p>
+        <h2 id="titre-consignes">Les bons réflexes</h2>
+        <ol class="consignes">
+          <li><b>Protégez les personnes.</b> Mettez-vous en sécurité et appelez les secours si nécessaire.</li>
+          <li><b>Rassemblez les preuves.</b> Constat amiable signé, photos, coordonnées des témoins ; en cas de vol, dépôt de plainte auprès de la police ou de la gendarmerie.</li>
+          <li><b>Déclarez le sinistre sans attendre,</b> dans le délai prévu par votre contrat : appelez-nous ou écrivez-nous sur WhatsApp avec vos photos.</li>
+          <li><b>Nous suivons votre dossier</b> avec la compagnie et vous informons à chaque étape.</li>
+        </ol>
+      </div>
+      <div class="encadre encadre--or">
+        <Icone nom="info" />
+        <p><strong>Ne signez rien sous la pression.</strong> Un constat amiable doit être rempli avec soin, et signé par les deux conducteurs. En cas de désaccord, appelez la police et notez seulement les faits. Gardez une copie de chaque document.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--sable" aria-labelledby="titre-documents">
+    <div class="conteneur">
+      <div class="section__tete">
+        <p class="surtitre">À préparer</p>
+        <h2 id="titre-documents">Les documents, selon votre situation</h2>
+        <p class="chapeau">Envoyez-nous ce que vous avez déjà : nous vous dirons ce qui manque.</p>
+      </div>
+      <div class="grille-cartes">
+        {situations.map((s) => (
+          <article class="carte">
+            <div class="carte__tete"><span class="carte__icone"><Icone nom={s.icone} /></span><h3>{s.titre}</h3></div>
+            <ul class="liste-coches">{s.documents.map((d) => <li><Icone nom="coche" />{d}</li>)}</ul>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="titre-suite">
+    <div class="conteneur">
+      <div class="section__tete section__tete--centre">
+        <p class="surtitre">Ensuite</p>
+        <h2 id="titre-suite">Votre dossier, étape par étape</h2>
+        <p class="chapeau">Nous vous prévenons à chaque changement, sur WhatsApp ou par SMS si vous l'avez accepté.</p>
+      </div>
+      <ol class="etapes">
+        <li class="etape"><h3>Déclaration</h3><p>Nous enregistrons votre sinistre et vérifions les pièces.</p></li>
+        <li class="etape"><h3>Transmission</h3><p>Votre dossier complet est transmis à SanlamAllianz.</p></li>
+        <li class="etape"><h3>Expertise</h3><p>Si nécessaire, un expert évalue les dommages.</p></li>
+        <li class="etape"><h3>Offre et règlement</h3><p>La compagnie fait son offre d'indemnisation ; nous l'examinons avec vous jusqu'au règlement.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="section section--sable" aria-labelledby="titre-faq">
+    <div class="conteneur faq-grille">
+      <div>
+        <p class="surtitre">Questions fréquentes</p>
+        <h2 id="titre-faq">En cas de sinistre</h2>
+      </div>
+      <Faq questions={questions} />
+    </div>
+  </section>
+</Base>

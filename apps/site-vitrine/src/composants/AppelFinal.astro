@@ -1,0 +1,34 @@
+---
+// Dernier appel à l'action d'une page : devis, appel, WhatsApp.
+import { AGENCE, LIEN_TELEPHONE, lienWhatsApp } from "../donnees/agence";
+import Icone from "./Icone.astro";
+
+interface Props {
+  titre?: string;
+  texte?: string;
+  devis?: string;
+}
+const {
+  titre = "Parlons de ce que vous voulez protéger.",
+  texte = "Un conseiller de l'agence étudie votre besoin et vous répond avec une cotation SanlamAllianz. Le devis est gratuit et sans engagement.",
+  devis = "/devis/",
+} = Astro.props;
+---
+<section class="section">
+  <div class="conteneur">
+    <div class="appel-final">
+      <div class="appel-final__grille">
+        <div>
+          <p class="surtitre surtitre--clair">Devis gratuit</p>
+          <h2>{titre}</h2>
+          <p>{texte}</p>
+        </div>
+        <div class="appel-final__actions">
+          <a class="bouton bouton--principal bouton--grand" href={devis}>Demander mon devis <Icone nom="fleche" /></a>
+          <a class="bouton bouton--clair" href={LIEN_TELEPHONE}><Icone nom="telephone" />Appeler le {AGENCE.telephone.affichage}</a>
+          <a class="bouton bouton--clair" href={lienWhatsApp()} target="_blank" rel="noopener noreferrer"><Icone nom="whatsapp" />Écrire sur WhatsApp</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

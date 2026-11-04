@@ -1,0 +1,64 @@
+---
+// Squelette commun à toutes les pages : référencement (titre, description, adresse canonique, aperçus de liens,
+// données structurées), en-tête, pied de page. Les adresses absolues n'apparaissent que si l'adresse publique
+// du site est connue (astro.config.mjs) : une adresse inventée serait pire qu'aucune.
+import "../styles/global.css";
+import Entete from "../composants/Entete.astro";
+import PiedDePage from "../composants/PiedDePage.astro";
+import { AGENCE } from "../donnees/agence";
+
+interface Props {
+  titre: string;
+  description: string;
+  /** Données structurées schema.org propres à la page */
+  donneesStructurees?: Record<string, unknown>[];
+  /** false pour la page d'erreur : elle ne doit pas être référencée */
+  indexer?: boolean;
+}
+
+const { titre, description, donneesStructurees = [], indexer = true } = Astro.props;
+const titreComplet = titre.includes(AGENCE.nom) ? titre : `${titre} · ${AGENCE.nom}`;
+const site = Astro.site;
+const canonique = site && indexer ? new URL(Astro.url.pathname, site).href : undefined;
+const image = site ? new URL("/images/og-image.png", site).href : undefined;
+// Le JSON est écrit dans la page : on neutralise « < » pour qu'aucun texte ne puisse fermer la balise
+const json = (objet: Record<string, unknown>) => JSON.stringify(objet).replace(/</g, "\\u003c");
+---
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{titreComplet}</title>
+    <meta name="description" content={description} />
+    {!indexer && <meta name="robots" content="noindex" />}
+    {canonique && <link rel="canonical" href={canonique} />}
+    <meta name="theme-color" content="#203888" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="preload" href="/polices/archivo-latin.woff2" as="font" type="font/woff2" crossorigin />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="fr_CI" />
+    <meta property="og:site_name" content={AGENCE.nom} />
+    <meta property="og:title" content={titreComplet} />
+    <meta property="og:description" content={description} />
+    {canonique && <meta property="og:url" content={canonique} />}
+    {image && <meta property="og:image" content={image} />}
+    {image && <meta property="og:image:width" content="1200" />}
+    {image && <meta property="og:image:height" content="630" />}
+    {image && <meta property="og:image:alt" content={`${AGENCE.nom}, ${AGENCE.qualite}, code agence ${AGENCE.codeAgence}`} />}
+    <meta name="twitter:card" content="summary_large_image" />
+
+    {donneesStructurees.map((objet) => <script type="application/ld+json" set:html={json(objet)} />)}
+    <slot name="tete" />
+  </head>
+  <body>
+    <a class="lien-evitement" href="#contenu">Aller au contenu</a>
+    <Entete />
+    <main id="contenu">
+      <slot />
+    </main>
+    <PiedDePage />
+  </body>
+</html>

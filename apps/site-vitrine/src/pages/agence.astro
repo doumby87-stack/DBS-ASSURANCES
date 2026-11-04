@@ -1,0 +1,83 @@
+---
+import AppelFinal from "../composants/AppelFinal.astro";
+import EntetePage from "../composants/EntetePage.astro";
+import Icone from "../composants/Icone.astro";
+import { AGENCE, LIEN_EMAIL, LIEN_TELEPHONE, lienWhatsApp } from "../donnees/agence";
+import Base from "../mises-en-page/Base.astro";
+---
+<Base
+  titre="L'agence : Agent Général SanlamAllianz à Yopougon"
+  description={`${AGENCE.nom}, ${AGENCE.qualite} sous le code agence ${AGENCE.codeAgence}, à ${AGENCE.adresse.rue}, ${AGENCE.adresse.ville}. Coordonnées, identité de l'agence et moyens de vérifier qu'un message vient bien de nous.`}
+>
+  <EntetePage surtitre="L'agence" titre="Votre Agent Général SanlamAllianz à Yopougon." page="L'agence">
+    <p><strong class="sans-retour">{AGENCE.nom}</strong> représente {AGENCE.compagnie} sous le code agence {AGENCE.codeAgence} : votre interlocuteur direct auprès de la compagnie, du devis jusqu'au règlement des sinistres.</p>
+  </EntetePage>
+
+  <section class="section" aria-labelledby="titre-role">
+    <div class="conteneur deux-colonnes">
+      <div>
+        <p class="surtitre">Notre rôle</p>
+        <h2 id="titre-role">Ce qu'un Agent Général fait pour vous</h2>
+        <ul class="liste-coches">
+          <li><Icone nom="cocheRonde" />Il présente les contrats de la compagnie et vous aide à choisir les garanties adaptées.</li>
+          <li><Icone nom="cocheRonde" />Il établit vos contrats et vos attestations, et encaisse votre prime contre un reçu numéroté.</li>
+          <li><Icone nom="cocheRonde" />Il suit vos échéances et vous accompagne en cas de sinistre, jusqu'au règlement.</li>
+          <li><Icone nom="cocheRonde" />Vos contrats sont émis et garantis par {AGENCE.compagnie}.</li>
+        </ul>
+      </div>
+      <div class="carte">
+        <div class="carte__tete"><span class="carte__icone"><Icone nom="insigne" /></span><h3>Identité de l'agence</h3></div>
+        <dl class="fiche">
+          <dt>Dénomination</dt><dd>{AGENCE.raisonSociale} ({AGENCE.nom})</dd>
+          <dt>Qualité</dt><dd>{AGENCE.qualite}</dd>
+          <dt>Code agence</dt><dd>{AGENCE.codeAgence}</dd>
+          <dt>Forme</dt><dd>{AGENCE.juridique.forme} au capital de {AGENCE.juridique.capital}</dd>
+          <dt>RCCM</dt><dd>{AGENCE.juridique.rccm}</dd>
+          <dt>Compte contribuable</dt><dd>{AGENCE.juridique.compteContribuable}</dd>
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--sable" aria-labelledby="titre-contact" id="contact">
+    <div class="conteneur deux-colonnes">
+      <div>
+        <p class="surtitre">Nous trouver</p>
+        <h2 id="titre-contact">Coordonnées</h2>
+        <ul class="coordonnees">
+          <li><span class="coordonnees__icone"><Icone nom="telephone" /></span><div><span class="coordonnees__libelle">Téléphone et WhatsApp</span><a href={LIEN_TELEPHONE}>{AGENCE.telephone.international}</a><span class="coordonnees__detail"><a href={lienWhatsApp()} target="_blank" rel="noopener noreferrer">Écrire sur WhatsApp</a></span></div></li>
+          <li><span class="coordonnees__icone"><Icone nom="courriel" /></span><div><span class="coordonnees__libelle">E-mail</span><a href={LIEN_EMAIL}>{AGENCE.email}</a></div></li>
+          <li><span class="coordonnees__icone"><Icone nom="repere" /></span><div><span class="coordonnees__libelle">Agence</span><strong>{AGENCE.adresse.rue}</strong><span class="coordonnees__detail">{AGENCE.adresse.ville}, {AGENCE.adresse.pays} · <a href={AGENCE.carte} target="_blank" rel="noopener noreferrer">Voir sur la carte</a></span></div></li>
+          <li><span class="coordonnees__icone"><Icone nom="boite" /></span><div><span class="coordonnees__libelle">Courrier</span><strong>{AGENCE.adresse.boitePostale}</strong></div></li>
+          <li><span class="coordonnees__icone"><Icone nom="horloge" /></span><div><span class="coordonnees__libelle">Horaires</span>
+            {AGENCE.horaires.length > 0
+              ? AGENCE.horaires.map((h) => <span class="coordonnees__detail">{h}</span>)
+              : <span class="coordonnees__detail">Appelez-nous avant de passer : nous vous recevons au bon moment.</span>}
+          </div></li>
+        </ul>
+      </div>
+      <div class="carte" id="verifier">
+        <div class="carte__tete"><span class="carte__icone"><Icone nom="bouclier" /></span><h3>Vérifier que c'est bien nous</h3></div>
+        <p>Des escrocs se font passer pour des agences d'assurance. Quelques règles simples vous protègent :</p>
+        <ul class="liste-coches">
+          <li><Icone nom="coche" />Nos seuls contacts sont le {AGENCE.telephone.affichage} et {AGENCE.email}.</li>
+          <li><Icone nom="coche" />Ne payez qu'à l'agence ou sur les moyens de paiement que nous vous indiquons depuis ces contacts.</li>
+          <li><Icone nom="coche" />Exigez un reçu numéroté pour chaque paiement.</li>
+          <li><Icone nom="coche" />Scannez le QR code de votre attestation : il prouve qu'elle est authentique.</li>
+          <li><Icone nom="coche" />Un doute sur un message reçu en notre nom ? Appelez-nous avant de payer.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="titre-reclamations">
+    <div class="conteneur texte-long">
+      <p class="surtitre">Réclamations</p>
+      <h2 id="titre-reclamations">Un problème ? Dites-le-nous.</h2>
+      <p>Pour toute réclamation, écrivez-nous à <a href={LIEN_EMAIL}>{AGENCE.email}</a>, appelez le <a href={LIEN_TELEPHONE}>{AGENCE.telephone.international}</a> ou adressez un courrier au {AGENCE.adresse.boitePostale}. Vous pouvez également saisir la compagnie {AGENCE.compagnie}.</p>
+      <a class="lien-fleche" href="/mentions-legales/">Mentions légales et données personnelles <Icone nom="fleche" /></a>
+    </div>
+  </section>
+
+  <AppelFinal />
+</Base>

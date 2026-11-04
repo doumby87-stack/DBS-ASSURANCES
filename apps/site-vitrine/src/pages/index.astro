@@ -1,0 +1,263 @@
+---
+import AppelFinal from "../composants/AppelFinal.astro";
+import Faq from "../composants/Faq.astro";
+import Icone from "../composants/Icone.astro";
+import { AGENCE, LIEN_TELEPHONE, lienWhatsApp } from "../donnees/agence";
+import { question } from "../donnees/faq";
+import { offresPour } from "../donnees/offres";
+import Base from "../mises-en-page/Base.astro";
+
+const site = Astro.site;
+const agence: Record<string, unknown> = {
+  "@context": "https://schema.org",
+  "@type": "InsuranceAgency",
+  name: AGENCE.nom,
+  legalName: AGENCE.raisonSociale,
+  description: `${AGENCE.qualite} Assurances, code agence ${AGENCE.codeAgence} : assurance automobile et deux-roues, flottes et transport, habitation, multirisque professionnelle, chantiers et risques d'entreprise.`,
+  telephone: AGENCE.telephone.international,
+  email: AGENCE.email,
+  address: {
+    "@type": "PostalAddress",
+    streetAddress: AGENCE.adresse.rue,
+    postOfficeBoxNumber: AGENCE.adresse.boitePostale,
+    addressLocality: AGENCE.adresse.ville,
+    addressCountry: "CI",
+  },
+  areaServed: { "@type": "Country", name: AGENCE.adresse.pays },
+  currenciesAccepted: "XOF",
+  paymentAccepted: "Espèces, chèque, Mobile Money, virement bancaire",
+  ...(site
+    ? { url: new URL("/", site).href, logo: new URL("/images/logo-dbs-assurances.png", site).href, image: new URL("/images/og-image.png", site).href }
+    : {}),
+};
+
+const profils = [
+  {
+    href: "/particuliers/",
+    icone: "personne" as const,
+    titre: "Particulier",
+    texte: "Votre voiture, votre moto, votre logement et votre famille.",
+    offres: offresPour("particuliers").map((o) => o.titre),
+  },
+  {
+    href: "/flottes/",
+    icone: "camion" as const,
+    titre: "Transporteur et flotte",
+    texte: "Tous vos véhicules dans un même dossier, attestations en lot et échéances suivies.",
+    offres: ["Tracteurs et semi-remorques", "Véhicules de service", "Motos de livraison", "Marchandises transportées"],
+    vedette: true,
+  },
+  {
+    href: "/professionnels/",
+    icone: "immeuble" as const,
+    titre: "Professionnel et entreprise",
+    texte: "Vos locaux, votre activité, vos chantiers et vos appels d'offres.",
+    offres: ["Multirisque professionnelle", "Incendie", "Responsabilité civile", "Chantiers", "Industrie", "Agriculture"],
+  },
+];
+
+const questions = ["auto-obligatoire", "debut-couverture", "paiement", "attestation-digitale", "rappels"].map(question);
+---
+<Base
+  titre={`${AGENCE.nom} · ${AGENCE.qualite.replace(" Côte d'Ivoire", "")} à Yopougon, Abidjan`}
+  description={`${AGENCE.nom}, ${AGENCE.qualite} (code ${AGENCE.codeAgence}) à Yopougon : assurance auto et moto, flottes, habitation, multirisque professionnelle, chantiers. Devis gratuit, attestation digitale, paiement Mobile Money.`}
+  donneesStructurees={[agence]}
+>
+  <section class="heros">
+    <div class="conteneur heros__grille">
+      <div>
+        <p class="surtitre">{AGENCE.qualite} · {AGENCE.adresse.commune}, {AGENCE.adresse.ville}</p>
+        <h1>Assurer ce qui vous fait <span class="souligne">avancer.</span></h1>
+        <p class="chapeau">
+          Véhicules, flottes, logement, commerce, chantiers : <strong class="sans-retour">{AGENCE.nom}</strong> vous conseille, établit vos
+          contrats <strong>SanlamAllianz</strong>, surveille vos échéances et reste à vos côtés en cas de sinistre.
+        </p>
+        <div class="heros__actions">
+          <a class="bouton bouton--principal bouton--grand" href="/devis/">Obtenir mon devis gratuit <Icone nom="fleche" /></a>
+          <a class="bouton bouton--contour bouton--grand" href="/sinistre/"><Icone nom="alerte" />Déclarer un sinistre</a>
+        </div>
+        <ul class="heros__garanties">
+          <li><Icone nom="cocheRonde" />Devis gratuit et sans engagement</li>
+          <li><Icone nom="cocheRonde" />Attestation digitale vérifiable</li>
+          <li><Icone nom="cocheRonde" />Mobile Money, espèces, chèque, virement</li>
+        </ul>
+      </div>
+
+      <div class="scene" aria-hidden="true">
+        <div class="scene__halo"></div>
+        <div class="vignette vignette--compagnie"><img src="/images/sanlamallianz-agent-general.png" alt="" width="400" height="221" /></div>
+        <div class="telephone">
+          <div class="telephone__ecran">
+            <div class="telephone__barre">
+              <span class="telephone__avatar">DBS</span>
+              <div><p class="telephone__nom">{AGENCE.nom}</p><p class="telephone__statut">Compte professionnel</p></div>
+            </div>
+            <div class="telephone__fil">
+              <div class="bulle-message">
+                <p>Bonjour Aya, votre assurance automobile arrive à échéance le 29/11. Pour la renouveler sans interruption de garantie, répondez à ce message ou appelez {AGENCE.nom} au {AGENCE.telephone.affichage}.</p>
+                <span class="bulle-message__pied">Répondez STOP pour ne plus recevoir ces messages.</span>
+                <span class="bulle-message__heure">09:12</span>
+              </div>
+              <div class="bulle-message bulle-message--envoyee">
+                <p>Merci ! Je passe régler par Mobile Money.</p>
+                <span class="bulle-message__heure">09:20</span>
+              </div>
+              <div class="bulle-message">
+                <p>Paiement reçu. Votre attestation digitale est prête.</p>
+                <span class="bulle-message__heure">10:04</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="vignette vignette--attestation">
+          <div class="vignette__tete">
+            <span class="vignette__icone"><Icone nom="qr" /></span>
+            <div><p class="vignette__surtitre">Attestation digitale</p><p class="vignette__titre">Émise après paiement</p></div>
+          </div>
+          <p class="vignette__ligne"><Icone nom="cocheRonde" />QR code vérifiable · ASACI</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="confiance" aria-label="Pourquoi nous faire confiance">
+    <div class="conteneur"><ul class="confiance__liste">
+      <li><span class="confiance__icone"><Icone nom="insigne" /></span><div><strong>Agent Général SanlamAllianz</strong><span>Code agence {AGENCE.codeAgence}</span></div></li>
+      <li><span class="confiance__icone"><Icone nom="qr" /></span><div><strong>Attestation digitale ASACI</strong><span>Vérifiable par QR code</span></div></li>
+      <li><span class="confiance__icone"><Icone nom="portefeuille" /></span><div><strong>Paiement au choix</strong><span>Mobile Money, espèces, chèque, virement</span></div></li>
+      <li><span class="confiance__icone"><Icone nom="repere" /></span><div><strong>Une agence à Yopougon</strong><span>{AGENCE.adresse.rue}</span></div></li>
+    </ul></div>
+  </section>
+
+  <section class="section" aria-labelledby="titre-profils">
+    <div class="conteneur">
+      <div class="section__tete">
+        <p class="surtitre">Nos assurances</p>
+        <h2 id="titre-profils">Vous êtes…</h2>
+        <p class="chapeau">Toutes nos solutions sont souscrites auprès de SanlamAllianz Côte d'Ivoire. Nous vous présentons les formules adaptées et ajustons les garanties à votre situation.</p>
+      </div>
+      <div class="profils">
+        {profils.map((p) => (
+          <article class={`profil${p.vedette ? " profil--vedette" : ""}`}>
+            <span class="profil__icone"><Icone nom={p.icone} /></span>
+            <h3>{p.titre}</h3>
+            <p>{p.texte}</p>
+            <ul class="puces">{p.offres.map((o) => <li>{o}</li>)}</ul>
+            <a class="lien-fleche" href={p.href}>Voir les assurances <span class="visuellement-cache">{p.titre}</span><Icone nom="fleche" /></a>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--sable" aria-labelledby="titre-engagements">
+    <div class="conteneur">
+      <div class="section__tete section__tete--centre">
+        <p class="surtitre">Nos engagements</p>
+        <h2 id="titre-engagements">Un interlocuteur qui connaît votre dossier, du devis au sinistre.</h2>
+      </div>
+      <ul class="engagements">
+        <li class="engagement">
+          <span class="engagement__icone"><Icone nom="bulle" /></span>
+          <h3>Des garanties expliquées</h3>
+          <p>Nous comparons les formules avec vous et vous disons clairement ce qui est couvert, et ce qui ne l'est pas.</p>
+        </li>
+        <li class="engagement">
+          <span class="engagement__icone"><Icone nom="calendrier" /></span>
+          <h3>Vos échéances surveillées</h3>
+          <p>Avec votre accord, nous vous prévenons avant chaque échéance pour renouveler sans jamais rouler sans assurance.</p>
+        </li>
+        <li class="engagement">
+          <span class="engagement__icone"><Icone nom="bouclier" /></span>
+          <h3>Un sinistre suivi</h3>
+          <p>Nous constituons le dossier avec vous et le suivons auprès de SanlamAllianz jusqu'au règlement.</p>
+        </li>
+        <li class="engagement">
+          <span class="engagement__icone"><Icone nom="recu" /></span>
+          <h3>Chaque paiement tracé</h3>
+          <p>Un reçu numéroté pour chaque paiement, quel que soit le moyen : c'est votre preuve, et votre protection contre les arnaques.</p>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="titre-etapes">
+    <div class="conteneur">
+      <div class="section__tete section__tete--centre">
+        <p class="surtitre">Comment ça marche</p>
+        <h2 id="titre-etapes">Du devis à l'attestation, en quatre étapes.</h2>
+      </div>
+      <ol class="etapes">
+        <li class="etape"><h3>Vous nous décrivez votre besoin</h3><p>En ligne, par téléphone, sur WhatsApp ou directement à l'agence de Yopougon.</p></li>
+        <li class="etape"><h3>Nous préparons votre devis</h3><p>Une cotation SanlamAllianz adaptée, avec des garanties expliquées simplement.</p></li>
+        <li class="etape"><h3>Vous réglez votre prime</h3><p>En espèces (jusqu'à 1 000 000 F CFA par police), par chèque à l'ordre de SanlamAllianz CI, par Mobile Money ou par virement.</p></li>
+        <li class="etape"><h3>Vous êtes couvert</h3><p>Le contrat prend effet au paiement. Vous recevez vos documents et, pour un véhicule, l'attestation digitale.</p></li>
+      </ol>
+      <div class="encadre">
+        <Icone nom="info" />
+        <p><strong>Code CIMA, article 13 :</strong> la prise d'effet du contrat est subordonnée au paiement de la prime. Sans paiement, pas de garantie.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--sombre" aria-labelledby="titre-flottes">
+    <div class="conteneur deux-colonnes">
+      <div>
+        <p class="surtitre surtitre--clair">Entreprises et transporteurs</p>
+        <h2 id="titre-flottes">Votre flotte assurée et suivie, véhicule par véhicule.</h2>
+        <p class="chapeau">Transporteurs, sociétés de livraison, PME : confiez-nous l'ensemble de vos véhicules. Nous montons la cotation, éditons les attestations et surveillons les échéances à votre place.</p>
+        <ul class="atouts">
+          <li><span class="atouts__icone"><Icone nom="tableur" /></span><div><h3>Cotation de toute la flotte</h3><p>Un fichier Excel de vos véhicules suffit.</p></div></li>
+          <li><span class="atouts__icone"><Icone nom="qr" /></span><div><h3>Attestations en lot</h3><p>Une attestation ASACI par véhicule, vérifiable aux contrôles.</p></div></li>
+          <li><span class="atouts__icone"><Icone nom="recu" /></span><div><h3>Facture détaillée</h3><p>Chaque véhicule avec son immatriculation et son montant.</p></div></li>
+          <li><span class="atouts__icone"><Icone nom="calendrier" /></span><div><h3>Renouvellements anticipés</h3><p>Nous vous prévenons avant chaque échéance.</p></div></li>
+        </ul>
+        <a class="bouton bouton--principal bouton--grand" href="/flottes/">Découvrir l'offre flotte <Icone nom="fleche" /></a>
+      </div>
+      <div class="carte-flotte" aria-hidden="true">
+        <div class="carte-flotte__tete"><b>Suivi de flotte</b><span class="pastille">Exemple</span></div>
+        <ul>
+          <li><span class="carte-flotte__icone"><Icone nom="camion" /></span><div><b>Tracteur routier</b><small>Transport de marchandises</small></div><span class="statut statut--ok">Attestation émise</span></li>
+          <li><span class="carte-flotte__icone"><Icone nom="camion" /></span><div><b>Semi-remorque</b><small>Plateau</small></div><span class="statut statut--ok">Attestation émise</span></li>
+          <li><span class="carte-flotte__icone"><Icone nom="camion" /></span><div><b>Remorque</b><small>Citerne</small></div><span class="statut statut--alerte">Échéance dans 15 jours</span></li>
+          <li><span class="carte-flotte__icone"><Icone nom="moto" /></span><div><b>Moto de livraison</b><small>Usage professionnel</small></div><span class="statut statut--ok">Attestation émise</span></li>
+          <li><span class="carte-flotte__icone"><Icone nom="voiture" /></span><div><b>Véhicule de service</b><small>Utilitaire</small></div><span class="statut statut--info">Cotation en cours</span></li>
+        </ul>
+        <div class="carte-flotte__pied"><span>5 véhicules suivis</span><span>1 renouvellement à prévoir</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="titre-sinistre">
+    <div class="conteneur">
+      <div class="urgence">
+        <div class="urgence__grille">
+          <div>
+            <p class="surtitre surtitre--clair">Sinistre</p>
+            <h2 id="titre-sinistre">Un accident, un vol, un dégât ? Nous sommes à vos côtés.</h2>
+            <p>Mettez d'abord les personnes en sécurité, puis prévenez-nous au plus vite : nous vous aidons à constituer le dossier et le suivons avec SanlamAllianz jusqu'à son règlement.</p>
+            <a class="lien-fleche" href="/sinistre/">Que faire, et quels documents préparer <Icone nom="fleche" /></a>
+          </div>
+          <div class="urgence__actions">
+            <a class="bouton bouton--principal bouton--grand" href={LIEN_TELEPHONE}><Icone nom="telephone" />Appeler le {AGENCE.telephone.affichage}</a>
+            <a class="bouton bouton--clair" href={lienWhatsApp("Bonjour DBS-ASSURANCES, je souhaite déclarer un sinistre.")} target="_blank" rel="noopener noreferrer"><Icone nom="whatsapp" />Déclarer sur WhatsApp</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--sable" aria-labelledby="titre-faq">
+    <div class="conteneur faq-grille">
+      <div>
+        <p class="surtitre">Questions fréquentes</p>
+        <h2 id="titre-faq">Les réponses aux questions que l'on nous pose le plus.</h2>
+        <p class="chapeau">Une autre question ? Appelez-nous au <a href={LIEN_TELEPHONE}>{AGENCE.telephone.affichage}</a> ou écrivez-nous sur WhatsApp.</p>
+        <a class="lien-fleche" href="/questions-frequentes/">Toutes les questions <Icone nom="fleche" /></a>
+      </div>
+      <Faq questions={questions} />
+    </div>
+  </section>
+
+  <AppelFinal />
+</Base>

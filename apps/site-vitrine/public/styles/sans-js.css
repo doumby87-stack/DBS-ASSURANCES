@@ -1,0 +1,5 @@
+/* Chargée uniquement sans JavaScript (balise <noscript> de la page devis) : le formulaire prépare
+   le message dans le navigateur, il est donc remplacé par les coordonnées directes de l'agence. */
+.formulaire .progression,
+.formulaire [data-etape],
+.formulaire [data-statut-envoi] { display: none !important; }

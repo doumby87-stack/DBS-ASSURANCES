@@ -1,0 +1,21 @@
+{
+  "name": "@dbs/site-vitrine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Site vitrine de DBS-ASSURANCES : pages statiques construites par Astro, sans ressource tierce",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "apercu": "node tests/serveur.mjs",
+    "test:navigateur": "astro build && playwright test"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
+    "@playwright/test": "1.64.1",
+    "astro": "7.4.5"
+  }
+}

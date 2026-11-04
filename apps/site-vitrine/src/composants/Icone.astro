@@ -1,0 +1,12 @@
+---
+// Icône en ligne (SVG) : décorative par défaut, masquée aux lecteurs d'écran.
+import { ICONES, ICONES_PLEINES, type NomIcone } from "../donnees/icones";
+
+interface Props {
+  nom: NomIcone;
+  class?: string;
+}
+const { nom, class: classe } = Astro.props;
+const classes = ["icone", ICONES_PLEINES.has(nom) ? "icone--pleine" : "", classe ?? ""].filter(Boolean).join(" ");
+---
+<svg class={classes} viewBox="0 0 24 24" aria-hidden="true" focusable="false" set:html={ICONES[nom]} />

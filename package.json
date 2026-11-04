@@ -4,12 +4,13 @@
   "description": "Site et outils de gestion de DBS-ASSURANCES, Agent Général SanlamAllianz Côte d'Ivoire",
   "workspaces": [
     "apps/api",
-    "apps/admin"
+    "apps/admin",
+    "apps/site-vitrine"
   ],
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "verifier": "node scripts/verifier-site.mjs && node scripts/verifier-liens-docs.mjs && npm run verifier-types -w @dbs/api && npm run test:unitaires -w @dbs/api && npm run verifier-types -w @dbs/admin"
+    "verifier": "npm run build -w @dbs/site-vitrine && node scripts/verifier-site.mjs && node scripts/verifier-liens-docs.mjs && npm run verifier-types -w @dbs/api && npm run test:unitaires -w @dbs/api && npm run verifier-types -w @dbs/admin"
   }
 }

@@ -1,0 +1,64 @@
+---
+import EntetePage from "../composants/EntetePage.astro";
+import { AGENCE, LIEN_EMAIL, LIEN_TELEPHONE } from "../donnees/agence";
+import Base from "../mises-en-page/Base.astro";
+
+const { juridique } = AGENCE;
+---
+<Base
+  titre="Mentions légales et données personnelles"
+  description={`Mentions légales et politique de protection des données personnelles de ${AGENCE.nom}, ${AGENCE.qualite} à Yopougon.`}
+>
+  <EntetePage surtitre="Informations légales" titre="Mentions légales et données personnelles" page="Mentions légales">
+    <p>Dernière mise à jour : 4 novembre 2026.</p>
+  </EntetePage>
+
+  <section class="section">
+    <div class="conteneur texte-long">
+      <h2 id="editeur">Éditeur du site</h2>
+      <dl class="fiche">
+        <dt>Dénomination</dt><dd>{AGENCE.raisonSociale} ({AGENCE.nom})</dd>
+        <dt>Forme juridique</dt><dd>{juridique.forme} au capital de {juridique.capital}</dd>
+        <dt>Siège social</dt><dd>{juridique.siege}</dd>
+        <dt>RCCM</dt><dd>{juridique.rccm}</dd>
+        <dt>Compte contribuable</dt><dd>{juridique.compteContribuable}</dd>
+        <dt>Téléphone</dt><dd><a href={LIEN_TELEPHONE}>{AGENCE.telephone.international}</a></dd>
+        <dt>E-mail</dt><dd><a href={LIEN_EMAIL}>{AGENCE.email}</a></dd>
+        <dt>Directeur de la publication</dt><dd>{juridique.directeurPublication}</dd>
+      </dl>
+
+      <h2 id="activite">Activité d'intermédiaire en assurance</h2>
+      <p>{AGENCE.nom} exerce l'activité d'<strong>Agent Général d'assurances</strong> pour le compte de <strong>{AGENCE.compagnie}</strong>, sous le code agence <strong>{AGENCE.codeAgence}</strong>. Les contrats présentés sur ce site sont émis et garantis par cette compagnie.</p>
+      <p>L'activité est exercée conformément au Code des assurances des États membres de la CIMA (Conférence Interafricaine des Marchés d'Assurances). En Côte d'Ivoire, les intermédiaires d'assurance sont agréés et contrôlés par la Direction des Assurances, rattachée à la Direction Générale du Trésor et de la Comptabilité Publique (Ministère de l'Économie et des Finances).</p>
+      <dl class="fiche">
+        <dt>N° d'agrément ou de carte professionnelle</dt>
+        <dd>{juridique.agrement || <span class="a-completer">À compléter</span>}</dd>
+      </dl>
+
+      <h2 id="reclamations">Réclamations</h2>
+      <p>Pour toute réclamation, écrivez-nous à <a href={LIEN_EMAIL}>{AGENCE.email}</a>, appelez le <a href={LIEN_TELEPHONE}>{AGENCE.telephone.international}</a> ou adressez un courrier au {AGENCE.adresse.boitePostale}. Vous pouvez également saisir la compagnie {AGENCE.compagnie}.</p>
+
+      <h2 id="hebergement">Hébergement</h2>
+      <p>{juridique.hebergeur || <span class="a-completer">Nom, adresse et téléphone de l'hébergeur à compléter lors de la mise en ligne.</span>}</p>
+
+      <h2 id="propriete">Propriété intellectuelle</h2>
+      <p>Les textes, le logo {AGENCE.nom} et la présentation de ce site sont la propriété de {AGENCE.nom}. Le nom et le logo SanlamAllianz appartiennent à leur titulaire et sont utilisés au titre du mandat d'Agent Général. Toute reproduction sans autorisation est interdite.</p>
+      <p>Les icônes du site proviennent de la bibliothèque libre Lucide (licence ISC) ; la police Archivo est distribuée sous licence libre SIL Open Font License.</p>
+
+      <h2 id="donnees">Données personnelles</h2>
+      <p>{AGENCE.nom} traite vos données personnelles conformément à la loi n° 2013-450 du 19 juin 2013 relative à la protection des données à caractère personnel.</p>
+      <dl class="fiche">
+        <dt>Responsable du traitement</dt><dd>{AGENCE.nom}, représentée par son Gérant.</dd>
+        <dt>Données concernées</dt><dd>Les informations que vous saisissez dans le formulaire de devis : nom ou raison sociale, téléphone, e-mail, commune et description de votre besoin.</dd>
+        <dt>Fonctionnement du formulaire</dt><dd>Le formulaire n'enregistre rien sur ce site. Il prépare un message que vous envoyez vous-même depuis WhatsApp ou votre messagerie ; ces services appliquent leurs propres conditions d'utilisation.</dd>
+        <dt>Finalités</dt><dd>Répondre à votre demande, établir un devis et, si vous souscrivez, gérer votre contrat et vos sinistres.</dd>
+        <dt>Destinataires</dt><dd>{AGENCE.nom} et, pour l'étude et la gestion des contrats, {AGENCE.compagnie}.</dd>
+        <dt>Durée de conservation</dt><dd>Le temps de traiter votre demande ; si vous devenez client, pendant la durée du contrat puis les délais légaux applicables.</dd>
+        <dt>Vos droits</dt><dd>Vous pouvez demander l'accès à vos données, leur rectification ou leur suppression, et vous opposer à leur traitement, en écrivant à <a href={LIEN_EMAIL}>{AGENCE.email}</a>. Vous pouvez aussi saisir l'ARTCI, autorité de protection des données personnelles en Côte d'Ivoire.</dd>
+      </dl>
+
+      <h2 id="cookies">Cookies</h2>
+      <p>Ce site ne dépose aucun cookie de mesure d'audience ni de publicité. Les polices de caractères, images et scripts sont hébergés avec le site : l'affichage des pages ne fait appel à aucun service tiers.</p>
+    </div>
+  </section>
+</Base>
