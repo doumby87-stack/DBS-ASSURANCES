@@ -26,7 +26,10 @@ interface SoldeContrat {
   numeroPolice: string | null;
   branche: string;
   statut: string;
+  dateEffet: string;
+  dateEcheance: string;
   primeTtc: number;
+  primeNette: number | null;
   encaisse: number;
   especes: number;
   plafondEspeces: number;
@@ -36,7 +39,8 @@ interface SoldeContrat {
 export async function lireSolde(client: Client, contratId: string): Promise<SoldeContrat & { resteAPayer: number; especesPossibles: number }> {
   const { rows } = await client.query<SoldeContrat>(
     `SELECT k.id, k.client_id AS "clientId", c.nom AS "clientNom", k.numero_police AS "numeroPolice", k.branche, k.statut,
-            k.prime_ttc AS "primeTtc",
+            k.date_effet AS "dateEffet", k.date_echeance AS "dateEcheance",
+            k.prime_ttc AS "primeTtc", k.prime_nette AS "primeNette",
             coalesce((SELECT sum(e.montant) FROM app.encaissements e WHERE e.contrat_id = k.id), 0)::bigint AS encaisse,
             coalesce((SELECT sum(e.montant) FROM app.encaissements e WHERE e.contrat_id = k.id AND e.mode = 'especes'), 0)::bigint AS especes,
             app.plafond_especes_par_police() AS "plafondEspeces"

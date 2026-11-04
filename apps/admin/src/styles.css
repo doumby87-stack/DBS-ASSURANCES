@@ -170,6 +170,63 @@ textarea { resize: vertical; }
 .historique__entete { color: var(--gris); font-size: 0.875rem; }
 
 @media (max-width: 640px) {
-  .entete__nav { order: 3; flex-basis: 100%; }
+  .entete__nav { order: 3; flex-basis: 100%; flex-wrap: wrap; gap: 0.35rem 1rem; }
   .connexion__carte { padding: 1.5rem; }
+}
+
+/* --- Caisse, reçus, bordereaux (tâche 5) --- */
+h3 { font-size: 1rem; color: var(--encre); margin: 0; }
+.bouton--danger { background: var(--rouge); color: var(--blanc); }
+.bouton--danger:hover { background: #8f1c13; }
+a.bouton { display: inline-block; text-decoration: none; color: var(--bleu); }
+a.bouton--principal { color: var(--blanc); }
+.carte__nombre { overflow-wrap: anywhere; }
+.bandeau-reversement { margin-bottom: 1rem; }
+.bandeau-reversement .alerte { margin-bottom: 0.25rem; }
+.cloture { margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--ligne); }
+.billetage { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 0.6rem; }
+.liste-simple { margin: 0; padding-left: 1.25rem; }
+.liste-simple li { margin: 0.3rem 0; }
+
+.recu, .document {
+  background: var(--blanc); border: 1px solid var(--ligne); border-radius: var(--rayon);
+  padding: 1.5rem; margin-bottom: 1.25rem; max-width: 860px;
+}
+.recu p, .document p { margin: 0.2rem 0; }
+.document { max-width: 1100px; }
+.document .tableau td:nth-child(4) { white-space: nowrap; }
+.recu__entete, .document__entete {
+  display: flex; flex-wrap: wrap; justify-content: space-between; gap: 1rem;
+  padding-bottom: 1rem; margin-bottom: 1rem; border-bottom: 3px solid var(--bleu);
+}
+.recu__agence { font-weight: 800; font-size: 1.25rem; color: var(--bleu); letter-spacing: 0.02em; }
+.recu__numero { text-align: right; }
+.recu__numero h1, .document__entete h1 { font-size: 1.35rem; margin: 0; }
+.recu__annule { font-weight: 800; color: var(--rouge); text-transform: uppercase; letter-spacing: 0.05em; }
+.recu__details { display: grid; gap: 0.6rem; margin: 0 0 1.25rem; }
+.recu__details div { display: grid; grid-template-columns: minmax(140px, 240px) 1fr; gap: 1rem; }
+.recu__details dt { color: var(--gris); }
+.recu__details dd { margin: 0; font-weight: 600; color: var(--encre); }
+.recu__montant dd { font-size: 1.35rem; }
+.recu__montant span { font-size: 0.95rem; font-weight: 600; font-style: italic; color: var(--texte); }
+.recu__mention { font-size: 0.85rem; color: var(--gris); }
+.recu__signatures { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 1.5rem; margin-top: 2.5rem; }
+.recu__signatures p { flex: 1; min-width: 160px; padding-top: 2.5rem; border-top: 1px solid var(--texte); font-size: 0.85rem; }
+.tableau tfoot th { text-transform: none; letter-spacing: 0; color: var(--encre); font-size: 0.95rem; border-bottom: none; border-top: 2px solid var(--ligne); }
+.tableau tfoot td { border-bottom: none; border-top: 2px solid var(--ligne); }
+
+@media (max-width: 640px) {
+  .recu__numero { text-align: left; }
+  .recu__details div { grid-template-columns: 1fr; gap: 0.1rem; }
+}
+
+/* Impression : seul le document sort, sans menu ni bouton */
+@media print {
+  :root { background: var(--blanc); }
+  .entete, .lien-evitement, .non-imprimable, .barre-outils { display: none; }
+  .contenu { padding: 0; max-width: none; }
+  .recu, .document { border: none; padding: 0; max-width: none; }
+  .tableau-defilant { overflow: visible; }
+  .badge { border: 1px solid currentColor; }
+  a { color: inherit; text-decoration: none; }
 }
