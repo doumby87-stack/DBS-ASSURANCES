@@ -1,6 +1,6 @@
 # En-têtes de sécurité HTTP
 
-Le site vitrine les reçoit de son hébergeur grâce au fichier [`apps/site-vitrine/_headers`](../../apps/site-vitrine/_headers), lu par Netlify et Cloudflare Pages. Le back-office et l'espace client recevront les mêmes, au moins aussi stricts.
+Le site vitrine les reçoit de son hébergeur grâce au fichier [`apps/site-vitrine/public/_headers`](../../apps/site-vitrine/public/_headers), copié tel quel dans le site construit et lu par Netlify et Cloudflare Pages. Le back-office et l'espace client recevront les mêmes, au moins aussi stricts.
 
 | En-tête | Valeur | Effet |
 | --- | --- | --- |
@@ -17,7 +17,7 @@ Le site vitrine les reçoit de son hébergeur grâce au fichier [`apps/site-vitr
 
 ```
 default-src 'none';                       rien n'est autorisé par défaut
-script-src 'self' 'sha256-…';             scripts du site + le petit script du <head>, reconnu par son empreinte
+script-src 'self';                        uniquement les fichiers de script du site, aucun script inline
 style-src 'self';                         feuilles de style du site, pas d'attribut style="…"
 img-src 'self' data:;                     images du site et petits dessins intégrés à la feuille de style
 font-src 'self';                          police Archivo hébergée avec le site
@@ -27,15 +27,18 @@ base-uri 'none';
 upgrade-insecure-requests
 ```
 
-### Modifier le script du `<head>`
+### Aucun script ni style inline
 
-Le petit script en haut de `index.html` et `mentions-legales.html` est autorisé par son empreinte. Si on le modifie, l'empreinte change et le navigateur le bloque. Après toute modification :
+Depuis la refonte ([ADR 0008](../architecture/adr/0008-site-vitrine-astro.md)), Astro écrit chaque script et chaque feuille de style dans un fichier séparé (`dist/ressources/`) : la politique n'a besoin d'aucune empreinte ni d'exception. Les seuls blocs `<script>` restant dans les pages sont des données structurées (`application/ld+json`), que le navigateur n'exécute pas.
+
+Un attribut `style="…"`, un `onclick="…"`, une balise `<style>` ou un fichier chargé depuis un autre site seraient bloqués en ligne. Après toute modification :
 
 ```bash
-node scripts/verifier-site.mjs
+npm run build -w @dbs/site-vitrine && node scripts/verifier-site.mjs
+npm run test:navigateur -w @dbs/site-vitrine
 ```
 
-Le script indique la nouvelle empreinte à mettre dans `_headers`. Netlify et l'intégration continue refusent la publication tant qu'elle n'est pas à jour.
+Le premier contrôle lit les pages construites ; le second les ouvre dans Chromium avec ces en-têtes (`tests/serveur.mjs`) et échoue à la moindre violation. Netlify et l'intégration continue refusent la publication tant que ce n'est pas corrigé.
 
 ### Hébergeur sans fichier `_headers`
 

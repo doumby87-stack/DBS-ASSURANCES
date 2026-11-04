@@ -16,7 +16,8 @@ Tâche n° … de la feuille de route (`docs/feuille-de-route.md`).
 
 ## Vérifications
 
-- [ ] `node scripts/verifier-site.mjs`
+- [ ] `npm run build -w @dbs/site-vitrine && node scripts/verifier-site.mjs`
+- [ ] `npm run test:navigateur -w @dbs/site-vitrine` (si le site est touché)
 - [ ] `node scripts/verifier-liens-docs.mjs`
 - [ ] `npm run verifier`
 - [ ] `./database/tests/executer.sh` (si la base est touchée)
