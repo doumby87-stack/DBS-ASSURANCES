@@ -278,6 +278,36 @@ describe("contrat flotte : composition, avenants au prorata, reste à payer", ()
   });
 });
 
+describe("renouvellement d'un contrat flotte", () => {
+  it("reprend les véhicules encore couverts avec leur prime, pas ceux retirés en cours de contrat", async () => {
+    const clientId = await nouveauClient("Transports Renouvellement");
+    const plaques = [0, 1].map((n) => `${unique().slice(0, 4)} N${n} 01`);
+    await importer(clientId, Buffer.from(`Immatriculation\n${plaques.join("\n")}\n`), true);
+    const { rows: vehicules } = await ctx.base.query<{ id: string; immatriculation: string }>(
+      "SELECT id, immatriculation FROM app.vehicules WHERE client_id = $1 ORDER BY immatriculation", [clientId]);
+    const [v1, v2] = plaques.map((p) => vehicules.find((v) => v.immatriculation === p)!.id);
+    const contratId = (await envoyer(ctx, {
+      url: "/contrats", cookie: cookies.charge_clientele,
+      corps: { clientId, branche: "flotte", numeroPolice: `FLT-${unique()}`, dateEffet: aujourdHuiPlus(-100), dateEcheance: aujourdHuiPlus(265), primeTtc: 800000 },
+    })).json().contrat.id as string;
+    for (const [vehiculeId, primeVehicule] of [[v1, 450000], [v2, 350000]] as const) {
+      await envoyer(ctx, { url: `/contrats/${contratId}/vehicules`, cookie: cookies.charge_clientele, corps: { vehiculeId, primeVehicule } });
+    }
+    await envoyer(ctx, { url: "/encaissements", cookie: cookies.caissier, corps: { contratId, montant: 800000, mode: "virement", reference: `VIR-${unique()}` } });
+    await envoyer(ctx, { url: `/contrats/${contratId}/avenants`, cookie: cookies.gerant,
+      corps: { dateEffet: aujourdHuiPlus(10), lignes: [{ vehiculeId: v2, mouvement: "retrait" }], confirmer: true } });
+
+    const renouvellement = await envoyer(ctx, { url: `/contrats/${contratId}/renouveler`, cookie: cookies.charge_clientele, corps: { primeTtc: 450000 } });
+    expect(renouvellement.statusCode).toBe(201);
+    expect(renouvellement.json().vehiculesRepris).toBe(1);
+    const flotte = (await envoyer(ctx, { url: `/clients/${clientId}/flotte`, cookie: cookies.charge_clientele })).json();
+    const nouveau = flotte.contrats.find((k: { id: string }) => k.id === renouvellement.json().contrat.id);
+    expect(nouveau.vehicules).toEqual([
+      expect.objectContaining({ vehiculeId: v1, ajouteLe: aujourdHuiPlus(265), retireLe: null, primeVehicule: 450000 }),
+    ]);
+  });
+});
+
 describe("rappels des documents des véhicules", () => {
   it("à faire à la main sans accord du client, avec un seul message pour toute sa flotte", async () => {
     const clientId = await nouveauClient("Transports Rappels");
