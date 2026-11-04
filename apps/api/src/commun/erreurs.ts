@@ -50,6 +50,36 @@ function reponse(statut: number, code: string, message: string, champs?: string[
   return { statut, corps: champs ? { code, message, champs } : { code, message } };
 }
 
+/** Contrôles de la base dont le refus mérite un message précis (rédigé ici, jamais repris de la base). */
+const CONTRAINTES: Record<string, { statut: number; code: string; message: string }> = {
+  encaissements_reference_unique: {
+    statut: 409, code: "reference_deja_utilisee",
+    message: "Cette référence a déjà été enregistrée : même transaction Mobile Money, même chèque ou même virement.",
+  },
+  encaissements_annulation_unique: { statut: 409, code: "deja_contre_passe", message: "Cet encaissement a déjà été contre-passé." },
+  encaissements_reference: {
+    statut: 422, code: "reference_obligatoire",
+    message: "Indiquez la référence du paiement (n° de transaction, de chèque ou de virement).",
+  },
+  reversements_quatre_yeux: {
+    statut: 403, code: "quatre_yeux",
+    message: "Principe des quatre yeux : une autre personne que celle qui a préparé le bordereau doit le valider.",
+  },
+  reversements_versement_apres_validation: {
+    statut: 422, code: "bordereau_non_valide", message: "Faites valider le bordereau avant d'enregistrer le versement.",
+  },
+  clotures_quatre_yeux: {
+    statut: 403, code: "quatre_yeux", message: "Principe des quatre yeux : un autre gérant doit viser votre clôture de caisse.",
+  },
+  clotures_ecart_justifie: {
+    statut: 422, code: "ecart_a_justifier", message: "Les espèces comptées ne correspondent pas : expliquez l'écart en quelques mots.",
+  },
+  contrats_prime_nette: {
+    statut: 422, code: "prime_nette_invalide", message: "La prime nette doit être positive et ne pas dépasser la prime TTC.",
+  },
+  taux_commission_unique: { statut: 409, code: "conflit", message: "Un taux existe déjà pour cette branche à cette date." },
+};
+
 /** Traduit une erreur en réponse sûre pour le navigateur. */
 export function traduireErreur(erreur: unknown) {
   if (erreur instanceof ErreurApi) return reponse(erreur.statut, erreur.code, erreur.message);
@@ -70,6 +100,8 @@ export function traduireErreur(erreur: unknown) {
   }
 
   if (estErreurPostgres(erreur)) {
+    const connue = erreur.constraint ? CONTRAINTES[erreur.constraint] : undefined;
+    if (connue) return reponse(connue.statut, connue.code, connue.message);
     switch (erreur.code) {
       case "28000": // utilisateur non déclaré, inconnu ou désactivé
         return reponse(401, "non_authentifie", "Connectez-vous pour continuer.");

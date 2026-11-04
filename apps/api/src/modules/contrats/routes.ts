@@ -12,8 +12,8 @@ import { exigerClientVisible } from "../clients/visibilite.js";
 
 const STATUTS = ["en_attente_paiement", "en_vigueur", "suspendu", "resilie", "expire"] as const;
 const COLONNES = `k.id, k.client_id AS "clientId", k.numero_police AS "numeroPolice", k.branche,
-  k.date_effet AS "dateEffet", k.date_echeance AS "dateEcheance", k.prime_ttc AS "primeTtc", k.statut,
-  k.renouvelle_id AS "renouvelleId"`;
+  k.date_effet AS "dateEffet", k.date_echeance AS "dateEcheance", k.prime_ttc AS "primeTtc",
+  k.prime_nette AS "primeNette", k.statut, k.renouvelle_id AS "renouvelleId"`;
 
 interface CorpsContrat {
   clientId: string;
@@ -22,6 +22,13 @@ interface CorpsContrat {
   dateEffet: string;
   dateEcheance: string;
   primeTtc: number;
+  primeNette?: number;
+}
+
+function primeNetteValide(primeNette: number | undefined, primeTtc: number | undefined): void {
+  if (primeNette !== undefined && primeTtc !== undefined && primeNette > primeTtc) {
+    throw new ErreurApi(422, "prime_nette_invalide", "La prime nette doit être positive et ne pas dépasser la prime TTC.");
+  }
 }
 
 /** Catégorie d'échéance affichée au tableau de bord. */
@@ -59,6 +66,7 @@ export async function routesContrats(app: FastifyInstance, options: { pool: Pool
             dateEffet: date,
             dateEcheance: date,
             primeTtc: montant,
+            primeNette: montant,
           },
         },
       },
@@ -66,13 +74,14 @@ export async function routesContrats(app: FastifyInstance, options: { pool: Pool
     async (requete, reponse) => {
       const c = requete.body;
       periodeValide(c.dateEffet, c.dateEcheance);
+      primeNetteValide(c.primeNette, c.primeTtc);
       const { rows } = await transactionUtilisateur(pool, utilisateurDe(requete).id, async (client) => {
         await exigerClientVisible(client, c.clientId);
         return client.query(
-          `INSERT INTO app.contrats AS k (client_id, branche, numero_police, date_effet, date_echeance, prime_ttc)
-           VALUES ($1, $2, nullif(btrim($3), ''), $4, $5, $6)
+          `INSERT INTO app.contrats AS k (client_id, branche, numero_police, date_effet, date_echeance, prime_ttc, prime_nette)
+           VALUES ($1, $2, nullif(btrim($3), ''), $4, $5, $6, $7)
            RETURNING ${COLONNES}`,
-          [c.clientId, c.branche, c.numeroPolice ?? null, c.dateEffet, c.dateEcheance, c.primeTtc],
+          [c.clientId, c.branche, c.numeroPolice ?? null, c.dateEffet, c.dateEcheance, c.primeTtc, c.primeNette ?? null],
         );
       });
       return reponse.status(201).send({ contrat: rows[0] });
@@ -81,7 +90,10 @@ export async function routesContrats(app: FastifyInstance, options: { pool: Pool
 
   app.patch<{
     Params: { id: string };
-    Body: { numeroPolice?: string; dateEffet?: string; dateEcheance?: string; primeTtc?: number; statut?: (typeof STATUTS)[number] };
+    Body: {
+      numeroPolice?: string; dateEffet?: string; dateEcheance?: string; primeTtc?: number; primeNette?: number;
+      statut?: (typeof STATUTS)[number];
+    };
   }>(
     "/contrats/:id",
     {
@@ -97,6 +109,7 @@ export async function routesContrats(app: FastifyInstance, options: { pool: Pool
             dateEffet: date,
             dateEcheance: date,
             primeTtc: montant,
+            primeNette: montant,
             statut: { type: "string", enum: STATUTS },
           },
         },
@@ -104,15 +117,19 @@ export async function routesContrats(app: FastifyInstance, options: { pool: Pool
     },
     async (requete) => {
       const c = requete.body;
+      primeNetteValide(c.primeNette, c.primeTtc);
       const { rows } = await transactionUtilisateur(pool, utilisateurDe(requete).id, (client) =>
         client.query(
           `UPDATE app.contrats AS k SET
              numero_police = coalesce(nullif(btrim($2), ''), numero_police),
              date_effet = coalesce($3, date_effet), date_echeance = coalesce($4, date_echeance),
-             prime_ttc = coalesce($5, prime_ttc), statut = coalesce($6, statut)
+             prime_ttc = coalesce($5, prime_ttc), statut = coalesce($6, statut), prime_nette = coalesce($7, prime_nette)
            WHERE k.id = $1
            RETURNING ${COLONNES}`,
-          [requete.params.id, c.numeroPolice ?? null, c.dateEffet ?? null, c.dateEcheance ?? null, c.primeTtc ?? null, c.statut ?? null],
+          [
+            requete.params.id, c.numeroPolice ?? null, c.dateEffet ?? null, c.dateEcheance ?? null, c.primeTtc ?? null,
+            c.statut ?? null, c.primeNette ?? null,
+          ],
         ),
       );
       if (!rows[0]) throw erreurs.introuvable();
@@ -139,10 +156,13 @@ export async function routesContrats(app: FastifyInstance, options: { pool: Pool
       const { dateEcheance, primeTtc } = requete.body ?? {};
       const { rows } = await transactionUtilisateur(pool, utilisateurDe(requete).id, (client) =>
         client.query(
-          `INSERT INTO app.contrats AS k (client_id, branche, date_effet, date_echeance, prime_ttc, renouvelle_id)
+          `INSERT INTO app.contrats AS k (client_id, branche, date_effet, date_echeance, prime_ttc, prime_nette, renouvelle_id)
            SELECT a.client_id, a.branche, a.date_echeance,
                   coalesce($2::date, a.date_echeance + (a.date_echeance - a.date_effet)),
-                  coalesce($3, a.prime_ttc), a.id
+                  coalesce($3, a.prime_ttc),
+                  -- Même prime nette seulement si la prime TTC ne change pas
+                  CASE WHEN $3::bigint IS NULL THEN a.prime_nette END,
+                  a.id
            FROM app.contrats a WHERE a.id = $1
            RETURNING ${COLONNES}`,
           [requete.params.id, dateEcheance ?? null, primeTtc ?? null],
