@@ -15,7 +15,7 @@ PostgreSQL 16 (ou plus récent). C'est ici que vivent les données des clients, 
 
 ## Ce que la base garantit
 
-Ces garanties sont vérifiées par `tests/01_securite_et_regles.sql` et `tests/02_authentification.sql` (90 contrôles) :
+Ces garanties sont vérifiées par les fichiers de `tests/` (109 contrôles) :
 
 - **Fermeture par défaut.** Sans utilisateur authentifié dans la transaction, aucune donnée métier n'est lisible ni modifiable.
 - **Cloisonnement par rôle**, ligne par ligne : l'apporteur ne voit que ses clients, le commercial ne voit pas la caisse, l'auditeur ne modifie rien. Matrice complète : [`docs/securite/controle-des-acces.md`](../docs/securite/controle-des-acces.md).
@@ -27,6 +27,7 @@ Ces garanties sont vérifiées par `tests/01_securite_et_regles.sql` et `tests/0
 - **Code CIMA, art. 13** : un contrat ne passe « en vigueur » qu'une fois la prime entièrement payée.
 - **Reversements à la compagnie** : un bordereau préparé par une personne est validé par une autre (principe des quatre yeux), puis figé une fois versé. Le délai de 30 jours (art. 542) est suivi dans `app.v_encaissements_a_reverser`.
 - **Identifiants jamais en clair** : mots de passe hachés (Argon2id, contrôlé par la base), secrets du deuxième facteur chiffrés, jetons de session réduits à leur empreinte. Une fois un utilisateur déclaré, seul un gérant touche aux identifiants d'un autre. Journal de sécurité en ajout seul.
+- **Devis** : un refus exige son motif. **Échanges** avec les clients en ajout seul. **Renouvellement** : même client, et le contrat renouvelé sort du tableau des échéances.
 - **Journal d'audit** en ajout seul : chaque écriture est consignée avec son auteur. Chaque ligne contient l'empreinte de la précédente, si bien qu'une falsification, même par un administrateur, est détectée par `audit.verifier_chaine()`.
 
 ## Comptes de la base
