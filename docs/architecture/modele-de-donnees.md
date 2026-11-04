@@ -13,6 +13,10 @@ erDiagram
   ENCAISSEMENTS |o--o| ENCAISSEMENTS : "contre-passe"
   REVERSEMENTS ||--o{ ENCAISSEMENTS : "regroupe"
   CONTRATS ||--o{ SINISTRES : "donne lieu à"
+  CONTRATS |o--o| CONTRATS : "renouvelle"
+  CLIENTS ||--o{ DEVIS : "demande"
+  DEVIS |o--o| CONTRATS : "aboutit à"
+  CLIENTS ||--o{ ECHANGES : "historique"
   VEHICULES |o--o{ SINISTRES : "concerné par"
 
   UTILISATEURS {
@@ -73,6 +77,20 @@ erDiagram
     nature_sinistre nature
     statut_sinistre statut
   }
+  DEVIS {
+    uuid id
+    branche branche
+    origine_devis origine
+    bigint prime_proposee
+    statut_devis statut
+    text motif_refus "obligatoire si refusé"
+  }
+  ECHANGES {
+    uuid id
+    canal_echange canal
+    text resume
+    timestamptz survenu_le
+  }
 ```
 
 ## Vues de pilotage
@@ -81,7 +99,7 @@ erDiagram
 | --- | --- |
 | `app.v_soldes_contrats` | Prime, total encaissé et reste à payer par contrat. |
 | `app.v_encaissements_a_reverser` | Primes pas encore versées à la compagnie, date limite et jours restants (30 jours). |
-| `app.v_echeances_contrats` | Contrats en vigueur qui arrivent à échéance dans les 60 jours. |
+| `app.v_echeances_contrats` | Contrats en vigueur, pas encore renouvelés, qui arrivent à échéance dans les 60 jours (ou déjà échus). |
 | `app.v_echeances_vehicules` | Visite technique, vignette, carte de transport à renouveler dans les 60 jours. |
 | `app.v_sinistres_suivi` | Délai de déclaration et, pour un sinistre corporel, date limite indicative de l'offre. |
 
@@ -89,4 +107,4 @@ Toutes les vues appliquent les droits de la personne qui les consulte (`security
 
 ## À venir
 
-Devis et demandes du site (tâche 7), documents (tâche 7), relances et consentements (tâche 6), commissions (tâche 5), identification des clients et réclamations (tâche 12), comptes des clients de l'espace en ligne (tâche 9).
+Demandes venues du site (tâche 7), documents (tâche 7), relances et consentements (tâche 6), commissions (tâche 5), identification des clients et réclamations (tâche 12), comptes des clients de l'espace en ligne (tâche 9).

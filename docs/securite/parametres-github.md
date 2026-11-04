@@ -11,7 +11,7 @@
 - [ ] **Visibilité privée** si le dépôt contient un jour des informations internes (procédures, contacts).
 - [ ] **Branches → règle sur `main`** :
   - pull request obligatoire avant fusion, avec au moins une relecture ;
-  - vérifications obligatoires : « Site vitrine », « Base de données », « API », « Recherche de secrets », « Liens de la documentation » ;
+  - vérifications obligatoires : « Site vitrine », « Base de données », « API », « Back-office », « Recherche de secrets », « Liens de la documentation » ;
   - branche à jour avant fusion ;
   - pas d'envoi forcé (`force push`), pas de suppression ;
   - règles appliquées aussi aux administrateurs.

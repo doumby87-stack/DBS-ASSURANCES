@@ -10,8 +10,8 @@ L'objectif dépasse la vitrine : donner à l'agence un outil qui tient ses prome
 | --- | --- | --- |
 | Site vitrine | [`apps/site-vitrine`](apps/site-vitrine) | ✅ En place, protégé par des en-têtes de sécurité |
 | Base de données | [`database`](database) | ✅ Schéma sécurisé et testé (règles CIMA, contrôle d'accès, journal d'audit) |
-| API | [`apps/api`](apps/api) | 🟡 Socle en place : connexion du personnel avec deuxième facteur, comptes et rôles |
-| Back-office de l'agence | [`apps/admin`](apps/admin) | ⏳ |
+| API | [`apps/api`](apps/api) | 🟡 Connexion du personnel, comptes, clients, contrats, véhicules, devis, échanges, échéances |
+| Back-office de l'agence | [`apps/admin`](apps/admin) | 🟡 Premiers écrans : connexion, échéances, clients, fiche client, personnel |
 | Espace client | [`apps/espace-client`](apps/espace-client) | ⏳ |
 
 Le détail, tâche par tâche : [feuille de route](docs/feuille-de-route.md).
@@ -29,6 +29,7 @@ npm ci                                # dépendances (une fois)
 npm run verifier                      # site, documentation, types et tests unitaires de l'API
 ./database/tests/executer.sh          # base de données (PostgreSQL de test requis)
 npm run test -w @dbs/api              # tests de sécurité de l'API (PostgreSQL de test requis)
+npm run test:e2e -w @dbs/admin        # parcours complet dans le navigateur (PostgreSQL de test requis)
 ```
 
 Les mêmes vérifications tournent automatiquement sur chaque pull request.

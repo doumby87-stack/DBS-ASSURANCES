@@ -22,6 +22,7 @@ Types : `feat` (fonctionnalité), `fix` (correction), `docs`, `refactor`, `test`
 npm run verifier                 # site, documentation, types et tests unitaires de l'API
 ./database/tests/executer.sh     # si la base est touchée
 npm run test -w @dbs/api         # si l'API est touchée (PostgreSQL de test requis)
+npm run test:e2e -w @dbs/admin   # si le back-office est touché (PostgreSQL de test requis)
 ```
 
 Puis remplir le modèle de pull request, en particulier la partie sécurité.

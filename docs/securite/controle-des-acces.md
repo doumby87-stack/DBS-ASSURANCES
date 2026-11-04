@@ -32,6 +32,8 @@ L = lire · C = créer · M = modifier · — = aucun accès
 | Encaissements | L C, annulation | L | L C | — | — | L |
 | Reversements | L C, validation, versement | — | L C (préparation) | — | — | L |
 | Sinistres | L C M | L C M | — | L | — | L |
+| Devis | L C M | L C M | — | L C M | ses clients : L C | L |
+| Échanges (ajout seul) | L C | L C | L C | L C | ses clients : L C | L |
 | Journal d'audit | via le rôle `dbs_audit` | — | — | — | — | via le rôle `dbs_audit` |
 
 Personne, pas même le gérant, ne modifie un encaissement, ne valide son propre bordereau ou ne supprime une ligne.

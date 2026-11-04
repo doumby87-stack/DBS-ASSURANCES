@@ -33,11 +33,13 @@ Légende : ✅ terminé · 🔜 prochaine · ⏳ plus tard · 🧑‍💼 tâche
 
 Connexion du personnel (mot de passe + deuxième facteur), sessions, rôles, transaction qui déclare l'utilisateur à la base, journal de sécurité, limitation des tentatives, tests de sécurité automatiques. Aucun écran métier encore ([API](../apps/api/README.md)).
 
-## 🔜 Tâche 4 — Back-office : clients, contrats, échéancier
+## ✅ Tâche 4 — Back-office : clients, contrats, échéancier
 
-Fiche client unique, contrats, import des états de SanlamAllianz, tableau des échéances à J-30/J-15/J-7. **C'est la tâche qui tient la promesse du site** : « nous surveillons les échéances à votre place ».
+Fiche client unique (contrats, véhicules, devis, échanges), contrats et renouvellements, tableau des échéances à J-30/J-15/J-7 avec relance WhatsApp, gestion du personnel ([back-office](../apps/admin/README.md)). **C'est la tâche qui tient la promesse du site** : « nous surveillons les échéances à votre place ».
 
-## ⏳ Tâche 5 — Caisse et reversements
+*Reporté :* l'import des états de production de SanlamAllianz attend leur format (tâche 2).
+
+## 🔜 Tâche 5 — Caisse et reversements
 
 Encaissements avec reçus numérotés, clôture de caisse, plafond des espèces, bordereaux de reversement validés à deux, compte à rebours des 30 jours, rapprochement des commissions.
 
