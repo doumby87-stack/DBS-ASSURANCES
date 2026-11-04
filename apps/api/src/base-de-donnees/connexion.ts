@@ -1,6 +1,7 @@
 // Accès à PostgreSQL. Toute requête passe par une transaction ouverte ici :
 //   · transactionUtilisateur : déclare l'utilisateur authentifié à la base, qui applique alors
 //     ses droits ligne par ligne (database/README.md) ;
+//   · transactionPortail : personne connectée au portail des entreprises, sous le rôle dbs_portail ;
 //   · transactionSysteme : réservée aux étapes où personne n'est encore authentifié (connexion).
 // Requêtes toujours paramétrées ($1, $2…) : jamais de texte saisi concaténé dans du SQL.
 
@@ -24,14 +25,21 @@ export function creerPool(url: string): Pool {
   });
 }
 
-async function transaction<T>(pool: Pool, utilisateurId: string | null, travail: (client: Client) => Promise<T>): Promise<T> {
+type Identite = { utilisateurId: string } | { gestionnaireId: string } | null;
+
+async function transaction<T>(pool: Pool, identite: Identite, travail: (client: Client) => Promise<T>): Promise<T> {
   const client = await pool.connect();
   let connexionCassee = false;
   try {
     await client.query("BEGIN");
-    if (utilisateurId) {
-      // true : la valeur ne vaut que pour cette transaction, jamais pour la suivante sur la même connexion
-      await client.query("SELECT set_config('app.utilisateur_id', $1, true)", [utilisateurId]);
+    // set_config(…, true) et SET LOCAL : la valeur ne vaut que pour cette transaction, jamais pour la suivante
+    // sur la même connexion
+    if (identite && "utilisateurId" in identite) {
+      await client.query("SELECT set_config('app.utilisateur_id', $1, true)", [identite.utilisateurId]);
+    } else if (identite) {
+      // Portail : rôle restreint à l'entreprise de la personne connectée (database/migrations/0012)
+      await client.query("SET LOCAL ROLE dbs_portail");
+      await client.query("SELECT set_config('app.gestionnaire_id', $1, true)", [identite.gestionnaireId]);
     }
     const resultat = await travail(client);
     await client.query("COMMIT");
@@ -49,7 +57,12 @@ async function transaction<T>(pool: Pool, utilisateurId: string | null, travail:
 }
 
 export function transactionUtilisateur<T>(pool: Pool, utilisateurId: string, travail: (client: Client) => Promise<T>): Promise<T> {
-  return transaction(pool, utilisateurId, travail);
+  return transaction(pool, { utilisateurId }, travail);
+}
+
+/** Requête d'une personne connectée au portail : la base ne lui montre que son entreprise. */
+export function transactionPortail<T>(pool: Pool, gestionnaireId: string, travail: (client: Client) => Promise<T>): Promise<T> {
+  return transaction(pool, { gestionnaireId }, travail);
 }
 
 export function transactionSysteme<T>(pool: Pool, travail: (client: Client) => Promise<T>): Promise<T> {

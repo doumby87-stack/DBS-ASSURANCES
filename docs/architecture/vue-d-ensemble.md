@@ -6,7 +6,8 @@
 flowchart LR
   subgraph Internet["Internet (zone non fiable)"]
     V["Visiteur"]
-    C["Client / gestionnaire de flotte"]
+    C["Client particulier"]
+    G["Entreprise / transporteur"]
     P["Personnel de l'agence"]
   end
 
@@ -15,7 +16,8 @@ flowchart LR
   end
 
   subgraph Prod["Production (réseau privé)"]
-    EC["Espace client<br/>apps/espace-client"]
+    EC["Espace client<br/>(tâche 9)"]
+    PO["Portail des entreprises<br/>apps/portail<br/>sous-domaine séparé"]
     BO["Back-office<br/>apps/admin<br/>sous-domaine séparé"]
     API["API<br/>apps/api"]
     DB[("PostgreSQL<br/>contrôle d'accès ligne par ligne<br/>journal d'audit chaîné")]
@@ -31,8 +33,10 @@ flowchart LR
 
   V --> SV
   C --> EC
+  G -->|"code WhatsApp"| PO
   P -->|"mot de passe + 2e facteur"| BO
   EC --> API
+  PO -->|"rôle de base dbs_portail"| API
   BO --> API
   API -->|"compte dbs_application"| DB
   API --> F
@@ -61,7 +65,7 @@ apps/
   site-vitrine/    site public, construit par Astro (seul dist/ est publié)
   api/             API : authentification, droits, règles, intégrations
   admin/           back-office de l'agence
-  espace-client/   espace des assurés et des gestionnaires de flotte
+  portail/         portail des entreprises et des transporteurs (flotte, attestations, sinistres)
 packages/
   domaine/         règles métier partagées (formats, délais, calculs)
   ui/              composants d'interface partagés

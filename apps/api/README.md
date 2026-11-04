@@ -19,8 +19,9 @@ npm run dev -w @dbs/api                  # rechargement automatique
 | `DATABASE_URL` | oui | Connexion avec le compte `dbs_application` (jamais `dbs_proprietaire`). En production : `sslmode=verify-full`. |
 | `CLE_CHIFFREMENT_DONNEES` | oui | 32 octets en base64 (`openssl rand -base64 32`). Chiffre les secrets du deuxième facteur. **La perdre oblige à réinitialiser l'accès de tout le personnel.** |
 | `URL_BACK_OFFICE` | oui | Adresse du back-office ; seule origine autorisée à modifier des données. HTTPS en production. |
-| `ANTIVIRUS_ADRESSE` | en production, si `URL_SITE_VITRINE` est défini | Démon ClamAV (`hôte:port`, port 3310 par défaut) qui analyse les cartes grises. Sans lui, les pièces reçues restent « à analyser » et ne peuvent pas être téléchargées. |
+| `ANTIVIRUS_ADRESSE` | en production, si `URL_SITE_VITRINE` ou `URL_PORTAIL` est défini | Démon ClamAV (`hôte:port`, port 3310 par défaut) qui analyse les cartes grises et les attestations. Sans lui, les pièces reçues restent « à analyser » et ne peuvent pas être téléchargées. |
 | `URL_SITE_VITRINE` | non | Adresse du site vitrine : ouvre la route publique des demandes de devis à ce seul site ([ADR 0009](../../docs/architecture/adr/0009-demandes-de-devis-du-site.md)). Sans elle, la route n'existe pas. HTTPS en production. **À renseigner après la déclaration à l'ARTCI.** |
+| `URL_PORTAIL` | non | Adresse du portail des entreprises : ouvre ses routes (`/portail/…`), qui n'acceptent que cette origine ([ADR 0011](../../docs/architecture/adr/0011-portail-des-entreprises.md)). Sans elle, les routes du portail n'existent pas. HTTPS en production, avec l'accès à WhatsApp (codes de connexion) et l'antivirus (attestations). |
 | `HOST`, `PORT` | non | `127.0.0.1` et `3000` par défaut. |
 | `PROXYS_DE_CONFIANCE` | non | Nombre de proxys devant l'API (répartiteur, pare-feu applicatif), pour retrouver l'adresse IP réelle. `0` par défaut. |
 | `VERIFIER_MOTS_DE_PASSE_DIVULGUES` | non | `true` par défaut : refuse les mots de passe présents dans des fuites connues. |
@@ -65,6 +66,19 @@ Le formulaire du site envoie la demande à `POST /site/demandes-devis` (JSON, ca
 
 **Maintenance** (toutes les heures, toujours active) : suppression des demandes sans suite depuis 12 mois (ou jamais traitées, reçues il y a plus de 12 mois) avec leur carte grise, et analyse des pièces reçues pendant une panne de l'antivirus.
 
+## Portail des entreprises
+
+Avec `URL_PORTAIL`, l'API ouvre les routes du portail ([`apps/portail`](../portail/README.md), [ADR 0011](../../docs/architecture/adr/0011-portail-des-entreprises.md)), acceptées depuis cette seule origine. Leur session est séparée de celle du personnel : cookie `__Host-dbs_portail` et table `portail.sessions`, 30 minutes d'inactivité, 12 heures au plus. Chaque lecture passe par `transactionPortail`, sous le rôle de base `dbs_portail`, qui ne voit que l'entreprise de la personne connectée.
+
+| Route | Rôle |
+| --- | --- |
+| `POST /portail/connexion/code` | Code de 6 chiffres envoyé sur WhatsApp (modèle `dbs_code_connexion`). Même réponse, et même délai, que le numéro ait un accès ou non ; demandes limitées par numéro et par adresse. |
+| `POST /portail/connexion`, `POST /portail/deconnexion`, `GET /portail/session` | Connexion par le code (5 essais), fin de session, personne connectée. |
+| `GET /portail/flotte` | Tableau de bord : véhicules (contrat en cours, attestation, échéances, sinistres), contrats et reste à payer, chiffres clés. |
+| `GET /portail/vehicules/:id` | Périodes de couverture et historique des sinistres du véhicule. |
+| `GET /portail/attestations/:id`, `GET /portail/attestations.zip`, `GET /portail/flotte.csv` | Une attestation, toutes les attestations en cours (ZIP), la liste pour Excel ; consignés dans `portail.evenements`. |
+| `GET`, `POST /portail/gestionnaires`, `DELETE /portail/gestionnaires/:id` | Accès de l'équipe ; ajout et retrait réservés au titulaire (vérifié par la base). |
+
 ## Installer le premier gérant
 
 ```bash
@@ -104,6 +118,9 @@ Le mot de passe provisoire s'affiche une seule fois. Ensuite, tous les comptes s
 | `POST /contrats/:id/vehicules`, `DELETE /contrats/:id/vehicules/:vehiculeId` | gérant, chargé | Véhicule de départ d'un contrat qui attend son paiement (couvert pour toute la période) ; détaché s'il a été rattaché par erreur, tant que le contrat n'est pas payé. |
 | `POST /contrats/:id/avenants` | gérant, chargé | Avenant de mouvement sur un contrat en vigueur : incorporation (réintégration comprise) ou retrait d'un ou plusieurs véhicules à une même date, prime calculée par la base au prorata des jours restants. Sans `confirmer` : aperçu du calcul, rien n'est écrit ; avec : avenant enregistré. |
 | `POST /contrats/:id/avenants/:avenantId/annulation` | gérant, chargé | Avenant d'annulation (motif obligatoire) : défait exactement un avenant saisi par erreur, si aucun avenant postérieur, aucune attestation ni aucun sinistre ne s'est appuyé dessus. Même aperçu, puis `confirmer`. |
+| `POST /contrats/:id/sinistres`, `PATCH /sinistres/:id` | gérant, chargé | Déclaration d'un sinistre (véhicule couvert ce jour-là, vérifié par la base) et suivi de son statut et de la référence de la compagnie. |
+| `GET`, `POST /clients/:id/acces-portail`, `PATCH /acces-portail/:id` | lecture : gérant, chargé, commercial, auditeur ; le reste : gérant, chargé | Accès d'une entreprise (ou d'un professionnel) au portail : titulaire et collaborateurs, retrait et rétablissement. |
+| `POST /contrats/:id/vehicules/:vehiculeId/attestation`, `GET /attestations/:id` | dépôt : gérant, chargé ; lecture : gérant, chargé, commercial | Attestation PDF d'un véhicule couvert (contrat payé) : contenu vérifié, antivirus, chiffrement ; téléchargement consigné. |
 | `POST /clients/:id/devis`, `PATCH /devis/:id` | création : gérant, chargé, commercial, apporteur ; suivi : sans l'apporteur | Devis ; un refus exige son motif. |
 | `POST /contrats`, `PATCH /contrats/:id` | gérant, chargé | Contrats et prime nette ; « en vigueur » refusé tant que la prime n'est pas payée (Code CIMA, art. 13). |
 | `POST /contrats/:id/renouveler` | gérant, chargé | Nouveau contrat à partir de l'échéance, même durée et même prime par défaut. |

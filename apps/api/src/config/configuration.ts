@@ -45,6 +45,11 @@ export interface Configuration {
    * la route publique des demandes n'existe pas : le site garde l'envoi par WhatsApp seulement.
    */
   origineSite: string | null;
+  /**
+   * Origine du portail des entreprises (tâche 10), seule autorisée à envoyer les requêtes du portail qui
+   * modifient des données. Sans elle, les routes du portail n'existent pas.
+   */
+  originePortail: string | null;
   /** Démon ClamAV qui analyse les pièces jointes (hôte et port). Obligatoire en production si le site envoie des demandes. */
   antivirus: AdresseAntivirus | null;
   /** Nombre de proxys (répartiteur, pare-feu applicatif) devant l'API, pour retrouver l'adresse IP réelle. */
@@ -129,6 +134,23 @@ export function chargerConfiguration(env: NodeJS.ProcessEnv = process.env): Conf
     }
   }
 
+  let originePortail: string | null = null;
+  const urlPortail = env.URL_PORTAIL?.trim();
+  if (urlPortail) {
+    try {
+      const url = new URL(urlPortail);
+      originePortail = url.origin;
+      if (environnement === "production" && url.protocol !== "https:") {
+        problemes.push("URL_PORTAIL doit être en https en production");
+      }
+      if (originePortail === origineBackOffice || originePortail === origineSite) {
+        problemes.push("URL_PORTAIL doit être une adresse différente du back-office et du site vitrine");
+      }
+    } catch {
+      problemes.push("URL_PORTAIL doit être une adresse complète, par exemple https://espace.exemple.ci");
+    }
+  }
+
   let antivirus: AdresseAntivirus | null = null;
   const adresseAntivirus = env.ANTIVIRUS_ADRESSE?.trim();
   if (adresseAntivirus) {
@@ -136,6 +158,8 @@ export function chargerConfiguration(env: NodeJS.ProcessEnv = process.env): Conf
     if (!antivirus) problemes.push("ANTIVIRUS_ADRESSE doit ressembler à clamav:3310 (hôte et port du démon ClamAV)");
   } else if (origineSite && environnement === "production") {
     problemes.push("ANTIVIRUS_ADRESSE est obligatoire en production quand le site envoie des demandes (URL_SITE_VITRINE)");
+  } else if (originePortail && environnement === "production") {
+    problemes.push("ANTIVIRUS_ADRESSE est obligatoire en production avec le portail (URL_PORTAIL) : les attestations sont analysées au dépôt");
   }
 
   const niveau = (env.NIVEAU_JOURNAL?.trim() || "info") as Configuration["niveauJournal"];
@@ -182,6 +206,9 @@ export function chargerConfiguration(env: NodeJS.ProcessEnv = process.env): Conf
   if (simulation && environnement === "production") {
     problemes.push("RELANCES_SIMULATION est interdit en production : aucun client ne serait relancé");
   }
+  if (originePortail && environnement === "production" && !whatsapp) {
+    problemes.push("Le portail (URL_PORTAIL) envoie les codes de connexion sur WhatsApp : renseignez les variables WHATSAPP_*");
+  }
   let heuresEnvoi = { debut: 8, fin: 20 };
   const heures = env.RELANCES_HEURES_ENVOI?.trim();
   if (heures) {
@@ -203,6 +230,7 @@ export function chargerConfiguration(env: NodeJS.ProcessEnv = process.env): Conf
     cleChiffrement,
     origineBackOffice,
     origineSite,
+    originePortail,
     antivirus,
     proxysDeConfiance: entier("PROXYS_DE_CONFIANCE", 0, 0, 5),
     verifierMotsDePasseDivulgues: verification !== "false",

@@ -17,6 +17,9 @@ export interface ModeleWhatsApp {
 
 const DELAI_MS = 10_000;
 
+/** Modèle d'authentification du portail des entreprises (docs/metier/modeles-de-messages.md). */
+export const MODELE_CODE_CONNEXION = "dbs_code_connexion";
+
 /** Erreurs fréquentes de l'API Cloud, expliquées pour l'écran des relances. */
 const ERREURS_CONNUES: Record<number, string> = {
   190: "jeton d'accès WhatsApp expiré ou révoqué",
@@ -60,44 +63,55 @@ export function creerClientWhatsApp(config: ConfigurationWhatsApp, recuperer: ty
 
   return {
     async envoyerModele(destinataire: string, modele: ModeleWhatsApp): Promise<ResultatEnvoi> {
-      const corps = {
-        messaging_product: "whatsapp",
-        recipient_type: "individual",
-        to: destinataire.replace(/^\+/, ""),
-        type: "template",
-        template: {
-          name: modele.nom,
-          language: { code: "fr" },
-          components: [
-            { type: "body", parameters: modele.parametres.map((texte) => ({ type: "text", text: nettoyerParametre(texte) })) },
-          ],
-        },
-      };
+      return poster(destinataire, modele.nom, [
+        { type: "body", parameters: modele.parametres.map((texte) => ({ type: "text", text: nettoyerParametre(texte) })) },
+      ]);
+    },
 
-      let reponse: Response;
-      try {
-        reponse = await recuperer(adresse, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${config.jeton}`, "Content-Type": "application/json" },
-          body: JSON.stringify(corps),
-          signal: AbortSignal.timeout(DELAI_MS),
-        });
-      } catch {
-        return { ok: false, erreur: "WhatsApp injoignable (réseau ou délai dépassé)", definitif: false };
-      }
-
-      const donnees = (await reponse.json().catch(() => null)) as {
-        messages?: { id?: unknown }[];
-        error?: { code?: unknown };
-      } | null;
-      const identifiant = donnees?.messages?.[0]?.id;
-      if (reponse.ok && typeof identifiant === "string" && identifiant.length > 0) {
-        return { ok: true, identifiant };
-      }
-      const code = typeof donnees?.error?.code === "number" ? donnees.error.code : null;
-      return { ok: false, erreur: decrireErreur(reponse.status, code), definitif: estDefinitive(reponse.status, code) };
+    /**
+     * Code de connexion au portail : modèle de la catégorie « Authentification », dont Meta fixe le texte,
+     * avec un bouton « Copier le code ». Le code est le paramètre du corps et celui du bouton.
+     */
+    async envoyerCodeConnexion(destinataire: string, code: string): Promise<ResultatEnvoi> {
+      return poster(destinataire, MODELE_CODE_CONNEXION, [
+        { type: "body", parameters: [{ type: "text", text: code }] },
+        { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: code }] },
+      ]);
     },
   };
+
+  async function poster(destinataire: string, nom: string, components: unknown[]): Promise<ResultatEnvoi> {
+    const corps = {
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: destinataire.replace(/^\+/, ""),
+      type: "template",
+      template: { name: nom, language: { code: "fr" }, components },
+    };
+
+    let reponse: Response;
+    try {
+      reponse = await recuperer(adresse, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${config.jeton}`, "Content-Type": "application/json" },
+        body: JSON.stringify(corps),
+        signal: AbortSignal.timeout(DELAI_MS),
+      });
+    } catch {
+      return { ok: false, erreur: "WhatsApp injoignable (réseau ou délai dépassé)", definitif: false };
+    }
+
+    const donnees = (await reponse.json().catch(() => null)) as {
+      messages?: { id?: unknown }[];
+      error?: { code?: unknown };
+    } | null;
+    const identifiant = donnees?.messages?.[0]?.id;
+    if (reponse.ok && typeof identifiant === "string" && identifiant.length > 0) {
+      return { ok: true, identifiant };
+    }
+    const code = typeof donnees?.error?.code === "number" ? donnees.error.code : null;
+    return { ok: false, erreur: decrireErreur(reponse.status, code), definitif: estDefinitive(reponse.status, code) };
+  }
 }
 
 /**

@@ -24,6 +24,7 @@ Les mots du métier, tels qu'ils sont utilisés dans le code, la base et la docu
 | **Incorporation** | Entrée d'un véhicule dans un contrat flotte en cours, par avenant, avec une prime au prorata des jours restants. Une **réintégration** est l'incorporation d'un véhicule qui était sorti du même contrat. |
 | **LBC/FT** | Lutte contre le blanchiment de capitaux et le financement du terrorisme. |
 | **Police** | Le contrat d'assurance ; son numéro est attribué par la compagnie. |
+| **Portail des entreprises** | Espace en ligne d'une entreprise ou d'un transporteur assuré par l'agence : flotte, échéances, attestations, sinistres, accès de l'équipe. Connexion par un code WhatsApp. Application `apps/portail`. |
 | **Prime nette** | Prime hors taxes et accessoires : base de calcul de la commission. |
 | **Prime TTC** | Montant total payé par l'assuré, taxes et accessoires compris. En francs CFA, entier. |
 | **Prorata** | Part de prime correspondant à une fraction de la période du contrat (véhicule incorporé ou retiré en cours de contrat). |
@@ -34,4 +35,5 @@ Les mots du métier, tels qu'ils sont utilisés dans le code, la base et la docu
 | **Retrait** | Sortie d'un véhicule d'un contrat flotte en cours, par avenant, qui donne droit à une ristourne au prorata des jours restants. |
 | **Reversement** | Versement à la compagnie des primes encaissées par l'agence, sous 30 jours (art. 542). |
 | **Sinistre** | Événement couvert par le contrat (accident, vol, incendie…) qui donne lieu à indemnisation. |
+| **Titulaire** | Représentant d'une entreprise sur le portail, dont l'accès est créé par l'agence ; il ajoute ou retire les accès de ses collaborateurs. |
 | **TRC** | Tous risques chantier. |

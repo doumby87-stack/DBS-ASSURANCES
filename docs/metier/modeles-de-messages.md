@@ -1,6 +1,6 @@
 # Modèles de messages des relances
 
-Sur WhatsApp, une entreprise ne peut écrire la première à un client qu'avec un **modèle validé par Meta**. Voici les cinq modèles à soumettre, mot pour mot : l'API les envoie sous ces noms, avec ces textes. Un test (`apps/api/tests/unitaires/relances-modeles.test.ts`) vérifie que ce document et le code restent identiques.
+Sur WhatsApp, une entreprise ne peut écrire la première à un client qu'avec un **modèle validé par Meta**. Voici les six modèles à soumettre, mot pour mot : l'API les envoie sous ces noms, avec ces textes. Un test (`apps/api/tests/unitaires/relances-modeles.test.ts`) vérifie que ce document et le code restent identiques.
 
 ## Soumettre les modèles (tâche de l'agence)
 
@@ -88,6 +88,23 @@ Bonjour {{1}}, {{2}} : {{3}}. Pour rouler en règle, pensez à les renouveler à
 | `{{1}}` | Nom du client | Transports Yao |
 | `{{2}}` | Nombre de documents et échéance | 3 documents de vos véhicules arrivent à échéance, le premier le 24/11/2026 |
 | `{{3}}` | Les documents (cinq au plus, puis « et N autres ») | visite technique 9011 AB 01 le 24/11, vignette 9011 AB 01 le 29/11 et 1 autre |
+
+### `dbs_code_connexion`
+
+Code de connexion au [portail des entreprises](../architecture/adr/0011-portail-des-entreprises.md). Ce modèle est d'une autre catégorie : **Authentification**, et non Utilitaire. Pour ces modèles, Meta impose son propre texte ; l'agence ne choisit que les réglages ci-dessous. Le message part dès la demande, à toute heure, sans accord préalable : c'est la personne elle-même qui le demande.
+
+À la création du modèle dans le Gestionnaire WhatsApp :
+
+| Réglage | Valeur |
+| --- | --- |
+| Catégorie | Authentification |
+| Nom | `dbs_code_connexion` |
+| Langue | Français |
+| Envoi du code | Copier le code (bouton « Copier le code ») |
+| Avertissement de sécurité | Oui (« ne communiquez ce code à personne ») |
+| Délai d'expiration | 10 minutes |
+
+L'API remplit le code (6 chiffres) dans le texte et dans le bouton. Le code n'est jamais enregistré : la base n'en garde qu'une empreinte.
 
 ## Par SMS
 

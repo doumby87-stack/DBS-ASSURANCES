@@ -31,6 +31,11 @@ BEGIN
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'dbs_audit') THEN
     CREATE ROLE dbs_audit NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
   END IF;
+  -- Portail des entreprises (tâche 10) : l'application prend ce rôle le temps d'une requête d'un client ;
+  -- il ne voit que les données de l'entreprise de la personne connectée (sécurité ligne par ligne)
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'dbs_portail') THEN
+    CREATE ROLE dbs_portail NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+  END IF;
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'dbs_application') THEN
     CREATE ROLE dbs_application LOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS
       CONNECTION LIMIT 40 IN ROLE dbs_api;
@@ -39,6 +44,18 @@ END
 $$;
 
 -- Garde-fous du compte applicatif : une requête bloquée ou une transaction oubliée ne paralyse pas la base
+-- Le compte applicatif peut prendre le rôle du portail (SET ROLE), sans en hériter les droits : une requête du
+-- personnel ne voit jamais les règles du portail, une requête du portail ne voit jamais celles du personnel
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_auth_members m
+                 JOIN pg_roles r ON r.oid = m.roleid JOIN pg_roles u ON u.oid = m.member
+                 WHERE r.rolname = 'dbs_portail' AND u.rolname = 'dbs_application') THEN
+    GRANT dbs_portail TO dbs_application WITH INHERIT FALSE, SET TRUE;
+  END IF;
+END
+$$;
+
 ALTER ROLE dbs_application SET statement_timeout = '15s';
 ALTER ROLE dbs_application SET idle_in_transaction_session_timeout = '30s';
 ALTER ROLE dbs_application SET lock_timeout = '5s';
