@@ -20,6 +20,11 @@ erDiagram
   UTILISATEURS ||--o{ CLOTURES_CAISSE : "clôture sa caisse"
   TAUX_COMMISSION }o--|| CONTRATS : "par branche"
   VEHICULES |o--o{ SINISTRES : "concerné par"
+  CLIENTS ||--o{ CONSENTEMENTS : "accepte ou refuse"
+  CLIENTS ||--o{ RELANCES : "reçoit"
+  CONTRATS |o--o{ RELANCES : "échéance"
+  DEVIS |o--o{ RELANCES : "sans réponse"
+  SINISTRES |o--o{ RELANCES : "avancement"
 
   UTILISATEURS {
     uuid id
@@ -115,6 +120,24 @@ erDiagram
     text resume
     timestamptz survenu_le
   }
+  CONSENTEMENTS {
+    uuid id
+    canal_relance canal "whatsapp, sms"
+    boolean accorde
+    source_consentement source "agence ou réponse STOP"
+    text preuve "comment le client l'a exprimé"
+    timestamptz enregistre_le
+  }
+  RELANCES {
+    uuid id
+    text cle "unique : une relance par étape et par objet"
+    type_relance type
+    canal_relance canal
+    text destinataire "E.164"
+    statut_relance statut "à envoyer, envoyée, remise, lue, échec, annulée"
+    text identifiant_fournisseur "WhatsApp ou opérateur SMS"
+    smallint tentatives
+  }
 ```
 
 ## Vues de pilotage
@@ -128,11 +151,15 @@ erDiagram
 | `app.v_echeances_contrats` | Contrats en vigueur, pas encore renouvelés, qui arrivent à échéance dans les 60 jours (ou déjà échus). |
 | `app.v_echeances_vehicules` | Visite technique, vignette, carte de transport à renouveler dans les 60 jours. |
 | `app.v_sinistres_suivi` | Délai de déclaration et, pour un sinistre corporel, date limite indicative de l'offre. |
+| `app.v_consentements` | Dernier choix de chaque client pour chaque canal de relance. |
+| `app.v_relances_dues` | Relances dues aujourd'hui (échéance à J-30, J-15, J-7 et le jour même, contrat expiré depuis moins de 7 jours, devis sans réponse depuis 3 jours, avancement d'un sinistre) qui ne sont pas encore planifiées. |
 
 Toutes les vues appliquent les droits de la personne qui les consulte (`security_invoker`).
 
 ## À venir
 
-Demandes venues du site (tâche 7), documents (tâche 7), relances et consentements (tâche 6), identification des clients et réclamations (tâche 12), comptes des clients de l'espace en ligne (tâche 9).
+Demandes venues du site (tâche 7), documents (tâche 7), identification des clients et réclamations (tâche 12), comptes des clients de l'espace en ligne (tâche 9).
+
+Les relances ne sont créées que par le planificateur de l'API, au moyen des fonctions `app.planifier_relances`, `app.prendre_relances_a_envoyer`, `app.enregistrer_envoi`, `app.enregistrer_statut_fournisseur` et `app.enregistrer_desinscription` ([ADR 0007](adr/0007-relances-whatsapp-et-sms.md)).
 
 Les numéros de reçus, de bordereaux et de clôtures viennent de `app.compteurs`, table inaccessible à l'application : seul un déclencheur de la base attribue un numéro, dans la transaction de l'opération. Un paiement refusé ou annulé ne laisse donc aucun trou.

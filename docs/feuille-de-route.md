@@ -23,7 +23,8 @@ Légende : ✅ terminé · 🔜 prochaine · ⏳ plus tard · 🧑‍💼 tâche
 - [ ] Demander à **SanlamAllianz** : ce que fournit son extranet, le format de ses états de production et de commissions, sa procédure de lutte contre le blanchiment pour les agents, et son accord sur l'usage du logo.
 - [ ] Confirmer la **source réglementaire du plafond d'espèces** de 1 000 000 F CFA par police, appliqué par la base.
 - [ ] Ouvrir un **compte marchand** de paiement Mobile Money (par exemple CinetPay) au nom de la société, plutôt que d'utiliser un numéro personnel.
-- [ ] Faire vérifier le compte **WhatsApp Business** de l'agence par Meta, pour les relances automatiques.
+- [ ] Faire vérifier l'entreprise et le compte **WhatsApp Business** de l'agence par Meta (sur un numéro dédié), puis soumettre les **quatre modèles de messages** des relances ([modèles](metier/modeles-de-messages.md)).
+- [ ] Choisir l'**opérateur SMS** des relances (agréé, nom d'expéditeur « DBS-ASSUR », accusés de réception, réponses « STOP ») ([ADR 0007](architecture/adr/0007-relances-whatsapp-et-sms.md)).
 - [ ] Compléter les **mentions légales** : n° d'agrément ou de carte professionnelle, hébergeur, horaires.
 - [ ] Valider les engagements proposés pour les **réclamations** (délais de réponse).
 - [ ] Demander au comptable quelles factures de l'agence relèvent de la **FNE** ([facturation](conformite/facturation-fne.md)).
@@ -45,17 +46,19 @@ Encaissements avec reçus numérotés sans trou et montant en lettres, mise en v
 
 *À confirmer avec SanlamAllianz (tâche 2) :* format des bordereaux et des relevés de commissions (l'export CSV s'y adaptera), taux de commission par branche, paiement fractionné de la prime.
 
-## 🔜 Tâche 6 — Relances automatiques
+## ✅ Tâche 6 — Relances automatiques
 
-Messages WhatsApp (modèles validés par Meta) et SMS : échéances, contrat expiré, devis sans réponse, avancement d'un sinistre. Consentement et désinscription respectés.
+Messages WhatsApp (modèles validés par Meta, [textes](metier/modeles-de-messages.md)) et SMS : échéance à J-30, J-15, J-7 et le jour même, contrat expiré, devis resté sans réponse, avancement d'un sinistre. Une seule relance par étape, entre 8 h et 20 h, trois essais, suivi de la remise et de la lecture. Accord du client par canal, noté avec sa preuve sur la fiche ; « STOP » sur WhatsApp respecté aussitôt ; sans accord, la relance est listée avec son message prêt, à faire à la main. Écran « Relances » du back-office ([ADR 0007](architecture/adr/0007-relances-whatsapp-et-sms.md), [API](../apps/api/README.md#relances-automatiques)).
 
-## ⏳ Tâche 7 — Demandes de devis enregistrées
+*Avant la mise en service (tâche 2) :* vérification de l'entreprise par Meta, compte WhatsApp Business sur un numéro dédié, validation des quatre modèles, autorisation de transfert de l'ARTCI ; accord des clients existants à recueillir. *Opérateur SMS à choisir* : d'ici là, le canal SMS ne fonctionne qu'en simulation.
+
+## 🔜 Tâche 7 — Demandes de devis enregistrées
 
 Le formulaire du site enregistre la demande (en plus de WhatsApp), avec dépôt de la carte grise. Suivi des devis dans le back-office. **Avant la mise en ligne :** textes du site et mentions légales mis à jour, déclaration ARTCI faite.
 
 ## ⏳ Tâche 8 — Flottes
 
-Import Excel avec contrôle des erreurs, échéances de visite technique, vignette et carte de transport, ajout ou retrait d'un véhicule avec prorata, export pour la cotation en lot.
+Import Excel avec contrôle des erreurs, échéances de visite technique, vignette et carte de transport (avec leurs relances, selon les règles de la tâche 6), ajout ou retrait d'un véhicule avec prorata, export pour la cotation en lot.
 
 ## ⏳ Tâche 9 — Espace client et paiement Mobile Money
 

@@ -10,6 +10,7 @@ Chaque décision importante est écrite ici, avec son contexte et ses conséquen
 | [0004](0004-securite-dans-la-base.md) | Les règles critiques et les droits sont aussi appliqués par la base | Acceptée |
 | [0005](0005-authentification.md) | Deuxième facteur pour le personnel, code à usage unique pour les clients | Acceptée (personnel en place) |
 | [0006](0006-hebergement-et-localisation-des-donnees.md) | Hébergement et localisation des données | En attente (ARTCI) |
+| [0007](0007-relances-whatsapp-et-sms.md) | Relances automatiques : WhatsApp (API Cloud de Meta) et SMS, avec consentement | Proposée |
 
 ## Modèle
 

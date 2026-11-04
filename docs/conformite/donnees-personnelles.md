@@ -25,9 +25,13 @@ Aujourd'hui, le site n'enregistre rien : le formulaire prépare un message que l
 | Gestion des clients et contrats | Souscription, renouvellement, attestations | Identité, coordonnées, pièce d'identité (chiffrée), véhicules, contrats | Agence, SanlamAllianz, ASACI (attestations) | Contrat + 10 ans | ADR 0006 |
 | Encaissements et reversements | Caisse, obligations CIMA | Montants, modes, références de paiement | Agence, SanlamAllianz, prestataire de paiement | 10 ans | ADR 0006 |
 | Sinistres | Déclaration et suivi | Circonstances, photos, constats, parfois données médicales | Agence, SanlamAllianz, experts | Clôture + 10 ans | ADR 0006 |
-| Relances | Prévenir des échéances | Nom, téléphone, échéance | Agence, Meta (WhatsApp), opérateur SMS | Durée du contrat | Hors de Côte d'Ivoire (Meta) |
+| Relances | Prévenir des échéances, des devis restés sans réponse et de l'avancement des sinistres | Nom, téléphone, branche, n° de police, dates ; accord ou refus du client et sa preuve | Agence, Meta (WhatsApp), opérateur SMS | Durée du contrat ; preuve du consentement : tant que la relation dure, puis 5 ans | Hors de Côte d'Ivoire (Meta) |
 | Lutte contre le blanchiment | Obligation légale | Identification, bénéficiaires effectifs, alertes | Agence, correspondant LBC/FT de SanlamAllianz | Fin de relation + 10 ans | ADR 0006 |
 | Comptes du personnel | Sécurité des accès | Nom, e-mail, rôle, journaux de connexion | Agence | Départ + 1 an (journal d'audit : 10 ans) | ADR 0006 |
+
+## Relances et consentement
+
+Aucune relance automatique sans l'**accord du client pour le canal** (WhatsApp ou SMS), noté sur sa fiche avec la façon dont il l'a exprimé (accord oral au guichet, formulaire signé…). Un « STOP » envoyé sur WhatsApp retire l'accord aussitôt, sans intervention de l'agence ; un client peut aussi le retirer en appelant l'agence. Ces choix sont gardés en ajout seul : ils servent de preuve. Les messages ne contiennent que le minimum (nom, branche, n° de police, dates), jamais de montant, de pièce d'identité ni de détail médical ([modèles de messages](../metier/modeles-de-messages.md), [ADR 0007](../architecture/adr/0007-relances-whatsapp-et-sms.md)).
 
 ## Droits des personnes
 

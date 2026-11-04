@@ -36,3 +36,4 @@
 
 - [Glossaire](metier/glossaire.md)
 - [Processus de l'agence](metier/processus.md)
+- [Modèles de messages des relances](metier/modeles-de-messages.md) — les textes à faire valider par Meta.

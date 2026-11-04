@@ -40,7 +40,7 @@ flowchart LR
   A["J-30"] --> B["J-15"] --> C["J-7"] --> D["Jour de l'échéance"] --> E["J+1 : « vous n'êtes plus couvert »"]
 ```
 
-À chaque étape : message WhatsApp (ou SMS), et tâche pour le chargé de clientèle si le client ne répond pas. Pour les flottes, les échéances de visite technique, vignette et carte de transport suivent le même rythme.
+À chaque étape : message WhatsApp (ou SMS) au client qui l'a accepté, une seule fois, entre 8 h et 20 h ; sans son accord, la relance apparaît dans l'écran « Relances », message prêt, à faire à la main ([modèles de messages](modeles-de-messages.md)). Le message « vous n'êtes plus couvert » part dans les 7 jours qui suivent une échéance non renouvelée. Pour les flottes, les échéances de visite technique, vignette et carte de transport suivront le même rythme (tâche 8).
 
 ## Sinistre
 

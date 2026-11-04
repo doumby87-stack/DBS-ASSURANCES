@@ -1,6 +1,7 @@
 // Parcours complet dans un vrai navigateur : première connexion du gérant (deuxième facteur, mot de passe),
-// création d'un client et d'un contrat, encaissement et reçu, relance et renouvellement depuis le tableau
-// des échéances, clôture de caisse, bordereau de reversement, commissions, création d'un compte.
+// création d'un client et d'un contrat, encaissement et reçu, accord du client pour les rappels et relance
+// automatique (en simulation), relance et renouvellement depuis le tableau des échéances, clôture de caisse,
+// bordereau de reversement, commissions, création d'un compte.
 // Aucune violation de la politique de sécurité du contenu n'est tolérée.
 
 import { expect, test, type Page } from "@playwright/test";
@@ -94,6 +95,32 @@ test("parcours du gérant, de la première connexion à la caisse et au reversem
   await page.getByRole("link", { name: "Retour au contrat" }).click();
   await expect(page.getByText("Prime entièrement payée : le contrat est en vigueur.")).toBeVisible();
   await expect(page.getByRole("row", { name: /N° 1/ })).toContainText("185 000");
+
+  // --- Relances : sans accord du client, la relance est à faire à la main ; avec, elle part toute seule
+  await page.getByRole("link", { name: "Relances", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Relances", level: 1 })).toBeVisible();
+  await expect(page.getByText(/Mode simulation/)).toBeVisible();
+  const aFaireALaMain = page.locator("section", { has: page.getByRole("heading", { name: "À faire à la main" }) });
+  const relanceManuelle = aFaireALaMain.getByRole("row", { name: /Transports Kouamé & Fils/ });
+  await expect(relanceManuelle).toContainText("Échéance dans 7 jours");
+  await expect(relanceManuelle.getByRole("link", { name: "Relancer sur WhatsApp" }))
+    .toHaveAttribute("href", /^https:\/\/wa\.me\/2250711223344\?text=.*arrive%20%C3%A0%20%C3%A9ch%C3%A9ance/);
+  await relanceManuelle.getByRole("link", { name: "Transports Kouamé & Fils" }).click();
+
+  const rappels = page.locator("section", { has: page.getByRole("heading", { name: "Rappels automatiques" }) });
+  await expect(rappels.getByRole("listitem").filter({ hasText: "WhatsApp" })).toContainText("Pas encore demandé");
+  await rappels.getByLabel("Comment le client l'a exprimé").fill("Accord oral au guichet");
+  await rappels.getByRole("button", { name: "Enregistrer son choix" }).click();
+  await expect(rappels.getByRole("listitem").filter({ hasText: "WhatsApp" })).toContainText("Accepté");
+  await expect(rappels.getByRole("listitem").filter({ hasText: "WhatsApp" })).toContainText("Accord oral au guichet");
+
+  await page.getByRole("link", { name: "Relances", exact: true }).click();
+  await page.getByRole("button", { name: "Lancer les relances maintenant" }).click();
+  await expect(page.getByText("1 relance planifiée, 1 message envoyé.")).toBeVisible();
+  await expect(aFaireALaMain.getByRole("row", { name: /Transports Kouamé & Fils/ })).toHaveCount(0);
+  const relanceEnvoyee = page.getByRole("row", { name: /Transports Kouamé & Fils/ });
+  await expect(relanceEnvoyee).toContainText("Envoyée");
+  await expect(relanceEnvoyee).toContainText("votre assurance automobile (police SA-2026-0042) arrive à échéance le");
 
   await page.getByRole("link", { name: "Échéances" }).click();
   await expect(page.getByRole("button", { name: /Dans 7 jours/ })).toContainText("1");

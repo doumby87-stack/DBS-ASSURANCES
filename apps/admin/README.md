@@ -1,6 +1,6 @@
 # Back-office de l'agence (espace de gestion)
 
-**Statut :** connexion avec deuxième facteur, tableau des échéances, clients, fiche client, personnel (tâche 4) ; caisse, reçus, reversements et commissions (tâche 5) — [feuille de route](../../docs/feuille-de-route.md). Les relances automatiques, les flottes et les sinistres viendront avec leurs tâches.
+**Statut :** connexion avec deuxième facteur, tableau des échéances, clients, fiche client, personnel (tâche 4) ; caisse, reçus, reversements et commissions (tâche 5) ; relances automatiques et accord des clients (tâche 6) — [feuille de route](../../docs/feuille-de-route.md). Les flottes et les sinistres viendront avec leurs tâches.
 
 L'outil de travail quotidien de l'agence. Il ne contient aucune donnée : il affiche ce que l'[API](../api/README.md) lui autorise à voir.
 
@@ -23,7 +23,8 @@ Vite transmet les appels `/api/…` à l'API (variable `API_URL` si l'API n'est 
 | Connexion | Mot de passe, deuxième facteur (QR code à la première connexion), mot de passe personnel obligatoire après un mot de passe provisoire | tous |
 | Échéances (`/`) | Contrats expirés non renouvelés, à J-7, J-15, J-30 ; relance WhatsApp avec message déjà rédigé ; renouvellement en un clic ; documents des véhicules (visite technique, vignette, carte de transport) ; alerte des primes à reverser | tous ; renouvellement : gérant, chargé de clientèle ; alerte : gérant, caissier, auditeur |
 | Clients (`/clients`) | Recherche par nom ou numéro ; création avec alerte si le numéro existe déjà | tous ; création : gérant, chargé de clientèle, commercial, apporteur |
-| Fiche client (`/clients/:id`) | Identité, contrats (reste à payer pour qui voit la caisse), véhicules, devis (statut, motif de refus), historique des échanges | selon le rôle |
+| Fiche client (`/clients/:id`) | Identité, contrats (reste à payer pour qui voit la caisse), véhicules, devis (statut, motif de refus), rappels automatiques (accord ou refus par canal, avec sa preuve ; relances récentes), historique des échanges | selon le rôle ; accord du client : gérant, chargé de clientèle, commercial |
+| Relances (`/relances`) | Canaux actifs, relances planifiées et envoyées (avec le texte lu par le client, remise, lecture, échec et sa raison), relances à faire à la main faute d'accord (message prêt sur WhatsApp), lancement immédiat, annulation avant l'envoi | gérant, chargé de clientèle, commercial, auditeur ; lancement : gérant ; annulation : gérant, chargé de clientèle |
 | Contrat et paiements (`/contrats/:id`) | Reste à payer, espèces encore possibles, encaissement (le reçu s'ouvre aussitôt), reçus, contre-passation, prime nette | lecture : gérant, caissier, chargé, auditeur ; encaissement : gérant, caissier ; contre-passation : gérant |
 | Reçu (`/recus/:id`) | Reçu imprimable avec le montant en lettres ; confirmation au client par WhatsApp | gérant, caissier, chargé, auditeur |
 | Caisse (`/caisse`) | Ma caisse depuis la dernière clôture, clôture avec billetage, visa des clôtures, journal des encaissements du jour | ma caisse : gérant, caissier ; visa : gérant |
@@ -67,10 +68,11 @@ Il construit l'API et le back-office, prépare une base de test neuve (`tests/e2
 1. première connexion, avec le deuxième facteur et le mot de passe personnel ;
 2. création d'un client et d'un contrat, puis note d'un échange ;
 3. encaissement au guichet : reçu n° 000001 avec le montant en lettres, contrat mis en vigueur ;
-4. relance et renouvellement depuis le tableau des échéances ;
-5. clôture de caisse avec billetage ;
-6. bordereau de reversement, que son auteur ne peut pas valider, et export pour Excel ;
-7. taux de commission, création d'un compte, puis déconnexion.
+4. relance à faire à la main faute d'accord, accord du client noté sur sa fiche, puis relance automatique (l'API tourne en simulation : rien ne part) ;
+5. relance et renouvellement depuis le tableau des échéances ;
+6. clôture de caisse avec billetage ;
+7. bordereau de reversement, que son auteur ne peut pas valider, et export pour Excel ;
+8. taux de commission, création d'un compte, puis déconnexion.
 
 Toute violation de la politique de sécurité du contenu fait échouer le test. La même vérification tourne dans l'intégration continue (« Back-office »).
 
@@ -79,7 +81,7 @@ Toute violation de la politique de sécurité du contenu fait échouer le test. 
 | Dossier | Rôle |
 | --- | --- |
 | `src/securite/` | Connexion, deuxième facteur, changement de mot de passe. |
-| `src/pages/` | Un dossier par écran ; `flottes`, `sinistres`, `relances`, `statistiques` viendront avec leurs tâches. |
+| `src/pages/` | Un dossier par écran ; `flottes`, `sinistres`, `statistiques` viendront avec leurs tâches. |
 | `src/composants/` | Composants partagés (champ, alerte, badge, section). |
 | `src/services/` | Appels à l'API, libellés et formats d'affichage. |
 | `tests/e2e/` | Parcours complet dans le navigateur. |

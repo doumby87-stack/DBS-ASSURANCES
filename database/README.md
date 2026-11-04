@@ -15,7 +15,7 @@ PostgreSQL 16 (ou plus récent). C'est ici que vivent les données des clients, 
 
 ## Ce que la base garantit
 
-Ces garanties sont vérifiées par les fichiers de `tests/` (159 contrôles) :
+Ces garanties sont vérifiées par les fichiers de `tests/` (221 contrôles) :
 
 - **Fermeture par défaut.** Sans utilisateur authentifié dans la transaction, aucune donnée métier n'est lisible ni modifiable.
 - **Cloisonnement par rôle**, ligne par ligne : l'apporteur ne voit que ses clients, le commercial ne voit pas la caisse, l'auditeur ne modifie rien. Matrice complète : [`docs/securite/controle-des-acces.md`](../docs/securite/controle-des-acces.md).
@@ -31,6 +31,7 @@ Ces garanties sont vérifiées par les fichiers de `tests/` (159 contrôles) :
 - **Commissions** : taux par branche datés, relevés de la compagnie, rapprochement mensuel (`app.v_commissions_mensuelles`), réservés au gérant et à l'auditeur.
 - **Identifiants jamais en clair** : mots de passe hachés (Argon2id, contrôlé par la base), secrets du deuxième facteur chiffrés, jetons de session réduits à leur empreinte. Une fois un utilisateur déclaré, seul un gérant touche aux identifiants d'un autre. Journal de sécurité en ajout seul, qui consigne aussi les exports de données.
 - **Devis** : un refus exige son motif. **Échanges** avec les clients en ajout seul. **Renouvellement** : même client, et le contrat renouvelé sort du tableau des échéances.
+- **Relances** : jamais sans l'accord du client pour le canal ; une seule par étape et par objet (clé unique) ; contenu jamais réécrit, statut qui ne recule pas ; seule une relance pas encore partie peut être annulée, au nom de la personne qui annule. Personne ne crée une relance : seul le planificateur le fait, par des fonctions limitées à cet usage. **Consentements** en ajout seul, avec leur preuve ; un « STOP » est enregistré sans auteur, comme réponse du client, et revérifié avant chaque envoi.
 - **Journal d'audit** en ajout seul : chaque écriture est consignée avec son auteur. Chaque ligne contient l'empreinte de la précédente, si bien qu'une falsification, même par un administrateur, est détectée par `audit.verifier_chaine()`.
 
 ## Comptes de la base

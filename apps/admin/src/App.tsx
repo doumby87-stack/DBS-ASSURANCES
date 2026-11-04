@@ -9,6 +9,7 @@ import { ListeClients } from "./pages/clients/ListeClients";
 import { Commissions } from "./pages/commissions/Commissions";
 import { Contrat } from "./pages/contrats/Contrat";
 import { Personnel } from "./pages/parametres/Personnel";
+import { Relances } from "./pages/relances/Relances";
 import { PageBordereau } from "./pages/reversements/Bordereau";
 import { Reversements } from "./pages/reversements/Reversements";
 import { TableauDeBord } from "./pages/tableau-de-bord/TableauDeBord";
@@ -56,6 +57,7 @@ function Page() {
   const bordereau = /^\/reversements\/([0-9a-f-]{36})$/.exec(chemin);
   if (bordereau) return <PageBordereau key={bordereau[1]} id={bordereau[1]!} />;
   if (chemin === "/commissions") return <Commissions />;
+  if (chemin === "/relances") return <Relances />;
   if (chemin === "/personnel") return <Personnel />;
   if (chemin === "/mon-compte") {
     return (
@@ -84,6 +86,7 @@ function MiseEnPage({ children }: { children: ReactNode }) {
           <nav aria-label="Navigation principale" className="entete__nav">
             <Lien href="/" aria-current={actif("/")}>Échéances</Lien>
             <Lien href="/clients" aria-current={actif("/clients")}>Clients</Lien>
+            {peut("gerant", "charge_clientele", "commercial", "auditeur") && <Lien href="/relances" aria-current={actif("/relances")}>Relances</Lien>}
             {peut("gerant", "caissier", "charge_clientele", "auditeur") && <Lien href="/caisse" aria-current={actif("/caisse")}>Caisse</Lien>}
             {peut("gerant", "caissier", "auditeur") && <Lien href="/reversements" aria-current={actif("/reversements")}>Reversements</Lien>}
             {peut("gerant", "auditeur") && <Lien href="/commissions" aria-current={actif("/commissions")}>Commissions</Lien>}
