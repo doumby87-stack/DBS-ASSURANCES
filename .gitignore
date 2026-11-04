@@ -21,9 +21,11 @@ exports/
 # --- Dépendances et constructions ---
 node_modules/
 dist/
+dist-avec-api/
 build/
 coverage/
 .vite/
+.astro/
 *.tsbuildinfo
 
 # --- Journaux et fichiers temporaires ---

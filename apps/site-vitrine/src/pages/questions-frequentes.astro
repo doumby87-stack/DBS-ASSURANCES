@@ -1,0 +1,39 @@
+---
+import AppelFinal from "../composants/AppelFinal.astro";
+import EntetePage from "../composants/EntetePage.astro";
+import Faq from "../composants/Faq.astro";
+import { FAQ } from "../donnees/faq";
+import Base from "../mises-en-page/Base.astro";
+
+// Données structurées : les moteurs de recherche peuvent afficher ces réponses directement
+const pageFaq = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: FAQ.flatMap((theme) =>
+    theme.questions.map((q) => ({ "@type": "Question", name: q.question, acceptedAnswer: { "@type": "Answer", text: q.reponse } })),
+  ),
+};
+---
+<Base
+  titre="Questions fréquentes sur l'assurance"
+  description="Assurance auto obligatoire, début de la couverture, moyens de paiement, attestation digitale, arnaques, flottes, appels d'offres et sinistres : les réponses de DBS-ASSURANCES."
+  donneesStructurees={[pageFaq]}
+>
+  <EntetePage surtitre="Questions fréquentes" titre="Les réponses aux questions que l'on nous pose le plus." page="Questions fréquentes">
+    <p>Une autre question ? Appelez-nous ou écrivez-nous sur WhatsApp : nous vous répondons.</p>
+    <ul class="raccourcis" slot="raccourcis">
+      {FAQ.map((theme) => <li><a href={`#theme-${theme.id}`}>{theme.titre}</a></li>)}
+    </ul>
+  </EntetePage>
+
+  {FAQ.map((theme, rang) => (
+    <section class={`section${rang % 2 ? " section--sable" : ""}`} aria-labelledby={`theme-${theme.id}`}>
+      <div class="conteneur faq-grille">
+        <h2 id={`theme-${theme.id}`}>{theme.titre}</h2>
+        <Faq questions={theme.questions} />
+      </div>
+    </section>
+  ))}
+
+  <AppelFinal />
+</Base>

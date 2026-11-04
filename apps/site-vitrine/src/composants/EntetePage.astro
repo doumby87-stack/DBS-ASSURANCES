@@ -1,0 +1,24 @@
+---
+// En-tête des pages intérieures : fil d'Ariane, surtitre, titre, chapeau, raccourcis éventuels (slot « raccourcis »).
+interface Props {
+  surtitre: string;
+  titre: string;
+  /** Libellé de la page dans le fil d'Ariane */
+  page: string;
+}
+const { surtitre, titre, page } = Astro.props;
+---
+<section class="entete-page">
+  <div class="conteneur">
+    <nav aria-label="Fil d'Ariane">
+      <ol class="fil-ariane">
+        <li><a href="/">Accueil</a></li>
+        <li aria-current="page">{page}</li>
+      </ol>
+    </nav>
+    <p class="surtitre">{surtitre}</p>
+    <h1>{titre}</h1>
+    <div class="chapeau"><slot /></div>
+    <slot name="raccourcis" />
+  </div>
+</section>

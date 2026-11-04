@@ -19,6 +19,8 @@ npm run dev -w @dbs/api                  # rechargement automatique
 | `DATABASE_URL` | oui | Connexion avec le compte `dbs_application` (jamais `dbs_proprietaire`). En production : `sslmode=verify-full`. |
 | `CLE_CHIFFREMENT_DONNEES` | oui | 32 octets en base64 (`openssl rand -base64 32`). Chiffre les secrets du deuxième facteur. **La perdre oblige à réinitialiser l'accès de tout le personnel.** |
 | `URL_BACK_OFFICE` | oui | Adresse du back-office ; seule origine autorisée à modifier des données. HTTPS en production. |
+| `ANTIVIRUS_ADRESSE` | en production, si `URL_SITE_VITRINE` est défini | Démon ClamAV (`hôte:port`, port 3310 par défaut) qui analyse les cartes grises. Sans lui, les pièces reçues restent « à analyser » et ne peuvent pas être téléchargées. |
+| `URL_SITE_VITRINE` | non | Adresse du site vitrine : ouvre la route publique des demandes de devis à ce seul site ([ADR 0009](../../docs/architecture/adr/0009-demandes-de-devis-du-site.md)). Sans elle, la route n'existe pas. HTTPS en production. **À renseigner après la déclaration à l'ARTCI.** |
 | `HOST`, `PORT` | non | `127.0.0.1` et `3000` par défaut. |
 | `PROXYS_DE_CONFIANCE` | non | Nombre de proxys devant l'API (répartiteur, pare-feu applicatif), pour retrouver l'adresse IP réelle. `0` par défaut. |
 | `VERIFIER_MOTS_DE_PASSE_DIVULGUES` | non | `true` par défaut : refuse les mots de passe présents dans des fuites connues. |
@@ -31,7 +33,7 @@ npm run dev -w @dbs/api                  # rechargement automatique
 
 L'API refuse de démarrer si une variable obligatoire manque, sans jamais afficher de valeur.
 
-**Déploiement :** le back-office et l'API sont servis sous le **même nom de domaine** (par exemple `gestion.<domaine>`, l'API derrière `/api/` grâce au proxy, qui retire ce préfixe). Le cookie de session (`__Host-`, `SameSite=Strict`) et l'absence de CORS reposent sur ce choix.
+**Déploiement :** le back-office et l'API sont servis sous le **même nom de domaine** (par exemple `gestion.<domaine>`, l'API derrière `/api/` grâce au proxy, qui retire ce préfixe). Le cookie de session (`__Host-`, `SameSite=Strict`) et l'absence de CORS reposent sur ce choix. Seule exception : la route des demandes de devis répond au site vitrine (`URL_SITE_VITRINE`) avec les en-têtes CORS de cette seule origine, sans cookie.
 
 ## Relances automatiques
 
@@ -54,6 +56,14 @@ Une relance par étape et par objet ; trois essais en cas d'erreur passagère ; 
 4. Les quatre modèles validés par Meta, sous leurs noms exacts.
 
 En développement : `RELANCES_SIMULATION=true` enregistre les relances sans rien envoyer.
+
+## Demandes de devis du site
+
+Le formulaire du site envoie la demande à `POST /site/demandes-devis` (JSON, carte grise en base64), si le site est construit avec l'adresse de l'API (`URL_API`) et l'API configurée avec celle du site (`URL_SITE_VITRINE`). Contrôles : origine du site, champ piège pour les robots, 5 demandes par heure et par adresse et 300 par jour (appliqués par la base, l'adresse IP n'étant gardée que sous forme d'empreinte), carte grise JPEG, PNG ou PDF de 5 Mo au plus reconnue d'après son contenu, puis chiffrée. La demande reçoit un numéro, communiqué au visiteur ; elle se traite au back-office, écran « Demandes du site » ([ADR 0009](../../docs/architecture/adr/0009-demandes-de-devis-du-site.md)).
+
+**Antivirus.** La carte grise est analysée par ClamAV à la réception (infectée : refusée) et à chaque téléchargement (jamais remise sans analyse réussie ; une menace découverte plus tard efface son contenu). Installer le démon à côté de l'API, joignable seulement par elle, par exemple avec l'image officielle `clamav/clamav` (port 3310, signatures mises à jour par `freshclam`), puis `ANTIVIRUS_ADRESSE=clamav:3310`. Pour les tests : `tests/antivirus/demarrer-clamd.sh` démarre un vrai ClamAV avec la seule signature de test EICAR, et `ANTIVIRUS_ADRESSE_TEST=127.0.0.1:3310 npm run test -w @dbs/api` l'utilise.
+
+**Maintenance** (toutes les heures, toujours active) : suppression des demandes sans suite depuis 12 mois (ou jamais traitées, reçues il y a plus de 12 mois) avec leur carte grise, et analyse des pièces reçues pendant une panne de l'antivirus.
 
 ## Installer le premier gérant
 
@@ -111,6 +121,12 @@ Le mot de passe provisoire s'affiche une seule fois. Ensuite, tous les comptes s
 | `GET /relances?statut=` | gérant, chargé, commercial, auditeur | Canaux actifs, résumé sur 30 jours, relances avec le texte envoyé, relances dues à faire à la main faute d'accord du client. |
 | `POST /relances/cycle` | gérant | Lance un cycle sans attendre les 15 minutes : planification, puis envoi aux heures prévues. |
 | `POST /relances/:id/annulation` | gérant, chargé | Annule une relance pas encore envoyée. |
+| `POST /site/demandes-devis` | public, **origine du site exigée** | Demande de devis du formulaire du site, avec la carte grise éventuelle ; renvoie son numéro. N'existe que si `URL_SITE_VITRINE` est défini. |
+| `GET /demandes-site?statut=` | gérant, chargé, commercial, auditeur | Demandes reçues par le site (à traiter par défaut, converties ou sans suite) et nombre de demandes à traiter. |
+| `GET /demandes-site/:id` | gérant, chargé, commercial, auditeur | Détail, carte grise jointe (type et taille ; invisible pour l'auditeur), clients qui ont déjà ce numéro. |
+| `GET /demandes-site/:id/piece` | gérant, chargé, commercial | Carte grise déchiffrée et analysée de nouveau par l'antivirus, en pièce jointe ; chaque téléchargement est consigné au journal de sécurité. 409 `piece_infectee` si une menace est trouvée, 503 `analyse_en_attente` si elle n'a encore jamais pu être analysée. |
+| `POST /demandes-site/:id/conversion` | gérant, chargé, commercial | Client (nouveau, ou existant avec `clientId`) et devis d'origine « site » ; accord WhatsApp noté sur la fiche si le visiteur l'a donné. Même numéro qu'un client existant : 409 `doublon_possible`, sauf `confirmerNouveauClient`. |
+| `POST /demandes-site/:id/sans-suite` | gérant, chargé, commercial | Classe la demande, motif obligatoire. |
 | `GET /webhooks/whatsapp` | public (jeton de vérification) | Activation des notifications par Meta. |
 | `POST /webhooks/whatsapp` | public, **signature de Meta exigée** | Accusés de remise et de lecture, « STOP » des clients. |
 

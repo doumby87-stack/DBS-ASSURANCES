@@ -2,6 +2,8 @@
 // L'API refuse de démarrer si une variable obligatoire manque ou est invalide.
 // Les valeurs ne sont jamais affichées dans les messages d'erreur : elles peuvent être des secrets.
 
+import { lireAdresseAntivirus, type AdresseAntivirus } from "../integrations/antivirus/clamav.js";
+
 export type Environnement = "developpement" | "test" | "production";
 
 /** Accès à l'API WhatsApp Cloud de Meta (docs/architecture/adr/0007-relances-whatsapp-et-sms.md). */
@@ -38,6 +40,13 @@ export interface Configuration {
   cleChiffrement: Buffer;
   /** Seule origine autorisée à envoyer des requêtes qui modifient des données (protection CSRF). */
   origineBackOffice: string;
+  /**
+   * Origine du site vitrine, seule autorisée à envoyer une demande de devis (tâche 7). Sans elle,
+   * la route publique des demandes n'existe pas : le site garde l'envoi par WhatsApp seulement.
+   */
+  origineSite: string | null;
+  /** Démon ClamAV qui analyse les pièces jointes (hôte et port). Obligatoire en production si le site envoie des demandes. */
+  antivirus: AdresseAntivirus | null;
   /** Nombre de proxys (répartiteur, pare-feu applicatif) devant l'API, pour retrouver l'adresse IP réelle. */
   proxysDeConfiance: number;
   /** Refuser les mots de passe présents dans des fuites connues (service Have I Been Pwned). */
@@ -101,6 +110,32 @@ export function chargerConfiguration(env: NodeJS.ProcessEnv = process.env): Conf
     } catch {
       problemes.push("URL_BACK_OFFICE doit être une adresse complète, par exemple https://gestion.exemple.ci");
     }
+  }
+
+  let origineSite: string | null = null;
+  const urlSite = env.URL_SITE_VITRINE?.trim();
+  if (urlSite) {
+    try {
+      const url = new URL(urlSite);
+      origineSite = url.origin;
+      if (environnement === "production" && url.protocol !== "https:") {
+        problemes.push("URL_SITE_VITRINE doit être en https en production");
+      }
+      if (origineSite === origineBackOffice) {
+        problemes.push("URL_SITE_VITRINE et URL_BACK_OFFICE doivent être deux adresses différentes");
+      }
+    } catch {
+      problemes.push("URL_SITE_VITRINE doit être une adresse complète, par exemple https://www.exemple.ci");
+    }
+  }
+
+  let antivirus: AdresseAntivirus | null = null;
+  const adresseAntivirus = env.ANTIVIRUS_ADRESSE?.trim();
+  if (adresseAntivirus) {
+    antivirus = lireAdresseAntivirus(adresseAntivirus);
+    if (!antivirus) problemes.push("ANTIVIRUS_ADRESSE doit ressembler à clamav:3310 (hôte et port du démon ClamAV)");
+  } else if (origineSite && environnement === "production") {
+    problemes.push("ANTIVIRUS_ADRESSE est obligatoire en production quand le site envoie des demandes (URL_SITE_VITRINE)");
   }
 
   const niveau = (env.NIVEAU_JOURNAL?.trim() || "info") as Configuration["niveauJournal"];
@@ -167,6 +202,8 @@ export function chargerConfiguration(env: NodeJS.ProcessEnv = process.env): Conf
     urlBaseDeDonnees,
     cleChiffrement,
     origineBackOffice,
+    origineSite,
+    antivirus,
     proxysDeConfiance: entier("PROXYS_DE_CONFIANCE", 0, 0, 5),
     verifierMotsDePasseDivulgues: verification !== "false",
     niveauJournal: niveau,

@@ -22,6 +22,9 @@ erDiagram
   VEHICULES |o--o{ SINISTRES : "concerné par"
   CLIENTS ||--o{ CONSENTEMENTS : "accepte ou refuse"
   CLIENTS ||--o{ RELANCES : "reçoit"
+  DEMANDES_SITE |o--o| DEVIS : "devient"
+  DEMANDES_SITE }o--o| CLIENTS : "rattachée à"
+  DEMANDES_SITE ||--o| PIECES_DEMANDES_SITE : "carte grise jointe"
   CONTRATS |o--o{ RELANCES : "échéance"
   DEVIS |o--o{ RELANCES : "sans réponse"
   SINISTRES |o--o{ RELANCES : "avancement"
@@ -128,6 +131,26 @@ erDiagram
     text preuve "comment le client l'a exprimé"
     timestamptz enregistre_le
   }
+  DEMANDES_SITE {
+    uuid id
+    bigint numero "communiqué au visiteur"
+    branche branche
+    type_client profil
+    text accord_traitement "texte de la case cochée"
+    text accord_whatsapp "texte de la case, si cochée"
+    bytea empreinte_ip "HMAC, illisible par l'application"
+    statut_demande_site statut "nouvelle, convertie, sans suite"
+    text motif "obligatoire si sans suite"
+  }
+  PIECES_DEMANDES_SITE {
+    uuid id "entre dans le contexte du chiffrement"
+    text type_contenu "JPEG, PNG ou PDF, d'après le contenu"
+    integer taille "5 Mo au plus"
+    bytea contenu_chiffre "AES-256-GCM"
+    bytea empreinte "SHA-256 du fichier"
+    analyse_piece etat_analyse "à analyser, saine, infectée (contenu effacé)"
+    text signature_detectee "menace trouvée par l'antivirus"
+  }
   RELANCES {
     uuid id
     text cle "unique : une relance par étape et par objet"
@@ -158,7 +181,9 @@ Toutes les vues appliquent les droits de la personne qui les consulte (`security
 
 ## À venir
 
-Demandes venues du site (tâche 7), documents (tâche 7), identification des clients et réclamations (tâche 12), comptes des clients de l'espace en ligne (tâche 9).
+Documents des contrats et des sinistres (stockage de fichiers, tâche 11), identification des clients et réclamations (tâche 12), comptes des clients de l'espace en ligne (tâche 9).
+
+Les demandes du site n'entrent que par la fonction `app.enregistrer_demande_site`, appelée sans utilisateur connecté par la route publique du formulaire : elle limite les envois par adresse (5 par heure) et par jour (300), et range la carte grise chiffrée dans `app.pieces_demandes_site`, en ajout seul et hors du journal d'audit. Le verdict de l'antivirus ne s'enregistre que par `app.enregistrer_analyse_piece` ; la maintenance de l'API retrouve les pièces à analyser par `app.pieces_a_analyser` et supprime les demandes sans suite depuis 12 mois par `app.purger_demandes_site`, seule à pouvoir supprimer dans ces tables ([ADR 0009](adr/0009-demandes-de-devis-du-site.md)).
 
 Les relances ne sont créées que par le planificateur de l'API, au moyen des fonctions `app.planifier_relances`, `app.prendre_relances_a_envoyer`, `app.enregistrer_envoi`, `app.enregistrer_statut_fournisseur` et `app.enregistrer_desinscription` ([ADR 0007](adr/0007-relances-whatsapp-et-sms.md)).
 

@@ -1,60 +1,90 @@
 # Site web DBS-ASSURANCES
 
 Site vitrine de DBS-ASSURANCES, Agent Général SanlamAllianz Côte d'Ivoire (code agence 2623), Yopougon, Abidjan.
-Le site fonctionne sans base de données ni logiciel à installer : ce sont de simples fichiers.
 
-Ce dossier (`apps/site-vitrine`) est **le seul à publier en ligne**. Le reste du dépôt (documentation, base de données, scripts) ne doit jamais être mis sur l'hébergeur.
+Les pages sont écrites avec [Astro](https://astro.build) puis **construites** en simples fichiers HTML (dossier `dist/`). Aucun serveur ni base de données n'est nécessaire en ligne. Seul `dist/` est publié : le reste du dépôt (documentation, base de données, API) ne doit jamais être mis sur l'hébergeur. Les raisons de ce choix : [ADR 0008](../../docs/architecture/adr/0008-site-vitrine-astro.md).
 
-## Voir le site
+## Les pages
 
-Double-cliquez sur `index.html` : il s'ouvre dans votre navigateur.
-
-Dans cet aperçu local, Chrome et Edge bloquent la police Archivo et affichent une police de remplacement. Elle s'affiche normalement une fois le site en ligne.
-
-## Contenu du dossier
-
-| Fichier | Rôle |
-| --- | --- |
-| `index.html` | Page d'accueil : assurances, flottes, risques d'entreprise, étapes, sinistre, questions, devis |
-| `mentions-legales.html` | Mentions légales, réclamations et données personnelles |
-| `assets/css/style.css` | Couleurs et mise en page (bleu `#203888`, or `#F8C020`, tirés du logo) |
-| `assets/js/main.js` | Menu mobile, bouton WhatsApp flottant et formulaire de devis (envoi par WhatsApp ou e-mail) |
-| `assets/img/` | Logo DBS (version normale et version blanche), logo SanlamAllianz Agent Général, icônes, image d'aperçu |
-| `assets/fonts/` | Police Archivo, hébergée avec le site (licence libre OFL, voir `OFL.txt`) |
-| `404.html` | Page affichée quand une adresse n'existe pas |
-| `_headers` | En-têtes de sécurité envoyés par l'hébergeur (Netlify ou Cloudflare Pages) |
-| `robots.txt` | Indications pour les moteurs de recherche |
-| `.well-known/security.txt` | Contact pour signaler une faille de sécurité (à renouveler avant novembre 2027) |
-
-Si vous remplacez une image, gardez un fichier léger : les logos sont enregistrés au double de leur taille d'affichage (480 pixels de large), ce qui suffit pour les écrans haute définition.
+| Adresse | Pour qui | Fichier |
+| --- | --- | --- |
+| `/` | Tout le monde : à qui s'adresse l'agence, comment ça se passe, urgence sinistre | `src/pages/index.astro` |
+| `/particuliers/` | Auto, moto, habitation, responsabilité civile, individuelle accident | `src/pages/particuliers.astro` |
+| `/professionnels/` | Commerces, PME, chantiers, industrie, agricole, événementiel | `src/pages/professionnels.astro` |
+| `/flottes/` | Transporteurs et entreprises avec plusieurs véhicules | `src/pages/flottes.astro` |
+| `/sinistre/` | Les bons réflexes et les documents après un accident, un vol, un incendie | `src/pages/sinistre.astro` |
+| `/agence/` | Rôle d'Agent Général, identité, coordonnées, « vérifier que c'est bien nous », réclamations | `src/pages/agence.astro` |
+| `/questions-frequentes/` | Questions fréquentes | `src/pages/questions-frequentes.astro` |
+| `/devis/` | Formulaire de devis en trois étapes | `src/pages/devis.astro` |
+| `/mentions-legales/` | Mentions légales et données personnelles | `src/pages/mentions-legales.astro` |
 
 ## Modifier une information
 
-Ouvrez le fichier avec le Bloc-notes (clic droit > Ouvrir avec) ou un éditeur comme VS Code, puis utilisez Ctrl+F.
+Chaque information n'est écrite qu'**à un seul endroit**, dans `src/donnees/` :
 
-- **Téléphone** : cherchez `07 49 36 07 02` et `2250749360702` dans `index.html`, `mentions-legales.html` et `assets/js/main.js`.
-- **E-mail** : cherchez `dbs.conseils1@gmail.com` dans les mêmes fichiers.
-- **Textes** : modifiez directement les phrases dans `index.html`.
+| Pour changer… | Fichier |
+| --- | --- |
+| Téléphone, WhatsApp, e-mail, adresse, horaires, RCCM, agrément, hébergeur | `src/donnees/agence.ts` |
+| Texte des cases d'accord du formulaire | `src/donnees/formulaire.ts` |
+| Une assurance : description, garanties, ce qu'il faut préciser, pièces à fournir | `src/donnees/offres.ts` |
+| Une question fréquente | `src/donnees/faq.ts` |
+| Le menu | `src/donnees/navigation.ts` |
+| Couleurs, espacements, polices | `src/styles/global.css` (variables en haut du fichier) |
 
-N'ajoutez pas de script, de style (`style="…"`) ni de bouton `onclick` directement dans les pages : les en-têtes de sécurité les bloquent en ligne. Après une modification, lancez `node scripts/verifier-site.mjs` depuis la racine du dépôt : il signale les liens cassés, les images sans description et ce qui serait bloqué.
+Exemple : pour changer de numéro, modifiez `telephone` et `whatsapp` dans `src/donnees/agence.ts` ; tous les boutons, liens et textes du site suivent.
+
+Ne mettez ni attribut `style="…"`, ni `onclick="…"`, ni image ou police chargée depuis un autre site : les en-têtes de sécurité (`public/_headers`) les bloqueraient en ligne. Les scripts vont dans `src/scripts/`.
+
+## Voir le site sur son ordinateur
+
+Il faut [Node.js](https://nodejs.org) 22 ou plus récent. Depuis la racine du dépôt :
+
+```bash
+npm ci                                  # une fois
+npm run dev -w @dbs/site-vitrine        # aperçu qui se met à jour à chaque modification : http://localhost:4321
+```
+
+## Vérifier avant de publier
+
+```bash
+npm run build -w @dbs/site-vitrine && node scripts/verifier-site.mjs   # liens, images, sécurité, secrets
+npm run test:navigateur -w @dbs/site-vitrine                           # chaque page dans Chromium
+```
+
+Le premier contrôle lit les pages construites. Le second construit deux versions du site (telle quelle, et reliée à une API fictive) et les ouvre dans un vrai navigateur, sur ordinateur et sur téléphone, avec les en-têtes de sécurité : erreurs, accessibilité (WCAG 2.1 AA), débordement sur petit écran, menu mobile, parcours complet du devis par WhatsApp et par enregistrement (carte grise, refus, coupure de connexion). Au premier lancement : `npx playwright install chromium`.
 
 ## À compléter avant la mise en ligne
 
-1. **N° d'agrément ou de carte professionnelle** dans `mentions-legales.html` (repère « À compléter »).
-2. **Hébergeur** (nom, adresse, téléphone) dans `mentions-legales.html`.
+1. **N° d'agrément ou de carte professionnelle** et **hébergeur** : `src/donnees/agence.ts`, bloc `juridique`. Tant qu'ils sont vides, les mentions légales affichent « À compléter ».
+2. **Horaires d'ouverture** : `src/donnees/agence.ts`, champ `horaires`.
 3. Vérifier que le **+225 07 49 36 07 02 est bien sur WhatsApp** : les boutons WhatsApp l'utilisent.
-4. Ajouter vos **horaires d'ouverture** si vous souhaitez les afficher.
-5. Faire valider l'usage du **logo SanlamAllianz** par la compagnie, si votre mandat l'exige.
+4. Faire valider l'usage du **logo SanlamAllianz** par la compagnie, si votre mandat l'exige.
+
+## Activer l'enregistrement des demandes de devis (tâche 7)
+
+Par défaut, le formulaire prépare un message que le visiteur envoie lui-même sur WhatsApp ou par e-mail : rien n'est enregistré. Le formulaire peut aussi **enregistrer la demande** dans l'outil de l'agence, avec la carte grise et l'accord pour les rappels WhatsApp ([ADR 0009](../../docs/architecture/adr/0009-demandes-de-devis-du-site.md)). À faire **seulement après la déclaration à l'ARTCI** :
+
+1. Dans l'API, définir `URL_SITE_VITRINE` avec l'adresse du site (par exemple `https://www.votre-domaine.ci`).
+2. Dans Netlify (Site configuration > Environment variables), définir `URL_API` avec l'adresse de l'API (par exemple `https://gestion.votre-domaine.ci/api`), puis relancer la mise en ligne.
+
+La construction ajoute alors l'API aux en-têtes de sécurité (`connect-src`), affiche le champ de la carte grise et la case des rappels, et met à jour les textes du formulaire et des mentions légales. Les demandes arrivent dans l'écran « Demandes du site » du back-office. Pour revenir en arrière, il suffit de retirer `URL_API` et de relancer la mise en ligne.
 
 ## Mettre le site en ligne
 
-- **Netlify relié à GitHub (recommandé)** : connectez le dépôt dans Netlify. Le fichier `netlify.toml`, à la racine du dépôt, lui indique de publier ce dossier et de vérifier le site avant chaque mise en ligne.
-- **Netlify par glisser-déposer** : glissez-déposez ce dossier `site-vitrine` (et non tout le dépôt) sur app.netlify.com/drop.
-- **Hébergeur classique** : envoyez le contenu de ce dossier par FTP dans le répertoire public (souvent `www` ou `public_html`). Le fichier `_headers` n'y est pas lu : demandez à l'hébergeur d'appliquer les mêmes en-têtes de sécurité (voir `docs/securite/en-tetes-http.md`).
+- **Netlify relié à GitHub (recommandé)** : connectez le dépôt dans Netlify. Le fichier `netlify.toml`, à la racine du dépôt, construit le site, le vérifie et ne publie que `apps/site-vitrine/dist`. Netlify fournit l'adresse du site : adresse canonique, aperçus de liens WhatsApp et Facebook, `sitemap.xml` et `robots.txt` s'en servent automatiquement.
+- **Autre hébergeur** : construisez le site avec `URL_SITE=https://www.votre-domaine.ci npm run build -w @dbs/site-vitrine`, puis envoyez le **contenu de `dist/`**. Sans fichier `_headers` lu par l'hébergeur, demandez-lui d'appliquer les mêmes en-têtes (voir `docs/securite/en-tetes-http.md`).
 - **Nom de domaine** : par exemple en .ci (auprès d'un registraire agréé) ou en .com.
 
-Après la mise en ligne :
+Après la mise en ligne, créez une fiche **Google Business Profile** « DBS-ASSURANCES » à Yopougon, avec le lien du site : c'est ce qui vous rend visible dans Google Maps.
 
-- Dans `index.html`, remplacez `assets/img/og-image.png` (balise `og:image`) par l'adresse complète, par exemple `https://www.votre-domaine.ci/assets/img/og-image.png`. L'aperçu du lien s'affichera alors correctement quand vous le partagerez sur WhatsApp ou Facebook.
-- Ajoutez le nom de domaine dans `robots.txt` (ligne `Sitemap`), et dans les adresses `logo` et `image` du bloc `application/ld+json` d'`index.html`.
-- Créez une fiche **Google Business Profile** « DBS-ASSURANCES » à Yopougon, avec le lien du site : c'est ce qui vous rend visible dans Google Maps.
+## Contenu du dossier
+
+| Dossier | Rôle |
+| --- | --- |
+| `src/pages/` | Une page par fichier ; l'adresse suit le nom du fichier |
+| `src/composants/` | En-tête, pied de page, blocs réutilisés (offre, questions, appel final) |
+| `src/donnees/` | Coordonnées, offres, questions, menu, icônes |
+| `src/scripts/` | Menu mobile et formulaire de devis |
+| `src/styles/global.css` | Toute la mise en forme (bleu `#203888` et or `#F8C020`, tirés du logo) |
+| `public/` | Fichiers copiés tels quels : images, police Archivo (licence OFL), `_headers`, `.well-known/security.txt` (à renouveler avant novembre 2027) |
+| `tests/` | Tests dans le navigateur et petit serveur qui reproduit l'hébergeur |

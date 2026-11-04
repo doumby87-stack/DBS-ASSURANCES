@@ -18,7 +18,9 @@ Deux journaux distincts, aux usages différents.
 
 **Conservation** : 10 ans au moins, comme les pièces comptables et les dossiers d'identification des clients ([lutte contre le blanchiment](../conformite/lbc-ft.md)).
 
-Les événements de sécurité sont aussi enregistrés dans la base, dans `securite.evenements`, en ajout seul : connexions et échecs, blocages, comptes, deuxième facteur, exports de données.
+**Données personnelles des prospects** : une table peut demander que certaines colonnes ne soient pas recopiées dans le journal. Les demandes reçues par le site l'utilisent (nom, téléphone, e-mail, commune, besoin, empreinte de l'adresse IP) : elles sont supprimées 12 mois après leur classement sans suite, et le journal, conservé bien plus longtemps, ne doit pas les garder à leur place. Il garde qui a reçu, traité ou purgé quelle demande, et quand ([ADR 0009](../architecture/adr/0009-demandes-de-devis-du-site.md)).
+
+Les événements de sécurité sont aussi enregistrés dans la base, dans `securite.evenements`, en ajout seul : connexions et échecs, blocages, comptes, deuxième facteur, exports de données, téléchargements des cartes grises jointes aux demandes du site.
 
 ## 2. Journal technique (de l'API)
 

@@ -2,12 +2,11 @@
 # Lus automatiquement par Netlify et Cloudflare Pages (même syntaxe).
 # Explications : docs/securite/en-tetes-http.md
 #
-# Le petit script placé dans le <head> de index.html et mentions-legales.html est autorisé
-# par son empreinte (sha256-…). Si vous modifiez ce script, l'empreinte change : lancez
-# `node scripts/verifier-site.mjs` à la racine du dépôt, qui affiche la nouvelle valeur.
+# Le site n'a aucun script ni style inline (construction par Astro, ADR 0008) : script-src et style-src
+# n'autorisent que les fichiers du site.
 
 /*
-  Content-Security-Policy: default-src 'none'; script-src 'self' 'sha256-KNWMTl3bmkIY1l5VWWin4emXRAT7xlM8A93dUAnUVrY='; style-src 'self'; img-src 'self' data:; font-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'; upgrade-insecure-requests
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'; upgrade-insecure-requests
   Strict-Transport-Security: max-age=31536000; includeSubDomains
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY

@@ -1,6 +1,7 @@
 // Protections appliquées à toutes les requêtes :
 //   · contre les requêtes forcées depuis un autre site (CSRF) : toute requête qui modifie des données
-//     doit venir de l'origine du back-office (en plus des cookies SameSite=Strict) ;
+//     doit venir de l'origine du back-office (en plus des cookies SameSite=Strict). Seule exception, les
+//     routes ouvertes au site vitrine : elles n'acceptent que l'origine du site, et aucune session ;
 //   · en-têtes de sécurité sur toutes les réponses.
 
 import type { FastifyInstance } from "fastify";
@@ -16,11 +17,20 @@ declare module "fastify" {
      * pas de contrôle d'origine, la route vérifie elle-même la signature de chaque requête et la refuse sans elle.
      */
     authentifieeParSignature?: boolean;
+    /**
+     * Route publique appelée par le formulaire du site vitrine (demande de devis) : seule l'origine du site
+     * est acceptée, y compris pour la requête préalable du navigateur (OPTIONS). La route n'utilise aucune session.
+     */
+    appeleeParLeSite?: boolean;
   }
 }
 
 export function enregistrerProtections(app: FastifyInstance, config: Configuration): void {
   app.addHook("onRequest", async (requete) => {
+    if (requete.routeOptions.config?.appeleeParLeSite === true) {
+      if (!config.origineSite || requete.headers.origin !== config.origineSite) throw erreurs.origineRefusee();
+      return;
+    }
     if (METHODES_SANS_EFFET.has(requete.method)) return;
     if (requete.routeOptions.config?.authentifieeParSignature === true) return;
     if (requete.headers.origin !== config.origineBackOffice) throw erreurs.origineRefusee();

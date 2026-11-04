@@ -20,7 +20,7 @@ jobs:
   site:
     name: Site vitrine
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
         with:
@@ -28,8 +28,17 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-      - name: Liens, images, politique de sécurité du contenu, secrets
+          cache: npm
+      - name: Dépendances (versions exactes du fichier de verrouillage)
+        run: npm ci
+      - name: Construction (Astro)
+        run: npm run build -w @dbs/site-vitrine
+      - name: Liens, images, politique de sécurité du contenu, référencement, secrets
         run: node scripts/verifier-site.mjs
+      - name: Navigateur Chromium pour les tests
+        run: npx playwright install --with-deps chromium
+      - name: Pages, accessibilité (axe), formulaire de devis (WhatsApp et enregistrement), téléphone et ordinateur
+        run: npm run test:navigateur -w @dbs/site-vitrine
 
   documentation:
     name: Liens de la documentation
@@ -108,8 +117,15 @@ jobs:
         run: npm audit --omit=dev --audit-level=high
       - name: Vérification des types
         run: npm run verifier-types -w @dbs/api
-      - name: Tests unitaires et tests de sécurité contre PostgreSQL
+      - name: Antivirus ClamAV de test (signature EICAR seulement, aucune base téléchargée)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends clamav-daemon
+          apps/api/tests/antivirus/demarrer-clamd.sh 3310
+      - name: Tests unitaires et tests de sécurité contre PostgreSQL (et le vrai ClamAV)
         run: npm run test -w @dbs/api
+        env:
+          ANTIVIRUS_ADRESSE_TEST: 127.0.0.1:3310
       - name: Compilation
         run: npm run build -w @dbs/api
 

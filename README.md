@@ -8,7 +8,7 @@ L'objectif dépasse la vitrine : donner à l'agence un outil qui tient ses prome
 
 | Brique | Dossier | Statut |
 | --- | --- | --- |
-| Site vitrine | [`apps/site-vitrine`](apps/site-vitrine) | ✅ En place, protégé par des en-têtes de sécurité |
+| Site vitrine | [`apps/site-vitrine`](apps/site-vitrine) | ✅ En place : neuf pages construites par Astro, testées dans le navigateur (accessibilité, sécurité) |
 | Base de données | [`database`](database) | ✅ Schéma sécurisé et testé (règles CIMA, contrôle d'accès, journal d'audit) |
 | API | [`apps/api`](apps/api) | 🟡 Connexion du personnel, comptes, clients, contrats, véhicules, devis, échanges, échéances, caisse, reversements, commissions, relances automatiques (WhatsApp, SMS) |
 | Back-office de l'agence | [`apps/admin`](apps/admin) | 🟡 Connexion, échéances, clients, fiche client, caisse et reçus, reversements, commissions, relances et consentements, personnel |
@@ -30,6 +30,7 @@ npm run verifier                      # site, documentation, types et tests unit
 ./database/tests/executer.sh          # base de données (PostgreSQL de test requis)
 npm run test -w @dbs/api              # tests de sécurité de l'API (PostgreSQL de test requis)
 npm run test:e2e -w @dbs/admin        # parcours complet dans le navigateur (PostgreSQL de test requis)
+npm run test:navigateur -w @dbs/site-vitrine   # pages du site, accessibilité et formulaire de devis
 ```
 
 Les mêmes vérifications tournent automatiquement sur chaque pull request.

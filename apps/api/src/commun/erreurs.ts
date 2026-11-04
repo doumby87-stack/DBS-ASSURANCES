@@ -79,6 +79,14 @@ const CONTRAINTES: Record<string, { statut: number; code: string; message: strin
     statut: 422, code: "prime_nette_invalide", message: "La prime nette doit être positive et ne pas dépasser la prime TTC.",
   },
   taux_commission_unique: { statut: 409, code: "conflit", message: "Un taux existe déjà pour cette branche à cette date." },
+  demandes_site_limite_adresse: {
+    statut: 429, code: "trop_de_demandes",
+    message: "Vous avez déjà envoyé plusieurs demandes. Réessayez dans une heure, ou écrivez-nous sur WhatsApp.",
+  },
+  demandes_site_limite_jour: {
+    statut: 503, code: "formulaire_indisponible",
+    message: "Le formulaire est momentanément indisponible. Écrivez-nous sur WhatsApp ou appelez-nous.",
+  },
 };
 
 /** Traduit une erreur en réponse sûre pour le navigateur. */

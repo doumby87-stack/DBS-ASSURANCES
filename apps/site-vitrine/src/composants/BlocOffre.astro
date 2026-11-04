@@ -1,0 +1,36 @@
+---
+// Une assurance présentée en détail : ce qu'elle couvre, ce qu'il faut préciser, demande de devis directe.
+import type { Offre } from "../donnees/offres";
+import { lienDevis } from "../donnees/offres";
+import Icone from "./Icone.astro";
+
+interface Props {
+  offre: Offre;
+}
+const { offre } = Astro.props;
+---
+<article class="offre" id={offre.id} aria-labelledby={`titre-${offre.id}`}>
+  <div>
+    <div class="offre__titre">
+      <span class="offre__icone"><Icone nom={offre.icone} /></span>
+      <h2 id={`titre-${offre.id}`}>{offre.titre}</h2>
+    </div>
+    <p class="offre__resume">{offre.resume}</p>
+    <div class="offre__actions">
+      <a class="bouton bouton--principal" href={lienDevis(offre.id)}>Demander un devis <span class="visuellement-cache">{offre.titre}</span><Icone nom="fleche" /></a>
+    </div>
+  </div>
+  <div class="offre__droite">
+    <div class="offre__colonne">
+      <h3>Ce que nous pouvons couvrir</h3>
+      <ul class="liste-coches">
+        {offre.garanties.map((g) => <li><Icone nom="cocheRonde" />{g}</li>)}
+      </ul>
+    </div>
+    <div class="offre__colonne">
+      <h3>Pour votre devis, précisez</h3>
+      <p class="note">{offre.aPreciser.charAt(0).toUpperCase() + offre.aPreciser.slice(1)}</p>
+      {offre.documents && <ul class="liste-losanges">{offre.documents.map((d) => <li>{d}</li>)}</ul>}
+    </div>
+  </div>
+</article>

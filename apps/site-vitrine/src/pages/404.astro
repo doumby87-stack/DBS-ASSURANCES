@@ -1,0 +1,18 @@
+---
+import Icone from "../composants/Icone.astro";
+import { AGENCE, LIEN_TELEPHONE } from "../donnees/agence";
+import Base from "../mises-en-page/Base.astro";
+---
+<Base titre="Page introuvable" description="Cette page n'existe pas ou a été déplacée. Retrouvez nos assurances, la déclaration de sinistre et le devis gratuit depuis l'accueil." indexer={false}>
+  <section class="section section--sable">
+    <div class="conteneur texte-long">
+      <p class="surtitre">Erreur 404</p>
+      <h1>Cette page n'existe pas ou a été déplacée.</h1>
+      <p class="chapeau">Le lien que vous avez suivi est peut-être incomplet. Revenez à l'accueil, ou contactez-nous directement.</p>
+      <div class="heros__actions">
+        <a class="bouton bouton--principal bouton--grand" href="/">Retour à l'accueil <Icone nom="fleche" /></a>
+        <a class="bouton bouton--contour bouton--grand" href={LIEN_TELEPHONE}><Icone nom="telephone" />{AGENCE.telephone.affichage}</a>
+      </div>
+    </div>
+  </section>
+</Base>

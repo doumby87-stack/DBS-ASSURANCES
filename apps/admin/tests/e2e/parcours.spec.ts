@@ -1,7 +1,7 @@
 // Parcours complet dans un vrai navigateur : première connexion du gérant (deuxième facteur, mot de passe),
 // création d'un client et d'un contrat, encaissement et reçu, accord du client pour les rappels et relance
 // automatique (en simulation), relance et renouvellement depuis le tableau des échéances, clôture de caisse,
-// bordereau de reversement, commissions, création d'un compte.
+// bordereau de reversement, demande de devis reçue du site, commissions, création d'un compte.
 // Aucune violation de la politique de sécurité du contenu n'est tolérée.
 
 import { expect, test, type Page } from "@playwright/test";
@@ -161,6 +161,34 @@ test("parcours du gérant, de la première connexion à la caisse et au reversem
   }, await telechargement.getAttribute("href"));
   expect(csv.type).toBe("text/csv; charset=utf-8");
   expect(csv.texte).toContain("Transports Kouamé & Fils");
+
+  // --- Demande de devis reçue du site (tâche 7) : carte grise téléchargée, puis client et devis créés
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
+  const envoiSite = await page.request.post("http://127.0.0.1:3100/site/demandes-devis", {
+    headers: { Origin: "http://localhost:4321" },
+    data: {
+      assurance: "automobile", profil: "particulier", nom: "Mariam Traoré", telephone: "07 08 09 10 11",
+      besoin: "Suzuki Swift 2021, usage personnel", accordTraitement: "J'accepte que DBS-ASSURANCES utilise ces informations pour répondre à ma demande.",
+      accordWhatsApp: "J'accepte de recevoir sur WhatsApp les rappels de l'agence.",
+      piece: { type: "image/png", contenu: png.toString("base64") },
+    },
+  });
+  expect(envoiSite.status()).toBe(201);
+  expect(envoiSite.headers()["access-control-allow-origin"]).toBe("http://localhost:4321");
+  await page.getByRole("link", { name: "Demandes du site" }).click();
+  await expect(page.getByRole("button", { name: "À traiter (1)" })).toBeVisible();
+  await expect(page.getByRole("row", { name: /Mariam Traoré/ })).toContainText("Carte grise jointe");
+  await page.getByRole("link", { name: /^n° \d+$/ }).click();
+  await expect(page.getByRole("heading", { name: /^Demande n° \d+$/ })).toBeVisible();
+  // Analysée par l'antivirus à la réception, puis de nouveau au téléchargement
+  await expect(page.getByText(/Aucune menace trouvée par l'antivirus/)).toBeVisible();
+  const [carteGrise] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /^Télécharger/ }).click()]);
+  expect(carteGrise.suggestedFilename()).toMatch(/^carte-grise-demande-\d+\.png$/);
+  expect(readFileSync(await carteGrise.path()).equals(png)).toBe(true);
+  await page.getByRole("button", { name: "Créer le client et le devis" }).click();
+  await expect(page.getByRole("heading", { name: "Mariam Traoré" })).toBeVisible();
+  await expect(page.getByText("demande reçue par le site")).toBeVisible();
+  await expect(page.locator(".consentements li", { hasText: "WhatsApp" })).toContainText(/Accepté.*Case « rappels WhatsApp » cochée sur le site/);
 
   // --- Commissions : taux de la branche automobile
   await page.getByRole("link", { name: "Commissions", exact: true }).click();

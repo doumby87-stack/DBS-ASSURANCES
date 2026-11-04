@@ -58,7 +58,7 @@ flowchart LR
 
 ```
 apps/
-  site-vitrine/    site public statique (seul dossier publié aujourd'hui)
+  site-vitrine/    site public, construit par Astro (seul dist/ est publié)
   api/             API : authentification, droits, règles, intégrations
   admin/           back-office de l'agence
   espace-client/   espace des assurés et des gestionnaires de flotte

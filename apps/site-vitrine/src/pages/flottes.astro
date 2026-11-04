@@ -1,0 +1,84 @@
+---
+import AppelFinal from "../composants/AppelFinal.astro";
+import BlocOffre from "../composants/BlocOffre.astro";
+import EntetePage from "../composants/EntetePage.astro";
+import Faq from "../composants/Faq.astro";
+import Icone from "../composants/Icone.astro";
+import { question } from "../donnees/faq";
+import { lienDevis, OFFRES } from "../donnees/offres";
+import Base from "../mises-en-page/Base.astro";
+
+const offres = ["flotte", "transport_marchandises"].map((id) => OFFRES.find((o) => o.id === id)!);
+const questions = ["flotte", "attestation-digitale", "rappels", "arnaques"].map(question);
+---
+<Base
+  titre="Assurance de flotte et transport routier"
+  description="Transporteurs, sociétés de livraison, PME : toute votre flotte assurée chez SanlamAllianz, attestations digitales en lot, facture détaillée et échéances suivies véhicule par véhicule."
+>
+  <EntetePage surtitre="Flottes et transport routier" titre="Toute votre flotte, un seul interlocuteur." page="Flottes et transport">
+    <p>Tracteurs, semi-remorques, remorques, véhicules de service et motos de livraison : nous montons la cotation, éditons les attestations en lot et surveillons les échéances à votre place.</p>
+    <div class="heros__actions" slot="raccourcis">
+      <a class="bouton bouton--principal bouton--grand" href={lienDevis("flotte")}>Demander une cotation flotte <Icone nom="fleche" /></a>
+    </div>
+  </EntetePage>
+
+  <section class="section section--sombre" aria-labelledby="titre-atouts">
+    <div class="conteneur deux-colonnes">
+      <div>
+        <p class="surtitre surtitre--clair">Ce que nous faisons pour vous</p>
+        <h2 id="titre-atouts">Moins d'administratif, aucune échéance oubliée.</h2>
+        <ul class="atouts">
+          <li><span class="atouts__icone"><Icone nom="tableur" /></span><div><h3>Cotation de toute la flotte</h3><p>Envoyez la liste de vos véhicules (un fichier Excel suffit) : nous établissons une cotation SanlamAllianz complète.</p></div></li>
+          <li><span class="atouts__icone"><Icone nom="qr" /></span><div><h3>Attestations digitales en lot</h3><p>Une attestation ASACI par véhicule, avec QR code vérifiable lors des contrôles routiers.</p></div></li>
+          <li><span class="atouts__icone"><Icone nom="recu" /></span><div><h3>Facture détaillée</h3><p>Chaque véhicule y figure avec son type, son immatriculation et son montant.</p></div></li>
+          <li><span class="atouts__icone"><Icone nom="calendrier" /></span><div><h3>Renouvellements anticipés</h3><p>Nous suivons les échéances de vos tracteurs, remorques et motos et vous prévenons avant leur expiration.</p></div></li>
+        </ul>
+      </div>
+      <div class="carte-flotte" aria-hidden="true">
+        <div class="carte-flotte__tete"><b>Suivi de flotte</b><span class="pastille">Exemple</span></div>
+        <ul>
+          <li><span class="carte-flotte__icone"><Icone nom="camion" /></span><div><b>Tracteur routier</b><small>Transport de marchandises</small></div><span class="statut statut--ok">Attestation émise</span></li>
+          <li><span class="carte-flotte__icone"><Icone nom="camion" /></span><div><b>Semi-remorque</b><small>Plateau</small></div><span class="statut statut--ok">Attestation émise</span></li>
+          <li><span class="carte-flotte__icone"><Icone nom="camion" /></span><div><b>Remorque</b><small>Citerne</small></div><span class="statut statut--alerte">Échéance dans 15 jours</span></li>
+          <li><span class="carte-flotte__icone"><Icone nom="moto" /></span><div><b>Moto de livraison</b><small>Usage professionnel</small></div><span class="statut statut--ok">Attestation émise</span></li>
+          <li><span class="carte-flotte__icone"><Icone nom="voiture" /></span><div><b>Véhicule de service</b><small>Utilitaire</small></div><span class="statut statut--info">Cotation en cours</span></li>
+        </ul>
+        <div class="carte-flotte__pied"><span>5 véhicules suivis</span><span>1 renouvellement à prévoir</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--sable" aria-labelledby="titre-etapes">
+    <div class="conteneur">
+      <div class="section__tete section__tete--centre">
+        <p class="surtitre">Comment ça se passe</p>
+        <h2 id="titre-etapes">De la liste de vos véhicules aux attestations.</h2>
+      </div>
+      <ol class="etapes">
+        <li class="etape"><h3>Vous envoyez la liste</h3><p>Type, immatriculation, usage et valeur de chaque véhicule, dans un simple fichier Excel.</p></li>
+        <li class="etape"><h3>Nous établissons la cotation</h3><p>Une proposition SanlamAllianz pour toute la flotte, véhicule par véhicule.</p></li>
+        <li class="etape"><h3>Vous réglez la prime</h3><p>Par virement, chèque, Mobile Money ou en espèces (dans la limite par police), contre reçu.</p></li>
+        <li class="etape"><h3>Attestations et suivi</h3><p>Attestations digitales éditées en lot, facture détaillée, puis échéances surveillées.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="conteneur offres">
+      {offres.map((offre) => <BlocOffre offre={offre} />)}
+    </div>
+  </section>
+
+  <section class="section section--sable" aria-labelledby="titre-faq">
+    <div class="conteneur faq-grille">
+      <div>
+        <p class="surtitre">Questions fréquentes</p>
+        <h2 id="titre-faq">Les questions des transporteurs</h2>
+        <a class="lien-fleche" href="/questions-frequentes/">Toutes les questions <Icone nom="fleche" /></a>
+      </div>
+      <Faq questions={questions} />
+    </div>
+  </section>
+
+  <AppelFinal titre="Combien de véhicules compte votre flotte ?" devis={lienDevis("flotte")} />
+</Base>

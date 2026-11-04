@@ -12,6 +12,7 @@ Légende : ✅ terminé · 🔜 prochaine · ⏳ plus tard · 🧑‍💼 tâche
 - Site vitrine isolé et protégé par des en-têtes de sécurité, vérifié avant chaque mise en ligne.
 - Base de données sécurisée avec les règles CIMA et le journal d'audit, testée (`database/`).
 - Intégration continue : vérification du site, tests de la base, recherche de secrets.
+- Refonte du site vitrine en neuf pages par public, construites par Astro, testées dans le navigateur (accessibilité WCAG 2.1 AA, sécurité) ([audit UX](audit/2026-11-audit-ux-site.md), [ADR 0008](architecture/adr/0008-site-vitrine-astro.md)).
 
 ## 🧑‍💼 Tâche 2 — Décisions et démarches de l'agence
 
@@ -52,11 +53,13 @@ Messages WhatsApp (modèles validés par Meta, [textes](metier/modeles-de-messag
 
 *Avant la mise en service (tâche 2) :* vérification de l'entreprise par Meta, compte WhatsApp Business sur un numéro dédié, validation des quatre modèles, autorisation de transfert de l'ARTCI ; accord des clients existants à recueillir. *Opérateur SMS à choisir* : d'ici là, le canal SMS ne fonctionne qu'en simulation.
 
-## 🔜 Tâche 7 — Demandes de devis enregistrées
+## ✅ Tâche 7 — Demandes de devis enregistrées
 
-Le formulaire du site enregistre la demande (en plus de WhatsApp), avec dépôt de la carte grise. Suivi des devis dans le back-office. **Avant la mise en ligne :** textes du site et mentions légales mis à jour, déclaration ARTCI faite.
+Le formulaire du site enregistre la demande, avec la carte grise (photo ou PDF, vérifiée puis chiffrée) et l'accord éventuel pour les rappels WhatsApp ; le visiteur reçoit un numéro de demande, WhatsApp et l'e-mail restent proposés. Écran « Demandes du site » au back-office : carte grise à télécharger (consigné), conversion en client et devis d'origine « site » (ou rattachement à la fiche qui a déjà ce numéro), classement sans suite avec un motif. Envois limités par adresse et par jour, champ piège pour les robots. Carte grise analysée par l'antivirus ClamAV à la réception et à chaque téléchargement ; demandes sans suite supprimées automatiquement après 12 mois, sans trace de leurs données personnelles dans le journal d'audit ([ADR 0009](architecture/adr/0009-demandes-de-devis-du-site.md)).
 
-## ⏳ Tâche 8 — Flottes
+*Avant la mise en service (🧑‍💼) :* déclaration à l'ARTCI faite, hébergeur choisi, démon ClamAV installé à côté de l'API, puis `URL_SITE_VITRINE` et `ANTIVIRUS_ADRESSE` dans l'API et `URL_API` dans Netlify ; les textes du formulaire et des mentions légales basculent alors d'eux-mêmes.
+
+## 🔜 Tâche 8 — Flottes
 
 Import Excel avec contrôle des erreurs, échéances de visite technique, vignette et carte de transport (avec leurs relances, selon les règles de la tâche 6), ajout ou retrait d'un véhicule avec prorata, export pour la cotation en lot.
 

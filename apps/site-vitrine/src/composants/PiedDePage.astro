@@ -1,0 +1,59 @@
+---
+// Pied de page et barre d'actions fixe sur mobile (appeler, WhatsApp, devis).
+import { AGENCE, LIEN_EMAIL, LIEN_TELEPHONE, lienWhatsApp } from "../donnees/agence";
+import Icone from "./Icone.astro";
+
+const annee = new Date().getFullYear();
+const surPageDevis = Astro.url.pathname.startsWith("/devis/");
+---
+<footer class="pied">
+  <div class="conteneur pied__grille">
+    <div class="pied__marque">
+      <img src="/images/logo-dbs-assurances-blanc.png" alt={AGENCE.nom} width="480" height="141" loading="lazy" />
+      <p>{AGENCE.qualite} Assurances, code agence {AGENCE.codeAgence}. Conseil, souscription et suivi de vos contrats depuis {AGENCE.adresse.commune}.</p>
+    </div>
+    <nav aria-label="Plan du site">
+      <h2>Assurances</h2>
+      <ul>
+        <li><a href="/particuliers/">Particuliers</a></li>
+        <li><a href="/professionnels/">Professionnels et entreprises</a></li>
+        <li><a href="/flottes/">Flottes et transport</a></li>
+        <li><a href="/sinistre/">Déclarer un sinistre</a></li>
+        <li><a href="/devis/">Demander un devis</a></li>
+        <li><a href="/questions-frequentes/">Questions fréquentes</a></li>
+      </ul>
+    </nav>
+    <div>
+      <h2>Contact</h2>
+      <ul>
+        <li><a href={LIEN_TELEPHONE}>{AGENCE.telephone.international}</a></li>
+        <li><a href={lienWhatsApp()} target="_blank" rel="noopener noreferrer">WhatsApp</a></li>
+        <li><a href={LIEN_EMAIL}>{AGENCE.email}</a></li>
+        <li>{AGENCE.adresse.rue}</li>
+        <li>{AGENCE.adresse.boitePostale}</li>
+      </ul>
+    </div>
+    <div>
+      <h2>L'agence</h2>
+      <ul>
+        <li><a href="/agence/">Qui sommes-nous</a></li>
+        <li>{AGENCE.juridique.forme} au capital de {AGENCE.juridique.capital}</li>
+        <li>RCCM <span class="sans-retour">{AGENCE.juridique.rccm}</span></li>
+        <li><a href="/mentions-legales/">Mentions légales</a></li>
+        <li><a href="/mentions-legales/#donnees">Données personnelles</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="conteneur pied__bas">
+    <p>© {annee} {AGENCE.raisonSociale} ({AGENCE.nom}). Tous droits réservés.</p>
+    <p>Intermédiaire d'assurance régi par le Code CIMA.</p>
+  </div>
+</footer>
+
+<nav class="barre-actions" aria-label="Nous contacter">
+  <a href={LIEN_TELEPHONE}><Icone nom="telephone" />Appeler</a>
+  <a class="barre-actions__whatsapp" href={lienWhatsApp()} target="_blank" rel="noopener noreferrer"><Icone nom="whatsapp" />WhatsApp</a>
+  {surPageDevis
+    ? <a href="/sinistre/"><Icone nom="alerte" />Sinistre</a>
+    : <a class="barre-actions__devis" href="/devis/"><Icone nom="document" />Devis</a>}
+</nav>

@@ -5,6 +5,7 @@ import { randomBytes } from "node:crypto";
 import type { FastifyInstance, LightMyRequestResponse } from "fastify";
 import { expect, inject } from "vitest";
 import { construireApplication } from "../../src/application.js";
+import type { Antivirus, Verdict } from "../../src/integrations/antivirus/clamav.js";
 import { creerPool, type Pool } from "../../src/base-de-donnees/connexion.js";
 import { chargerConfiguration } from "../../src/config/configuration.js";
 import type { Messagerie } from "../../src/modules/relances/messagerie.js";
@@ -22,8 +23,32 @@ declare module "vitest" {
 
 export const ORIGINE = "https://gestion.test.ci";
 
+/** Antivirus de test : infecté si le fichier contient la chaîne EICAR ; réglable pour simuler une panne ou de nouvelles signatures. */
+export interface AntivirusDeTest extends Antivirus {
+  disponible: boolean;
+  toutEstInfecte: boolean;
+}
+
+export function antivirusDeTest(): AntivirusDeTest {
+  const antivirus: AntivirusDeTest = {
+    configure: true,
+    disponible: true,
+    toutEstInfecte: false,
+    async analyser(contenu: Buffer): Promise<Verdict> {
+      if (!antivirus.disponible) return { etat: "indisponible", raison: "Antivirus injoignable (test)" };
+      if (antivirus.toutEstInfecte || contenu.includes("EICAR-STANDARD-ANTIVIRUS-TEST-FILE")) {
+        return { etat: "infectee", signature: "Eicar-Test-Signature" };
+      }
+      return { etat: "saine" };
+    },
+  };
+  return antivirus;
+}
+
 export interface Contexte {
   app: FastifyInstance;
+  antivirus: AntivirusDeTest;
+  cleChiffrement: Buffer;
   pool: Pool;
   /** Accès direct à la base de test, pour préparer ou vérifier une situation. */
   base: Pool;
@@ -35,6 +60,7 @@ export interface Contexte {
 export async function demarrer(
   options: { verifierFuite?: VerificateurFuite | null; env?: Record<string, string>; messagerie?: Messagerie } = {},
 ): Promise<Contexte> {
+  const antivirus = antivirusDeTest();
   const config = chargerConfiguration({
     NODE_ENV: "test",
     DATABASE_URL: inject("urlApplication"),
@@ -46,11 +72,11 @@ export async function demarrer(
   const base = creerPool(inject("urlSuperutilisateur"));
   const horloge = { ms: Date.now() };
   const app = await construireApplication({
-    config, pool, journal: false, horloge: () => horloge.ms, verifierFuite: options.verifierFuite ?? null,
+    config, pool, journal: false, horloge: () => horloge.ms, verifierFuite: options.verifierFuite ?? null, antivirus,
     ...(options.messagerie ? { messagerie: options.messagerie } : {}),
   });
   return {
-    app, pool, base, horloge,
+    app, antivirus, cleChiffrement: config.cleChiffrement, pool, base, horloge,
     async fermer() {
       await app.close();
       await pool.end();

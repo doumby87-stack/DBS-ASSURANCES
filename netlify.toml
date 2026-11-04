@@ -1,8 +1,17 @@
 # Mise en ligne du site vitrine sur Netlify (dépôt GitHub relié).
-# Seul apps/site-vitrine est publié : la documentation, la base de données et les scripts restent privés.
+# Seul le site construit (apps/site-vitrine/dist) est publié : la documentation, la base de données,
+# l'API et les scripts restent privés.
 [build]
-  publish = "apps/site-vitrine"
-  # Refuse la mise en ligne si un lien est cassé ou si un script serait bloqué par les en-têtes de sécurité
-  command = "node scripts/verifier-site.mjs"
+  publish = "apps/site-vitrine/dist"
+  # Construit le site (Astro), puis refuse la mise en ligne si un lien est cassé, si une ressource serait
+  # bloquée par les en-têtes de sécurité ou si un secret s'est glissé dans les fichiers publiés
+  command = "npm run build -w @dbs/site-vitrine && node scripts/verifier-site.mjs"
 
-# Les en-têtes de sécurité sont dans apps/site-vitrine/_headers
+[build.environment]
+  NODE_VERSION = "22"
+  # Le site n'a pas besoin du navigateur de test : on évite de le télécharger à chaque mise en ligne
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1"
+
+# Les en-têtes de sécurité sont dans apps/site-vitrine/public/_headers (copiés dans dist/ à la construction).
+# L'adresse publique du site (adresses canoniques, aperçus de liens, sitemap) est lue dans la variable URL
+# fournie par Netlify, ou dans URL_SITE si elle est définie (apps/site-vitrine/astro.config.mjs).
