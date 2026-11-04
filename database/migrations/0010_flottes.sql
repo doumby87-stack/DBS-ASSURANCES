@@ -1,10 +1,12 @@
 -- =====================================================================
 -- 0010 · Flottes (tâche 8)
 --
---   · composition d'un contrat flotte : les véhicules de départ se rattachent tant que le contrat attend
---     son paiement ; ensuite, tout ajout ou retrait passe par un avenant ;
---   · app.avenants_flotte : ajout ou retrait d'un véhicule en cours de contrat, avec la prime calculée par
---     la base au prorata des jours restants (positive à l'ajout, ristourne négative au retrait). Ajout seul ;
+--   · composition d'un contrat flotte : les véhicules de départ se rattachent (ou se détachent) tant que le
+--     contrat attend son paiement ; ensuite, toute incorporation ou tout retrait passe par un avenant ;
+--   · app.avenants_flotte : avenant de mouvement (incorporation ou retrait d'un ou plusieurs véhicules à une
+--     même date, réintégration comprise), avec la prime calculée par la base au prorata des jours restants
+--     (positive à l'incorporation, ristourne au retrait), ou avenant d'annulation qui défait exactement un
+--     avenant saisi par erreur. Ajout seul : un avenant ne se modifie ni ne se supprime ;
 --   · prime due = prime du contrat + avenants : le reste à payer, le contrôle des encaissements et le solde
 --     en tiennent compte ; la mise en vigueur reste liée à la prime de départ (Code CIMA, art. 13) ;
 --   · relances des documents des véhicules (visite technique, vignette, carte de transport) : un seul
@@ -83,8 +85,16 @@ ALTER TABLE app.contrats_vehicules
   ADD COLUMN prime_vehicule bigint,
   ADD CONSTRAINT contrats_vehicules_prime CHECK (prime_vehicule IS NULL OR prime_vehicule > 0);
 
--- Directement (sans avenant), on ne rattache un véhicule qu'à un contrat qui attend son paiement, et pour
--- toute la période : sinon il serait couvert sans prime. Un retrait ne se fait que par avenant.
+-- Un véhicule sorti d'un contrat peut y revenir (réintégration) : il y a alors une ligne par période.
+-- Une seule période ouverte à la fois ; les avenants veillent à ce que les périodes ne se chevauchent pas.
+ALTER TABLE app.contrats_vehicules DROP CONSTRAINT contrats_vehicules_unique;
+CREATE UNIQUE INDEX contrats_vehicules_en_cours_unique ON app.contrats_vehicules (contrat_id, vehicule_id)
+  WHERE retire_le IS NULL;
+CREATE INDEX contrats_vehicules_contrat_idx ON app.contrats_vehicules (contrat_id, vehicule_id, ajoute_le);
+CREATE INDEX contrats_vehicules_vehicule_idx ON app.contrats_vehicules (vehicule_id);
+
+-- Directement (sans avenant), on ne rattache ou ne détache un véhicule que tant que le contrat attend son
+-- paiement, et pour toute la période : sinon il serait couvert sans prime, ou retiré sans ristourne.
 -- Seules les écritures des fonctions d'avenant passent outre : elles s'exécutent sous l'identité du
 -- propriétaire de la table, que l'application ne peut pas prendre (pas de SECURITY DEFINER ici, exprès).
 CREATE FUNCTION app.controler_contrat_vehicule() RETURNS trigger
@@ -92,67 +102,109 @@ LANGUAGE plpgsql
 SET search_path = pg_catalog
 AS $$
 DECLARE
+  v_ligne app.contrats_vehicules;
   v_contrat app.contrats;
   v_par_avenant boolean := current_user = (SELECT r.rolname FROM pg_class c JOIN pg_roles r ON r.oid = c.relowner
                                            WHERE c.oid = TG_RELID);
 BEGIN
-  SELECT * INTO v_contrat FROM app.contrats WHERE id = NEW.contrat_id;
-  IF NOT EXISTS (SELECT 1 FROM app.vehicules v WHERE v.id = NEW.vehicule_id AND v.client_id = v_contrat.client_id) THEN
+  IF TG_OP = 'DELETE' THEN v_ligne := OLD; ELSE v_ligne := NEW; END IF;
+  SELECT * INTO v_contrat FROM app.contrats WHERE id = v_ligne.contrat_id;
+  IF TG_OP <> 'DELETE' AND NOT EXISTS (SELECT 1 FROM app.vehicules v
+                                       WHERE v.id = v_ligne.vehicule_id AND v.client_id = v_contrat.client_id) THEN
     RAISE EXCEPTION 'Ce véhicule n''appartient pas au client du contrat.' USING ERRCODE = 'check_violation';
   END IF;
-  IF TG_OP = 'INSERT' AND NOT v_par_avenant THEN
+  IF v_par_avenant THEN
+    RETURN v_ligne;
+  END IF;
+
+  IF TG_OP = 'INSERT' THEN
     IF v_contrat.statut <> 'en_attente_paiement' THEN
-      RAISE EXCEPTION 'Contrat déjà en vigueur : ajoutez le véhicule par un avenant, au prorata.' USING ERRCODE = 'check_violation';
+      RAISE EXCEPTION 'Contrat déjà en vigueur : incorporez le véhicule par un avenant, au prorata.' USING ERRCODE = 'check_violation';
     END IF;
-    IF NEW.ajoute_le <> v_contrat.date_effet OR NEW.retire_le IS NOT NULL THEN
+    IF NEW.ajoute_le <> v_contrat.date_effet OR NEW.retire_le IS NOT NULL
+       OR NEW.incorpore_par IS NOT NULL OR NEW.retire_par IS NOT NULL THEN
       RAISE EXCEPTION 'Un véhicule de départ est couvert du % au % : ajoutez-le à la date d''effet du contrat.',
         to_char(v_contrat.date_effet, 'DD/MM/YYYY'), to_char(v_contrat.date_echeance, 'DD/MM/YYYY') USING ERRCODE = 'check_violation';
     END IF;
+  ELSIF TG_OP = 'UPDATE' THEN
+    IF NEW.retire_le IS DISTINCT FROM OLD.retire_le OR NEW.ajoute_le <> OLD.ajoute_le
+       OR NEW.prime_vehicule IS DISTINCT FROM OLD.prime_vehicule OR NEW.contrat_id <> OLD.contrat_id
+       OR NEW.vehicule_id <> OLD.vehicule_id OR NEW.incorpore_par IS DISTINCT FROM OLD.incorpore_par
+       OR NEW.retire_par IS DISTINCT FROM OLD.retire_par THEN
+      RAISE EXCEPTION 'Le retrait d''un véhicule se fait par un avenant, au prorata.' USING ERRCODE = 'check_violation';
+    END IF;
+  ELSE
+    -- Erreur de composition corrigée avant le paiement : le véhicule n'a jamais été couvert
+    IF v_contrat.statut <> 'en_attente_paiement' THEN
+      RAISE EXCEPTION 'Contrat déjà en vigueur : retirez le véhicule par un avenant, au prorata.' USING ERRCODE = 'check_violation';
+    END IF;
+    IF OLD.numero_attestation IS NOT NULL THEN
+      RAISE EXCEPTION 'Attestation % déjà émise pour ce véhicule : faites-la d''abord annuler.', OLD.numero_attestation
+        USING ERRCODE = 'check_violation';
+    END IF;
   END IF;
-  IF TG_OP = 'UPDATE' AND NOT v_par_avenant
-     AND (NEW.retire_le IS DISTINCT FROM OLD.retire_le OR NEW.ajoute_le <> OLD.ajoute_le
-          OR NEW.prime_vehicule IS DISTINCT FROM OLD.prime_vehicule OR NEW.contrat_id <> OLD.contrat_id
-          OR NEW.vehicule_id <> OLD.vehicule_id) THEN
-    RAISE EXCEPTION 'Le retrait d''un véhicule se fait par un avenant, au prorata.' USING ERRCODE = 'check_violation';
-  END IF;
-  RETURN NEW;
+  RETURN v_ligne;
 END
 $$;
-
-CREATE TRIGGER b_controle BEFORE INSERT OR UPDATE ON app.contrats_vehicules
-  FOR EACH ROW EXECUTE FUNCTION app.controler_contrat_vehicule();
 
 -- Le personnel ne modifie plus la date de retrait lui-même : avenant obligatoire
 REVOKE UPDATE (retire_le) ON app.contrats_vehicules FROM dbs_api;
 
 -- ---------------------------------------------------------------------
--- Avenants : ajout ou retrait d'un véhicule en cours de contrat, au prorata
+-- Avenants : incorporation et retrait de véhicules en cours de contrat, au prorata, et annulation
 -- ---------------------------------------------------------------------
-CREATE TYPE app.nature_avenant AS ENUM ('ajout', 'retrait');
+-- Un avenant de mouvement incorpore ou retire un ou plusieurs véhicules à une même date ; un avenant
+-- d'annulation défait exactement un avenant de mouvement saisi par erreur. Ni l'un ni l'autre ne se
+-- modifie ni ne se supprime : la correction est elle-même un avenant, numéroté et tracé.
+CREATE TYPE app.nature_avenant AS ENUM ('mouvement', 'annulation');
+CREATE TYPE app.mouvement_flotte AS ENUM ('incorporation', 'retrait');
 
 CREATE TABLE app.avenants_flotte (
-  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   -- Numéro continu, attribué par la base
-  numero           bigint NOT NULL,
-  contrat_id       uuid NOT NULL REFERENCES app.contrats (id),
-  vehicule_id      uuid NOT NULL REFERENCES app.vehicules (id),
-  nature           app.nature_avenant NOT NULL,
-  date_effet       date NOT NULL,
-  -- Prime TTC du véhicule pour toute la période du contrat (cotation de la compagnie)
-  prime_vehicule   bigint NOT NULL,
-  -- Calculés par la base, jamais fournis par l'application
-  jours_restants   integer NOT NULL,
-  jours_periode    integer NOT NULL,
-  -- Positif : prime à encaisser ; négatif : ristourne
-  montant          bigint NOT NULL,
-  cree_le          timestamptz NOT NULL,
-  cree_par         uuid NOT NULL REFERENCES app.utilisateurs (id),
+  numero             bigint NOT NULL,
+  contrat_id         uuid NOT NULL REFERENCES app.contrats (id),
+  nature             app.nature_avenant NOT NULL,
+  date_effet         date NOT NULL,
+  -- Total des lignes, calculé par la base : positif, prime à encaisser ; négatif, ristourne
+  montant            bigint NOT NULL,
+  -- Avenant défait par cet avenant d'annulation
+  annule_avenant_id  uuid REFERENCES app.avenants_flotte (id),
+  motif              text,
+  cree_le            timestamptz NOT NULL,
+  cree_par           uuid NOT NULL REFERENCES app.utilisateurs (id),
   CONSTRAINT avenants_flotte_numero_unique UNIQUE (numero),
-  CONSTRAINT avenants_flotte_prime CHECK (prime_vehicule > 0),
-  CONSTRAINT avenants_flotte_jours CHECK (jours_periode > 0 AND jours_restants BETWEEN 1 AND jours_periode),
-  CONSTRAINT avenants_flotte_sens CHECK ((nature = 'ajout') = (montant >= 0))
+  CONSTRAINT avenants_flotte_annulation_unique UNIQUE (annule_avenant_id),
+  CONSTRAINT avenants_flotte_annulation CHECK ((nature = 'annulation') = (annule_avenant_id IS NOT NULL)),
+  CONSTRAINT avenants_flotte_motif CHECK (motif IS NULL OR char_length(motif) <= 500),
+  CONSTRAINT avenants_flotte_motif_annulation CHECK (nature <> 'annulation' OR char_length(btrim(motif)) >= 5)
 );
 CREATE INDEX avenants_flotte_contrat_idx ON app.avenants_flotte (contrat_id, numero);
+
+CREATE TABLE app.avenants_flotte_lignes (
+  avenant_id      uuid NOT NULL REFERENCES app.avenants_flotte (id),
+  vehicule_id     uuid NOT NULL REFERENCES app.vehicules (id),
+  -- Mouvement effectué, ou défait pour un avenant d'annulation
+  mouvement       app.mouvement_flotte NOT NULL,
+  -- Prime TTC du véhicule pour toute la période du contrat (cotation de la compagnie)
+  prime_vehicule  bigint NOT NULL,
+  -- Calculés par la base, jamais fournis par l'application
+  jours_restants  integer NOT NULL,
+  jours_periode   integer NOT NULL,
+  montant         bigint NOT NULL,
+  PRIMARY KEY (avenant_id, vehicule_id),
+  CONSTRAINT avenants_flotte_lignes_prime CHECK (prime_vehicule > 0),
+  CONSTRAINT avenants_flotte_lignes_jours CHECK (jours_periode > 0 AND jours_restants BETWEEN 1 AND jours_periode)
+);
+CREATE INDEX avenants_flotte_lignes_vehicule_idx ON app.avenants_flotte_lignes (vehicule_id);
+
+-- Lien entre chaque période d'un véhicule sur un contrat et les avenants qui l'ont ouverte ou fermée
+ALTER TABLE app.contrats_vehicules
+  ADD COLUMN incorpore_par uuid REFERENCES app.avenants_flotte (id),
+  ADD COLUMN retire_par uuid REFERENCES app.avenants_flotte (id);
+
+CREATE TRIGGER b_controle BEFORE INSERT OR UPDATE OR DELETE ON app.contrats_vehicules
+  FOR EACH ROW EXECUTE FUNCTION app.controler_contrat_vehicule();
 
 -- Prorata temporis : prime × jours restants ÷ jours de la période, arrondi au franc
 CREATE FUNCTION app.prorata(p_prime bigint, p_jours_restants integer, p_jours_periode integer) RETURNS bigint
@@ -161,107 +213,270 @@ SET search_path = pg_catalog
 AS $$ SELECT round(p_prime::numeric * p_jours_restants / p_jours_periode)::bigint $$;
 GRANT EXECUTE ON FUNCTION app.prorata(bigint, integer, integer) TO dbs_api;
 
-CREATE FUNCTION app.calculer_avenant() RETURNS trigger
+-- Avenant de mouvement. p_lignes : [{"vehiculeId", "mouvement": "incorporation" | "retrait", "primeVehicule"}].
+-- Avec p_enregistrer à faux, contrôle et calcule sans rien écrire : l'aperçu montré à l'écran et l'avenant
+-- enregistré sortent du même calcul. Rend l'avenant (id et numéro s'il est enregistré) et ses lignes.
+CREATE FUNCTION app.avenant_flotte(p_contrat uuid, p_date_effet date, p_lignes jsonb, p_motif text,
+                                   p_enregistrer boolean) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = pg_catalog
 AS $$
 DECLARE
   v_contrat app.contrats;
-  v_ligne app.contrats_vehicules;
+  v_entree jsonb;
+  v_vehicule app.vehicules;
+  v_en_cours app.contrats_vehicules;
+  v_fin_precedente date;
+  v_prime_precedente bigint;
+  v_mouvement app.mouvement_flotte;
+  v_prime bigint;
+  v_montant bigint;
+  v_jours_periode integer;
+  v_jours_restants integer;
+  v_lignes jsonb := '[]';
+  v_total bigint := 0;
+  v_id uuid;
+  v_numero bigint;
 BEGIN
+  IF NOT securite.a_le_role('gerant', 'charge_clientele') THEN
+    RAISE EXCEPTION 'Seuls le gérant et les chargés de clientèle établissent un avenant.' USING ERRCODE = 'insufficient_privilege';
+  END IF;
   -- Un avenant à la fois par contrat
-  SELECT * INTO v_contrat FROM app.contrats WHERE id = NEW.contrat_id FOR UPDATE;
+  SELECT * INTO v_contrat FROM app.contrats WHERE id = p_contrat FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Contrat introuvable.' USING ERRCODE = 'no_data_found';
+  END IF;
   IF v_contrat.statut <> 'en_vigueur' THEN
     RAISE EXCEPTION 'Un avenant ne se fait que sur un contrat en vigueur ; avant le paiement, modifiez la composition et la prime du contrat.'
       USING ERRCODE = 'check_violation';
   END IF;
-  IF NEW.date_effet <= v_contrat.date_effet OR NEW.date_effet >= v_contrat.date_echeance THEN
+  IF p_date_effet IS NULL OR p_date_effet <= v_contrat.date_effet OR p_date_effet >= v_contrat.date_echeance THEN
     RAISE EXCEPTION 'Date d''effet de l''avenant hors du contrat : entre le % et le % (exclus).',
       to_char(v_contrat.date_effet, 'DD/MM/YYYY'), to_char(v_contrat.date_echeance, 'DD/MM/YYYY') USING ERRCODE = 'check_violation';
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM app.vehicules v WHERE v.id = NEW.vehicule_id AND v.client_id = v_contrat.client_id) THEN
-    RAISE EXCEPTION 'Ce véhicule n''appartient pas au client du contrat.' USING ERRCODE = 'check_violation';
+  IF jsonb_typeof(p_lignes) IS DISTINCT FROM 'array' THEN
+    RAISE EXCEPTION 'Un avenant porte sur 1 à 200 véhicules.' USING ERRCODE = 'check_violation';
+  END IF;
+  IF jsonb_array_length(p_lignes) NOT BETWEEN 1 AND 200 THEN
+    RAISE EXCEPTION 'Un avenant porte sur 1 à 200 véhicules.' USING ERRCODE = 'check_violation';
+  END IF;
+  IF (SELECT count(DISTINCT e ->> 'vehiculeId') FROM jsonb_array_elements(p_lignes) e) <> jsonb_array_length(p_lignes) THEN
+    RAISE EXCEPTION 'Un même véhicule figure deux fois dans l''avenant.' USING ERRCODE = 'check_violation';
+  END IF;
+  IF p_motif IS NOT NULL AND char_length(p_motif) > 500 THEN
+    RAISE EXCEPTION 'Observation trop longue (500 caractères au plus).' USING ERRCODE = 'check_violation';
   END IF;
 
-  SELECT * INTO v_ligne FROM app.contrats_vehicules WHERE contrat_id = NEW.contrat_id AND vehicule_id = NEW.vehicule_id;
-  IF NEW.nature = 'ajout' AND FOUND THEN
-    RAISE EXCEPTION 'Ce véhicule figure déjà sur ce contrat.' USING ERRCODE = 'check_violation';
-  END IF;
-  IF NEW.nature = 'retrait' THEN
-    IF NOT FOUND OR v_ligne.retire_le IS NOT NULL THEN
-      RAISE EXCEPTION 'Ce véhicule n''est pas couvert par ce contrat.' USING ERRCODE = 'check_violation';
+  v_jours_periode := v_contrat.date_echeance - v_contrat.date_effet;
+  v_jours_restants := v_contrat.date_echeance - p_date_effet;
+
+  FOR v_entree IN SELECT e FROM jsonb_array_elements(p_lignes) e LOOP
+    SELECT * INTO v_vehicule FROM app.vehicules
+    WHERE id = (v_entree ->> 'vehiculeId')::uuid AND client_id = v_contrat.client_id;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'Ce véhicule n''appartient pas au client du contrat.' USING ERRCODE = 'check_violation';
     END IF;
-    IF NEW.date_effet <= v_ligne.ajoute_le THEN
-      RAISE EXCEPTION 'Le retrait doit suivre l''ajout du véhicule (le %).', to_char(v_ligne.ajoute_le, 'DD/MM/YYYY')
+    v_mouvement := (v_entree ->> 'mouvement')::app.mouvement_flotte;
+    v_prime := (v_entree ->> 'primeVehicule')::bigint;
+    SELECT * INTO v_en_cours FROM app.contrats_vehicules
+    WHERE contrat_id = p_contrat AND vehicule_id = v_vehicule.id AND retire_le IS NULL;
+
+    IF v_mouvement = 'incorporation' THEN
+      IF FOUND THEN
+        RAISE EXCEPTION '% figure déjà sur ce contrat.', v_vehicule.immatriculation USING ERRCODE = 'check_violation';
+      END IF;
+      -- Réintégration : pas avant la sortie précédente ; la prime précédente sert si aucune n'est donnée
+      SELECT cv.retire_le, cv.prime_vehicule INTO v_fin_precedente, v_prime_precedente
+      FROM app.contrats_vehicules cv
+      WHERE cv.contrat_id = p_contrat AND cv.vehicule_id = v_vehicule.id
+      ORDER BY cv.retire_le DESC LIMIT 1;
+      IF v_fin_precedente IS NOT NULL AND p_date_effet < v_fin_precedente THEN
+        RAISE EXCEPTION '% est sorti du contrat le % : il ne peut y revenir qu''à partir de cette date.',
+          v_vehicule.immatriculation, to_char(v_fin_precedente, 'DD/MM/YYYY') USING ERRCODE = 'check_violation';
+      END IF;
+      v_prime := coalesce(v_prime, v_prime_precedente);
+    ELSE
+      IF NOT FOUND THEN
+        RAISE EXCEPTION '% n''est pas couvert par ce contrat.', v_vehicule.immatriculation USING ERRCODE = 'check_violation';
+      END IF;
+      IF p_date_effet <= v_en_cours.ajoute_le THEN
+        RAISE EXCEPTION 'Le retrait de % doit suivre son entrée dans le contrat (le %).',
+          v_vehicule.immatriculation, to_char(v_en_cours.ajoute_le, 'DD/MM/YYYY') USING ERRCODE = 'check_violation';
+      END IF;
+      -- Prime connue depuis l'entrée du véhicule, sinon celle indiquée avec le retrait
+      v_prime := coalesce(v_en_cours.prime_vehicule, v_prime);
+    END IF;
+    IF v_prime IS NULL OR v_prime <= 0 THEN
+      RAISE EXCEPTION 'Indiquez la prime de % pour la période du contrat.', v_vehicule.immatriculation
         USING ERRCODE = 'check_violation';
     END IF;
-    -- Prime connue depuis le rattachement, sinon celle indiquée avec le retrait
-    NEW.prime_vehicule := coalesce(v_ligne.prime_vehicule, NEW.prime_vehicule);
-  END IF;
-  IF NEW.prime_vehicule IS NULL THEN
-    RAISE EXCEPTION 'Indiquez la prime du véhicule pour la période du contrat.' USING ERRCODE = 'check_violation';
+
+    v_montant := app.prorata(v_prime, v_jours_restants, v_jours_periode)
+                 * CASE WHEN v_mouvement = 'incorporation' THEN 1 ELSE -1 END;
+    v_total := v_total + v_montant;
+    v_lignes := v_lignes || jsonb_build_object('vehiculeId', v_vehicule.id, 'immatriculation', v_vehicule.immatriculation,
+                                               'mouvement', v_mouvement, 'primeVehicule', v_prime, 'montant', v_montant);
+  END LOOP;
+
+  IF p_enregistrer THEN
+    v_numero := app.numero_suivant('avenants');
+    INSERT INTO app.avenants_flotte (numero, contrat_id, nature, date_effet, montant, motif)
+    VALUES (v_numero, p_contrat, 'mouvement', p_date_effet, v_total, nullif(btrim(p_motif), ''))
+    RETURNING id INTO v_id;
+    INSERT INTO app.avenants_flotte_lignes (avenant_id, vehicule_id, mouvement, prime_vehicule, jours_restants, jours_periode, montant)
+    SELECT v_id, l."vehiculeId", l.mouvement, l."primeVehicule", v_jours_restants, v_jours_periode, l.montant
+    FROM jsonb_to_recordset(v_lignes) AS l("vehiculeId" uuid, mouvement app.mouvement_flotte, "primeVehicule" bigint, montant bigint);
+
+    -- Effets : composition du contrat et prime due
+    UPDATE app.contrats_vehicules cv SET retire_le = p_date_effet, retire_par = v_id, prime_vehicule = l.prime_vehicule
+    FROM app.avenants_flotte_lignes l
+    WHERE l.avenant_id = v_id AND l.mouvement = 'retrait'
+      AND cv.contrat_id = p_contrat AND cv.vehicule_id = l.vehicule_id AND cv.retire_le IS NULL;
+    INSERT INTO app.contrats_vehicules (contrat_id, vehicule_id, ajoute_le, prime_vehicule, incorpore_par)
+    SELECT p_contrat, l.vehicule_id, p_date_effet, l.prime_vehicule, v_id
+    FROM app.avenants_flotte_lignes l WHERE l.avenant_id = v_id AND l.mouvement = 'incorporation';
+    UPDATE app.contrats SET primes_avenants = primes_avenants + v_total WHERE id = p_contrat;
   END IF;
 
-  NEW.jours_periode := v_contrat.date_echeance - v_contrat.date_effet;
-  NEW.jours_restants := v_contrat.date_echeance - NEW.date_effet;
-  NEW.montant := app.prorata(NEW.prime_vehicule, NEW.jours_restants, NEW.jours_periode)
-                 * CASE WHEN NEW.nature = 'ajout' THEN 1 ELSE -1 END;
-  NEW.numero := app.numero_suivant('avenants');
-  RETURN NEW;
+  RETURN jsonb_build_object('id', v_id, 'numero', v_numero, 'nature', 'mouvement', 'dateEffet', p_date_effet,
+                            'joursPeriode', v_jours_periode, 'joursRestants', v_jours_restants,
+                            'montant', v_total, 'lignes', v_lignes);
 END
 $$;
+REVOKE ALL ON FUNCTION app.avenant_flotte(uuid, date, jsonb, text, boolean) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION app.avenant_flotte(uuid, date, jsonb, text, boolean) TO dbs_api;
 
--- Effets de l'avenant : composition du contrat et prime due
-CREATE FUNCTION app.appliquer_avenant() RETURNS trigger
+-- Avenant d'annulation : défait exactement un avenant de mouvement saisi par erreur (mêmes véhicules, même
+-- date d'effet, montant opposé), si rien ne s'est appuyé dessus depuis : aucun avenant postérieur sur ses
+-- véhicules, aucune attestation émise ni aucun sinistre déclaré sur un véhicule qu'il a incorporé.
+CREATE FUNCTION app.annuler_avenant_flotte(p_avenant uuid, p_motif text, p_enregistrer boolean) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = pg_catalog
 AS $$
+DECLARE
+  v_avenant app.avenants_flotte;
+  v_contrat app.contrats;
+  v_numero_posterieur bigint;
+  v_bloquant text;
+  v_lignes jsonb;
+  v_id uuid;
+  v_numero bigint;
 BEGIN
-  IF NEW.nature = 'ajout' THEN
-    INSERT INTO app.contrats_vehicules (contrat_id, vehicule_id, ajoute_le, prime_vehicule)
-    VALUES (NEW.contrat_id, NEW.vehicule_id, NEW.date_effet, NEW.prime_vehicule);
-  ELSE
-    UPDATE app.contrats_vehicules SET retire_le = NEW.date_effet, prime_vehicule = NEW.prime_vehicule
-    WHERE contrat_id = NEW.contrat_id AND vehicule_id = NEW.vehicule_id;
+  IF NOT securite.a_le_role('gerant', 'charge_clientele') THEN
+    RAISE EXCEPTION 'Seuls le gérant et les chargés de clientèle établissent un avenant.' USING ERRCODE = 'insufficient_privilege';
   END IF;
-  UPDATE app.contrats SET primes_avenants = primes_avenants + NEW.montant WHERE id = NEW.contrat_id;
-  RETURN NULL;
+  SELECT * INTO v_avenant FROM app.avenants_flotte WHERE id = p_avenant;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Avenant introuvable.' USING ERRCODE = 'no_data_found';
+  END IF;
+  SELECT * INTO v_contrat FROM app.contrats WHERE id = v_avenant.contrat_id FOR UPDATE;
+  IF v_avenant.nature = 'annulation' THEN
+    RAISE EXCEPTION 'Un avenant d''annulation ne s''annule pas : établissez un nouvel avenant de mouvement.'
+      USING ERRCODE = 'check_violation';
+  END IF;
+  SELECT a.numero INTO v_numero_posterieur FROM app.avenants_flotte a WHERE a.annule_avenant_id = p_avenant;
+  IF FOUND THEN
+    RAISE EXCEPTION 'L''avenant n° % est déjà annulé (avenant n° %).', v_avenant.numero, v_numero_posterieur
+      USING ERRCODE = 'check_violation';
+  END IF;
+  IF v_contrat.statut <> 'en_vigueur' THEN
+    RAISE EXCEPTION 'Le contrat n''est plus en vigueur : son avenant ne peut plus être annulé.' USING ERRCODE = 'check_violation';
+  END IF;
+  IF p_motif IS NULL OR char_length(btrim(p_motif)) < 5 OR char_length(p_motif) > 500 THEN
+    RAISE EXCEPTION 'Indiquez le motif de l''annulation (5 à 500 caractères).' USING ERRCODE = 'check_violation';
+  END IF;
+
+  -- Les avenants s'annulent du plus récent au plus ancien, véhicule par véhicule
+  SELECT max(a.numero) INTO v_numero_posterieur
+  FROM app.avenants_flotte a
+  JOIN app.avenants_flotte_lignes l ON l.avenant_id = a.id
+  WHERE a.contrat_id = v_avenant.contrat_id AND a.numero > v_avenant.numero AND a.nature = 'mouvement'
+    AND NOT EXISTS (SELECT 1 FROM app.avenants_flotte x WHERE x.annule_avenant_id = a.id)
+    AND l.vehicule_id IN (SELECT o.vehicule_id FROM app.avenants_flotte_lignes o WHERE o.avenant_id = p_avenant);
+  IF v_numero_posterieur IS NOT NULL THEN
+    RAISE EXCEPTION 'L''avenant n° % porte depuis sur les mêmes véhicules : annulez-le d''abord.', v_numero_posterieur
+      USING ERRCODE = 'check_violation';
+  END IF;
+
+  SELECT string_agg(v.immatriculation || CASE WHEN cv.numero_attestation IS NOT NULL
+                                              THEN ' (attestation ' || cv.numero_attestation || ' émise)'
+                                              ELSE ' (sinistre déclaré)' END, ', ' ORDER BY v.immatriculation)
+  INTO v_bloquant
+  FROM app.contrats_vehicules cv
+  JOIN app.vehicules v ON v.id = cv.vehicule_id
+  WHERE cv.incorpore_par = p_avenant
+    AND (cv.numero_attestation IS NOT NULL
+         OR EXISTS (SELECT 1 FROM app.sinistres s WHERE s.contrat_id = cv.contrat_id AND s.vehicule_id = cv.vehicule_id
+                      AND s.survenu_le >= cv.ajoute_le));
+  IF v_bloquant IS NOT NULL THEN
+    RAISE EXCEPTION 'Annulation impossible, le véhicule a déjà servi : %. Faites plutôt un avenant de retrait.', v_bloquant
+      USING ERRCODE = 'check_violation';
+  END IF;
+
+  SELECT jsonb_agg(jsonb_build_object('vehiculeId', l.vehicule_id, 'immatriculation', v.immatriculation,
+                                      'mouvement', l.mouvement, 'primeVehicule', l.prime_vehicule, 'montant', -l.montant)
+                   ORDER BY v.immatriculation)
+  INTO v_lignes
+  FROM app.avenants_flotte_lignes l JOIN app.vehicules v ON v.id = l.vehicule_id
+  WHERE l.avenant_id = p_avenant;
+
+  IF p_enregistrer THEN
+    v_numero := app.numero_suivant('avenants');
+    INSERT INTO app.avenants_flotte (numero, contrat_id, nature, date_effet, montant, annule_avenant_id, motif)
+    VALUES (v_numero, v_avenant.contrat_id, 'annulation', v_avenant.date_effet, -v_avenant.montant, p_avenant, btrim(p_motif))
+    RETURNING id INTO v_id;
+    INSERT INTO app.avenants_flotte_lignes (avenant_id, vehicule_id, mouvement, prime_vehicule, jours_restants, jours_periode, montant)
+    SELECT v_id, l.vehicule_id, l.mouvement, l.prime_vehicule, l.jours_restants, l.jours_periode, -l.montant
+    FROM app.avenants_flotte_lignes l WHERE l.avenant_id = p_avenant;
+
+    -- Effets défaits : les véhicules incorporés n'ont jamais été couverts, les véhicules retirés le restent
+    DELETE FROM app.contrats_vehicules WHERE incorpore_par = p_avenant;
+    UPDATE app.contrats_vehicules SET retire_le = NULL, retire_par = NULL WHERE retire_par = p_avenant;
+    UPDATE app.contrats SET primes_avenants = primes_avenants - v_avenant.montant WHERE id = v_avenant.contrat_id;
+  END IF;
+
+  RETURN jsonb_build_object('id', v_id, 'numero', v_numero, 'nature', 'annulation', 'dateEffet', v_avenant.date_effet,
+                            'annuleNumero', v_avenant.numero, 'montant', -v_avenant.montant, 'lignes', v_lignes);
 END
 $$;
+REVOKE ALL ON FUNCTION app.annuler_avenant_flotte(uuid, text, boolean) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION app.annuler_avenant_flotte(uuid, text, boolean) TO dbs_api;
 
 CREATE FUNCTION app.interdire_modification_avenant() RETURNS trigger
 LANGUAGE plpgsql
 SET search_path = pg_catalog
 AS $$
 BEGIN
-  RAISE EXCEPTION 'Un avenant ne se modifie pas : % interdit. Faites un nouvel avenant.', TG_OP
+  RAISE EXCEPTION 'Un avenant ne se modifie pas : % interdit. Faites un avenant d''annulation.', TG_OP
     USING ERRCODE = 'insufficient_privilege';
 END
 $$;
 
 CREATE TRIGGER a_auteur BEFORE INSERT ON app.avenants_flotte
   FOR EACH ROW EXECUTE FUNCTION securite.renseigner_auteur('cree_par', 'cree_le');
-CREATE TRIGGER b_calcul BEFORE INSERT ON app.avenants_flotte
-  FOR EACH ROW EXECUTE FUNCTION app.calculer_avenant();
 CREATE TRIGGER c_ajout_seul BEFORE UPDATE OR DELETE ON app.avenants_flotte
   FOR EACH ROW EXECUTE FUNCTION app.interdire_modification_avenant();
-CREATE TRIGGER d_effets AFTER INSERT ON app.avenants_flotte
-  FOR EACH ROW EXECUTE FUNCTION app.appliquer_avenant();
+CREATE TRIGGER c_ajout_seul BEFORE UPDATE OR DELETE ON app.avenants_flotte_lignes
+  FOR EACH ROW EXECUTE FUNCTION app.interdire_modification_avenant();
 CREATE TRIGGER z_journal AFTER INSERT OR UPDATE OR DELETE ON app.avenants_flotte
+  FOR EACH ROW EXECUTE FUNCTION audit.journaliser();
+CREATE TRIGGER z_journal AFTER INSERT OR UPDATE OR DELETE ON app.avenants_flotte_lignes
   FOR EACH ROW EXECUTE FUNCTION audit.journaliser();
 
 -- Avenants avec leur règlement : les encaissements au-delà de la prime de départ règlent les avenants dans
--- l'ordre (ristournes comprises). Un véhicule ajouté n'est couvert qu'une fois sa prime d'avenant réglée.
+-- l'ordre (ristournes et annulations comprises). Un véhicule incorporé n'est couvert qu'une fois sa prime
+-- d'avenant réglée.
 CREATE VIEW app.v_avenants_flotte WITH (security_invoker = true) AS
-SELECT a.id, a.numero, a.contrat_id, a.vehicule_id, v.immatriculation, a.nature, a.date_effet, a.prime_vehicule,
-       a.jours_restants, a.jours_periode, a.montant, a.cree_le, a.cree_par,
-       CASE WHEN a.nature = 'ajout' THEN
+SELECT a.id, a.numero, a.contrat_id, a.nature, a.date_effet, a.montant, a.motif, a.cree_le, a.cree_par,
+       a.annule_avenant_id, o.numero AS annule_numero, x.id AS annule_par_id, x.numero AS annule_par_numero,
+       CASE WHEN a.nature = 'mouvement' AND a.montant > 0 AND x.id IS NULL THEN
          k.prime_ttc + sum(a.montant) OVER (PARTITION BY a.contrat_id ORDER BY a.numero) <= s.total_encaisse
        END AS regle
 FROM app.avenants_flotte a
 JOIN app.contrats k ON k.id = a.contrat_id
-JOIN app.vehicules v ON v.id = a.vehicule_id
-JOIN app.v_soldes_contrats s ON s.contrat_id = a.contrat_id;
+JOIN app.v_soldes_contrats s ON s.contrat_id = a.contrat_id
+LEFT JOIN app.avenants_flotte o ON o.id = a.annule_avenant_id
+LEFT JOIN app.avenants_flotte x ON x.annule_avenant_id = a.id;
 
 -- ---------------------------------------------------------------------
 -- Relances des documents des véhicules, groupées par client
@@ -399,17 +614,23 @@ $$;
 -- Droits (docs/securite/controle-des-acces.md)
 -- ---------------------------------------------------------------------
 ALTER TABLE app.avenants_flotte ENABLE ROW LEVEL SECURITY;
+ALTER TABLE app.avenants_flotte_lignes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE app.annonces_documents ENABLE ROW LEVEL SECURITY;
 
--- Avenants : vus de qui voit le contrat, faits par qui gère les contrats
+-- Avenants : vus de qui voit le contrat ; établis seulement par app.avenant_flotte et
+-- app.annuler_avenant_flotte (gérant et chargés de clientèle), jamais écrits directement
 CREATE POLICY avenants_flotte_lecture ON app.avenants_flotte FOR SELECT TO dbs_api
   USING (EXISTS (SELECT 1 FROM app.contrats c WHERE c.id = contrat_id));
-CREATE POLICY avenants_flotte_creation ON app.avenants_flotte FOR INSERT TO dbs_api
-  WITH CHECK ((SELECT securite.a_le_role('gerant', 'charge_clientele')));
+CREATE POLICY avenants_flotte_lignes_lecture ON app.avenants_flotte_lignes FOR SELECT TO dbs_api
+  USING (EXISTS (SELECT 1 FROM app.avenants_flotte a WHERE a.id = avenant_id));
+
+-- Composition de départ : un véhicule rattaché par erreur se détache tant que le contrat n'est pas payé
+CREATE POLICY contrats_vehicules_suppression ON app.contrats_vehicules FOR DELETE TO dbs_api
+  USING ((SELECT securite.a_le_role('gerant', 'charge_clientele')));
+GRANT DELETE ON app.contrats_vehicules TO dbs_api;
 
 -- Annonces : lues avec les relances ; écrites seulement par le planificateur
 CREATE POLICY annonces_documents_lecture ON app.annonces_documents FOR SELECT TO dbs_api
   USING ((SELECT securite.a_le_role('gerant', 'charge_clientele', 'commercial', 'auditeur')));
 
-GRANT SELECT ON app.avenants_flotte, app.annonces_documents, app.v_avenants_flotte TO dbs_api;
-GRANT INSERT (contrat_id, vehicule_id, nature, date_effet, prime_vehicule) ON app.avenants_flotte TO dbs_api;
+GRANT SELECT ON app.avenants_flotte, app.avenants_flotte_lignes, app.annonces_documents, app.v_avenants_flotte TO dbs_api;
