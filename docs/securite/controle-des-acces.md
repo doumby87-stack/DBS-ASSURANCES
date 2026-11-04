@@ -38,11 +38,12 @@ L = lire · C = créer · M = modifier · — = aucun accès
 | Échanges (ajout seul) | L C | L C | L C | L C | ses clients : L C | L |
 | Consentements aux relances (ajout seul) | L C | L C | L | L C | ses clients : L | L |
 | Relances | L, annulation avant l'envoi | L, annulation avant l'envoi | — | L | — | L |
+| Avenants de flotte (ajout seul) | L C | L C | L | L | ses clients : L | L |
 | Demandes reçues par le site | L, traitement | L, traitement | — | L, traitement | — | L |
 | Cartes grises jointes aux demandes | L (téléchargement consigné) | L (téléchargement consigné) | — | L (téléchargement consigné) | — | — |
 | Journal d'audit | via le rôle `dbs_audit` | — | — | — | — | via le rôle `dbs_audit` |
 
-Personne, pas même le gérant, ne modifie un encaissement, ne valide son propre bordereau, ne vise sa propre clôture de caisse ou ne supprime une ligne. Les exports de données (bordereaux) sont réservés au gérant et consignés au journal de sécurité.
+Personne, pas même le gérant, ne modifie un encaissement, ne valide son propre bordereau, ne vise sa propre clôture de caisse ou ne supprime une ligne. Les exports de données sont consignés au journal de sécurité : bordereaux réservés au gérant ; liste des véhicules d'une flotte pour la cotation, au gérant, au chargé de clientèle et au commercial. Un avenant de flotte est calculé par la base (prorata) et ne se modifie jamais ; après le paiement de la prime de départ, la composition d'un contrat ne change que par avenant ([ADR 0010](../architecture/adr/0010-flottes.md)).
 
 Personne ne crée une relance à la main ni ne réécrit un consentement : les relances sont créées par le planificateur de l'API, qui travaille sans utilisateur connecté au moyen de cinq fonctions de la base limitées à cet usage ([ADR 0007](../architecture/adr/0007-relances-whatsapp-et-sms.md)). Un « STOP » reçu sur WhatsApp est enregistré par la base sans auteur, comme réponse du client.
 

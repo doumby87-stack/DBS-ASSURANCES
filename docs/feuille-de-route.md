@@ -59,11 +59,13 @@ Le formulaire du site enregistre la demande, avec la carte grise (photo ou PDF, 
 
 *Avant la mise en service (🧑‍💼) :* déclaration à l'ARTCI faite, hébergeur choisi, démon ClamAV installé à côté de l'API, puis `URL_SITE_VITRINE` et `ANTIVIRUS_ADRESSE` dans l'API et `URL_API` dans Netlify ; les textes du formulaire et des mentions légales basculent alors d'eux-mêmes.
 
-## 🔜 Tâche 8 — Flottes
+## ✅ Tâche 8 — Flottes
 
-Import Excel avec contrôle des erreurs, échéances de visite technique, vignette et carte de transport (avec leurs relances, selon les règles de la tâche 6), ajout ou retrait d'un véhicule avec prorata, export pour la cotation en lot.
+Écran « Flotte » de chaque client : import de la liste des véhicules (classeur Excel ou CSV) contrôlée ligne par ligne, avec toutes les erreurs affichées avant tout enregistrement ; échéances de visite technique, vignette et carte de transport, rappelées sur WhatsApp à J-30, J-7 et à l'échéance en un seul message par client et par étape (règles de la tâche 6) ; composition des contrats flotte et avenants d'ajout ou de retrait au prorata, calculés par la base et suivis en caisse ; export pour la cotation en lot ([ADR 0010](architecture/adr/0010-flottes.md)).
 
-## ⏳ Tâche 9 — Espace client et paiement Mobile Money
+*À confirmer avec SanlamAllianz (tâche 2) :* frais d'avenant, ristourne minimale sur un retrait, format attendu pour la cotation en lot. *À faire valider par Meta :* le modèle `dbs_documents_vehicules` ([modèles de messages](metier/modeles-de-messages.md)).
+
+## 🔜 Tâche 9 — Espace client et paiement Mobile Money
 
 Connexion par code WhatsApp ou SMS, contrats et attestations, paiement par Wave, Orange Money, MTN MoMo ou Moov Money avec confirmation signée, déclaration et suivi des sinistres.
 
