@@ -34,7 +34,13 @@ interface Demande {
 
 interface Detail {
   demande: Demande;
-  piece: { type: string; taille: number } | null;
+  piece: {
+    type: string;
+    taille: number;
+    etatAnalyse: "a_analyser" | "saine" | "infectee";
+    analyseeLe: string | null;
+    signatureDetectee: string | null;
+  } | null;
   clientsMemeNumero: { id: string; nom: string; type: string }[];
 }
 
@@ -147,6 +153,7 @@ export function DemandeSite({ id }: { id: string }) {
   const [doublons, setDoublons] = useState<{ id: string; nom: string }[] | null>(null);
   const [motif, setMotif] = useState("");
   const [envoi, setEnvoi] = useState(false);
+  const [telechargement, setTelechargement] = useState(false);
 
   const charger = useCallback(async () => {
     try {
@@ -182,6 +189,34 @@ export function DemandeSite({ id }: { id: string }) {
       }
     } finally {
       setEnvoi(false);
+    }
+  }
+
+  // L'API analyse la pièce de nouveau avant de la remettre : un refus (menace trouvée, antivirus indisponible)
+  // doit s'afficher comme un message, pas se télécharger comme un fichier
+  async function telecharger() {
+    setErreur("");
+    setTelechargement(true);
+    try {
+      const reponse = await fetch(`/api/demandes-site/${id}/piece`, { credentials: "same-origin" });
+      if (!reponse.ok) {
+        const donnees = (await reponse.json().catch(() => ({}))) as { message?: string };
+        setErreur(donnees.message ?? "Téléchargement impossible. Réessayez.");
+        await charger();
+        return;
+      }
+      const nom = /filename="([^"]+)"/.exec(reponse.headers.get("content-disposition") ?? "")?.[1] ?? "carte-grise";
+      const adresse = URL.createObjectURL(await reponse.blob());
+      const lien = document.createElement("a");
+      lien.href = adresse;
+      lien.download = nom;
+      lien.click();
+      setTimeout(() => URL.revokeObjectURL(adresse), 60_000);
+      await charger();
+    } catch (e) {
+      setErreur(messageErreur(e));
+    } finally {
+      setTelechargement(false);
     }
   }
 
@@ -239,11 +274,26 @@ export function DemandeSite({ id }: { id: string }) {
           <div>
             <dt>Carte grise</dt>
             <dd>
-              {piece ? (
-                <a className="bouton bouton--petit" href={`/api/demandes-site/${d.id}/piece`} download>
-                  Télécharger ({FORMATS_PIECE[piece.type] ?? piece.type}, {taille(piece.taille)})
-                </a>
-              ) : peut("auditeur") ? "Non consultable avec votre rôle" : "Aucune"}
+              {!piece ? (
+                peut("auditeur") ? "Non consultable avec votre rôle" : "Aucune"
+              ) : piece.etatAnalyse === "infectee" ? (
+                <span className="texte-libre">
+                  <Badge ton="rouge">Supprimée</Badge> L'antivirus y a trouvé une menace ({piece.signatureDetectee}) le {piece.analyseeLe && dateHeure(piece.analyseeLe)}.
+                  Demandez une autre photo au client.
+                </span>
+              ) : (
+                <>
+                  <button type="button" className="bouton bouton--petit" disabled={telechargement} onClick={() => void telecharger()}>
+                    {telechargement ? "Analyse et téléchargement…" : `Télécharger (${FORMATS_PIECE[piece.type] ?? piece.type}, ${taille(piece.taille)})`}
+                  </button>
+                  <br />
+                  <span className="note">
+                    {piece.etatAnalyse === "saine" && piece.analyseeLe
+                      ? `Aucune menace trouvée par l'antivirus (dernière analyse le ${dateHeure(piece.analyseeLe)}) ; analysée de nouveau à chaque téléchargement.`
+                      : "En attente d'analyse antivirus : elle ne peut pas être ouverte avant."}
+                  </span>
+                </>
+              )}
             </dd>
           </div>
         </dl>

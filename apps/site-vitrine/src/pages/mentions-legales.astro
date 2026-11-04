@@ -64,7 +64,7 @@ const { juridique } = AGENCE;
         )}
         <dt>Finalités</dt><dd>Répondre à votre demande, établir un devis et, si vous souscrivez, gérer votre contrat et vos sinistres.</dd>
         <dt>Destinataires</dt><dd>{AGENCE.nom} et, pour l'étude et la gestion des contrats, {AGENCE.compagnie}.</dd>
-        <dt>Durée de conservation</dt><dd>Le temps de traiter votre demande ; si vous devenez client, pendant la durée du contrat puis les délais légaux applicables.</dd>
+        <dt>Durée de conservation</dt><dd>{ADRESSE_DEMANDES ? "Une demande qui n'aboutit pas à un devis est supprimée, avec sa carte grise, 12 mois après son classement" : "Le temps de traiter votre demande"} ; si vous devenez client, pendant la durée du contrat puis les délais légaux applicables.</dd>
         <dt>Vos droits</dt><dd>Vous pouvez demander l'accès à vos données, leur rectification ou leur suppression, et vous opposer à leur traitement, en écrivant à <a href={LIEN_EMAIL}>{AGENCE.email}</a>. Vous pouvez aussi saisir l'ARTCI, autorité de protection des données personnelles en Côte d'Ivoire.</dd>
       </dl>
 

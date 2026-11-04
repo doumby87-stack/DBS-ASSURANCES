@@ -32,12 +32,19 @@ export default defineConfig({
             URL_BACK_OFFICE: ADRESSE,
             // Formulaire du site vitrine (tâche 7) : le parcours envoie une demande comme le ferait le site
             URL_SITE_VITRINE: "http://localhost:4321",
+            // Démon ClamAV factice (même protocole) : le vrai est testé dans la tâche « API »
+            ANTIVIRUS_ADRESSE: "127.0.0.1:3311",
             VERIFIER_MOTS_DE_PASSE_DIVULGUES: "false",
             // Relances lancées à la main dans le parcours, à toute heure, sans qu'aucun message ne parte
             RELANCES_SIMULATION: "true",
             RELANCES_HEURES_ENVOI: "0-24",
             NIVEAU_JOURNAL: "warn",
           },
+        },
+        {
+          command: "node ../api/tests/antivirus/clamd-factice.mjs 3311",
+          port: 3311,
+          reuseExistingServer: false,
         },
         {
           command: "npx vite preview",

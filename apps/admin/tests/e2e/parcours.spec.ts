@@ -180,11 +180,11 @@ test("parcours du gérant, de la première connexion à la caisse et au reversem
   await expect(page.getByRole("row", { name: /Mariam Traoré/ })).toContainText("Carte grise jointe");
   await page.getByRole("link", { name: /^n° \d+$/ }).click();
   await expect(page.getByRole("heading", { name: /^Demande n° \d+$/ })).toBeVisible();
-  const carteGrise = await page.evaluate(async (adresse) => {
-    const reponse = await fetch(adresse!);
-    return { type: reponse.headers.get("content-type"), disposition: reponse.headers.get("content-disposition"), taille: (await reponse.arrayBuffer()).byteLength };
-  }, await page.getByRole("link", { name: /^Télécharger/ }).getAttribute("href"));
-  expect(carteGrise).toEqual({ type: "image/png", disposition: expect.stringMatching(/^attachment; filename="carte-grise-demande-\d+\.png"$/), taille: png.length });
+  // Analysée par l'antivirus à la réception, puis de nouveau au téléchargement
+  await expect(page.getByText(/Aucune menace trouvée par l'antivirus/)).toBeVisible();
+  const [carteGrise] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /^Télécharger/ }).click()]);
+  expect(carteGrise.suggestedFilename()).toMatch(/^carte-grise-demande-\d+\.png$/);
+  expect(readFileSync(await carteGrise.path()).equals(png)).toBe(true);
   await page.getByRole("button", { name: "Créer le client et le devis" }).click();
   await expect(page.getByRole("heading", { name: "Mariam Traoré" })).toBeVisible();
   await expect(page.getByText("demande reçue par le site")).toBeVisible();

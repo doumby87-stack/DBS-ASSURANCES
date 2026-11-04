@@ -149,5 +149,6 @@ test("les mentions légales décrivent l'enregistrement des demandes", async ({ 
   const donnees = page.locator("#donnees + p + dl");
   await expect(donnees).toContainText("enregistrée dans l'outil de gestion de l'agence");
   await expect(donnees).toContainText("empreinte de votre adresse IP");
+  await expect(donnees).toContainText("supprimée, avec sa carte grise, 12 mois après son classement");
   await expect(donnees).not.toContainText("n'enregistre rien");
 });
