@@ -1,0 +1,147 @@
+/* Espace entreprise DBS-ASSURANCES — couleurs du site : bleu #203888, or #F8C020. Pensé d'abord pour le téléphone. */
+
+@font-face {
+  font-family: "Archivo";
+  font-style: normal;
+  font-weight: 400 800;
+  font-stretch: 62% 125%;
+  font-display: swap;
+  src: url("/polices/archivo-latin.woff2") format("woff2");
+}
+
+:root {
+  --bleu: #203888;
+  --bleu-fonce: #0f1d4a;
+  --bleu-clair: #e8edfa;
+  --or: #f8c020;
+  --encre: #14183a;
+  --texte: #2c3346;
+  --gris: #5f6779;
+  --ligne: #dde2ec;
+  --fond: #f4f6fb;
+  --blanc: #fff;
+  --vert: #0f7a4d;
+  --vert-clair: #e2f5ec;
+  --orange: #a35400;
+  --orange-clair: #fff1dc;
+  --rouge: #b42318;
+  --rouge-clair: #fde7e5;
+  --rayon: 12px;
+  font-family: "Archivo", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--texte);
+  background: var(--fond);
+  line-height: 1.5;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; }
+[hidden] { display: none !important; }
+h1 { font-size: 1.6rem; color: var(--encre); margin: 0 0 1rem; letter-spacing: -0.01em; }
+h2 { font-size: 1.15rem; color: var(--encre); margin: 0 0 0.5rem; }
+a { color: var(--bleu); }
+:focus-visible { outline: 3px solid var(--or); outline-offset: 2px; }
+
+.visuellement-cache { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.evitement { position: absolute; left: 1rem; top: -3rem; background: var(--or); color: var(--encre); padding: 0.5rem 1rem; border-radius: 8px; z-index: 10; }
+.evitement:focus { top: 0.5rem; }
+.note { color: var(--gris); font-size: 0.875rem; }
+.chargement { color: var(--gris); }
+
+/* En-tête */
+.entete { background: var(--bleu); color: var(--blanc); padding: 0.75rem 1rem 0; }
+.entete__haut { display: flex; justify-content: space-between; align-items: center; gap: 1rem; max-width: 72rem; margin: 0 auto; }
+.entete__marque { color: var(--blanc); text-decoration: none; font-weight: 800; letter-spacing: 0.02em; }
+.entete__marque span { color: var(--or); font-weight: 600; margin-left: 0.35rem; }
+.entete__entreprise { max-width: 72rem; margin: 0.5rem auto 0; color: #d7def5; }
+.entete__entreprise strong { color: var(--blanc); }
+.entete__navigation { display: flex; gap: 1.25rem; max-width: 72rem; margin: 0.5rem auto 0; overflow-x: auto; }
+.entete__navigation a { color: #d7def5; text-decoration: none; padding: 0.6rem 0; border-bottom: 3px solid transparent; white-space: nowrap; font-weight: 600; }
+.entete__navigation a[aria-current="page"] { color: var(--blanc); border-bottom-color: var(--or); }
+
+.page { max-width: 72rem; margin: 0 auto; padding: 1.25rem 1rem 2rem; }
+.pied { max-width: 72rem; margin: 0 auto; padding: 1rem 1rem 2rem; color: var(--gris); font-size: 0.875rem; border-top: 1px solid var(--ligne); }
+.fil { margin: 0 0 0.5rem; font-size: 0.9rem; }
+
+/* Boutons */
+.bouton {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem; min-height: 44px;
+  font: inherit; font-weight: 700; padding: 0.6rem 1.1rem; border-radius: 10px; cursor: pointer; text-decoration: none;
+  border: 2px solid var(--bleu); background: var(--blanc); color: var(--bleu);
+}
+.bouton:hover { background: var(--bleu-clair); }
+.bouton:disabled { opacity: 0.55; cursor: not-allowed; }
+.bouton--principal { background: var(--bleu); color: var(--blanc); }
+.bouton--principal:hover { background: var(--bleu-fonce); }
+.bouton--petit { min-height: 36px; padding: 0.35rem 0.75rem; font-size: 0.875rem; }
+.bouton--clair { background: transparent; color: var(--blanc); border-color: #8d9bd0; }
+.bouton--clair:hover { background: rgba(255, 255, 255, 0.12); }
+.bouton--lien { background: transparent; border-color: transparent; text-decoration: underline; padding-inline: 0.25rem; }
+.actions { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+
+/* Formulaires */
+.formulaire { display: grid; gap: 1rem; }
+.champ { display: grid; gap: 0.3rem; }
+.champ__libelle { font-weight: 650; color: var(--encre); }
+.champ__aide { color: var(--gris); font-size: 0.85rem; }
+input, select, textarea {
+  font: inherit; color: var(--encre); background: var(--blanc); min-height: 44px;
+  border: 1px solid #a9b2c7; border-radius: 10px; padding: 0.55rem 0.75rem; width: 100%;
+}
+.champ__code { font-size: 1.6rem; letter-spacing: 0.35em; text-align: center; font-variant-numeric: tabular-nums; }
+
+/* Messages */
+.alerte { margin: 0; padding: 0.75rem 1rem; border-radius: 10px; border-left: 4px solid; }
+.alerte--erreur { background: var(--rouge-clair); border-color: var(--rouge); color: #7a170f; }
+.alerte--succes { background: var(--vert-clair); border-color: var(--vert); color: #0a5235; }
+.alerte--info { background: var(--bleu-clair); border-color: var(--bleu); color: var(--encre); }
+.badge { display: inline-block; padding: 0.15rem 0.55rem; border-radius: 999px; font-size: 0.8rem; font-weight: 700; white-space: nowrap; }
+.badge--vert { background: var(--vert-clair); color: var(--vert); }
+.badge--orange { background: var(--orange-clair); color: var(--orange); }
+.badge--rouge { background: var(--rouge-clair); color: var(--rouge); }
+.badge--bleu { background: var(--bleu-clair); color: var(--bleu); }
+.badge--gris { background: #eceff4; color: #4b5263; }
+
+/* Connexion */
+.connexion { min-height: 100vh; display: grid; place-items: center; padding: 1.5rem 1rem; background: linear-gradient(160deg, var(--bleu) 0%, var(--bleu-fonce) 100%); }
+.connexion__carte { width: 100%; max-width: 26rem; background: var(--blanc); border-radius: 16px; padding: 1.75rem 1.25rem; box-shadow: 0 12px 40px rgba(15, 29, 74, 0.35); }
+.connexion__marque { margin: 0; font-weight: 800; color: var(--bleu); letter-spacing: 0.04em; }
+.connexion__carte h1 { margin: 0.25rem 0 0.5rem; }
+.connexion__liens { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem; }
+.connexion__aide { margin: 1.25rem 0 0; }
+
+/* Tableau de bord */
+.cartes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; margin-bottom: 1rem; }
+.carte { background: var(--blanc); border-radius: var(--rayon); padding: 0.9rem 1rem; border-top: 4px solid var(--gris); display: grid; gap: 0.25rem; }
+.carte--bleu { border-top-color: var(--bleu); }
+.carte--vert { border-top-color: var(--vert); }
+.carte--orange { border-top-color: var(--orange); }
+.carte--rouge { border-top-color: var(--rouge); }
+.carte__nombre { font-size: 1.4rem; font-weight: 800; color: var(--encre); font-variant-numeric: tabular-nums; }
+.carte__titre { color: var(--gris); font-size: 0.875rem; }
+.section { background: var(--blanc); border-radius: var(--rayon); padding: 1rem; margin-bottom: 1rem; }
+.section__entete { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; }
+.section__entete h2 { margin: 0; }
+.recherche { flex: 1 1 14rem; max-width: 20rem; }
+
+.tableau-defilant { overflow-x: auto; position: relative; }
+.tableau { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+.tableau th { text-align: left; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--gris); padding: 0.5rem; border-bottom: 2px solid var(--ligne); white-space: nowrap; }
+.tableau td { padding: 0.65rem 0.5rem; border-bottom: 1px solid var(--ligne); vertical-align: top; }
+
+/* Véhicule */
+.fiche { display: grid; gap: 0.5rem; margin: 0 0 1rem; background: var(--blanc); border-radius: var(--rayon); padding: 1rem; }
+.fiche div { display: grid; grid-template-columns: minmax(8rem, 12rem) 1fr; gap: 0.75rem; }
+.fiche dt { color: var(--gris); }
+.fiche dd { margin: 0; font-weight: 600; color: var(--encre); }
+.historique { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.75rem; }
+.historique li { border-left: 3px solid var(--bleu); padding-left: 0.75rem; }
+.historique p { margin: 0.15rem 0; }
+
+@media (min-width: 48rem) {
+  .cartes { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .page { padding: 1.75rem 1.5rem 2.5rem; }
+  .section { padding: 1.25rem 1.5rem; }
+}
+@media (max-width: 30rem) {
+  .fiche div { grid-template-columns: 1fr; gap: 0.1rem; }
+}
