@@ -1,8 +1,9 @@
-// Maintenance des demandes du site, sans utilisateur connecté, toutes les heures :
-//   · purge des demandes qui ne sont pas devenues un devis, 12 mois après leur classement sans suite
+// Maintenance de l'agence, sans utilisateur connecté, toutes les heures :
+//   · expiration des contrats en vigueur dont l'échéance est passée (database/migrations/0011) ;
+//   · purge des demandes du site qui ne sont pas devenues un devis, 12 mois après leur classement sans suite
 //     (ou leur réception si personne ne les a traitées), avec leur carte grise ;
 //   · analyse des cartes grises reçues pendant que l'antivirus ne répondait pas.
-// Les deux passent par les fonctions que la base réserve à cet usage (database/migrations/0008).
+// Toutes passent par les fonctions que la base réserve à cet usage (database/migrations/0008 et 0011).
 
 import type { FastifyBaseLogger } from "fastify";
 import type { Pool } from "../../base-de-donnees/connexion.js";
@@ -11,6 +12,7 @@ import type { Antivirus } from "../../integrations/antivirus/clamav.js";
 import { dechiffrerPiece } from "./piece.js";
 
 export interface BilanMaintenance {
+  contratsExpires: number;
   purgees: number;
   analysees: number;
   infectees: number;
@@ -25,12 +27,16 @@ export async function executerMaintenance(
   cleChiffrement: Buffer,
   journal?: Pick<FastifyBaseLogger, "warn" | "error">,
 ): Promise<BilanMaintenance> {
+  const contratsExpires = await transactionSysteme(pool, async (client) => {
+    const { rows } = await client.query<{ nombre: number }>("SELECT app.expirer_contrats() AS nombre");
+    return rows[0]?.nombre ?? 0;
+  });
   const purgees = await transactionSysteme(pool, async (client) => {
     const { rows } = await client.query<{ nombre: number }>("SELECT app.purger_demandes_site() AS nombre");
     return rows[0]?.nombre ?? 0;
   });
 
-  const bilan: BilanMaintenance = { purgees, analysees: 0, infectees: 0, enAttente: 0 };
+  const bilan: BilanMaintenance = { contratsExpires, purgees, analysees: 0, infectees: 0, enAttente: 0 };
   if (!antivirus.configure) return bilan;
 
   const pieces = await transactionSysteme(pool, async (client) => {
@@ -85,9 +91,9 @@ export function demarrerMaintenancePeriodique(
     enCours = true;
     try {
       const bilan = await executerMaintenance(pool, antivirus, cleChiffrement, journal);
-      if (bilan.purgees || bilan.analysees || bilan.infectees || bilan.enAttente) journal.info({ bilan }, "maintenance des demandes du site");
+      if (Object.values(bilan).some(Boolean)) journal.info({ bilan }, "maintenance de l'agence");
     } catch (erreur) {
-      journal.error({ err: erreur }, "maintenance des demandes du site en échec");
+      journal.error({ err: erreur }, "maintenance de l'agence en échec");
     } finally {
       enCours = false;
     }

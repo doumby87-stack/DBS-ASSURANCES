@@ -8,6 +8,7 @@ import type { ModeleWhatsApp } from "../../integrations/whatsapp/whatsapp.js";
 
 export const TYPES_RELANCE = [
   "echeance_j30", "echeance_j15", "echeance_j7", "echeance_jour", "contrat_expire", "devis_sans_reponse", "sinistre_avancement",
+  "documents_vehicules",
 ] as const;
 export type TypeRelance = (typeof TYPES_RELANCE)[number];
 
@@ -19,6 +20,11 @@ export interface ParametresRelance {
   dateEcheance?: string;
   statut?: string;
   survenuLe?: string;
+  /** Documents des véhicules : étape (j30, j7, echu), nombre total et liste (20 au plus), groupés par client */
+  etape?: string;
+  nombre?: number;
+  premiereEcheance?: string;
+  documents?: { immatriculation: string; document: string; echeance: string }[];
 }
 
 const TELEPHONE_AGENCE = AGENCE.telephone.replace(/^\+225\s*/, "");
@@ -37,6 +43,9 @@ export const MODELES = {
   dbs_sinistre_avancement:
     "Bonjour {{1}}, votre sinistre du {{2}} (assurance {{3}}) : {{4}}. Pour toute question, "
     + `répondez à ce message ou appelez DBS-ASSURANCES au ${TELEPHONE_AGENCE}.`,
+  dbs_documents_vehicules:
+    "Bonjour {{1}}, {{2}} : {{3}}. Pour rouler en règle, pensez à les renouveler à temps. Pour toute question, "
+    + `répondez à ce message ou appelez DBS-ASSURANCES au ${TELEPHONE_AGENCE}.`,
 } as const;
 export type NomModele = keyof typeof MODELES;
 
@@ -53,7 +62,17 @@ const MODELE_PAR_TYPE: Record<TypeRelance, NomModele> = {
   contrat_expire: "dbs_contrat_expire",
   devis_sans_reponse: "dbs_devis_sans_reponse",
   sinistre_avancement: "dbs_sinistre_avancement",
+  documents_vehicules: "dbs_documents_vehicules",
 };
+
+const DOCUMENTS: Record<string, string> = {
+  visite_technique: "visite technique",
+  vignette: "vignette",
+  carte_de_transport: "carte de transport",
+};
+
+/** Documents listés en clair dans le message ; au-delà, « et N autres » */
+const DOCUMENTS_CITES = 5;
 
 /** Branches telles qu'on les écrit dans une phrase : « votre assurance multirisque habitation ». */
 const BRANCHES: Record<string, string> = {
@@ -108,9 +127,38 @@ function assurance(p: ParametresRelance): string {
   return p.numeroPolice ? `${branche} (police ${p.numeroPolice})` : branche;
 }
 
+/**
+ * « un document de vos véhicules arrive à échéance le 24/11/2026 »,
+ * « 3 documents de vos véhicules arrivent à échéance, le premier le 24/11/2026 », « … ont expiré ».
+ */
+function annonceDocuments(p: ParametresRelance): string {
+  const nombre = p.nombre ?? 0;
+  if (!Number.isInteger(nombre) || nombre < 1) throw new ErreurRedaction("nombre de documents");
+  const un = nombre === 1;
+  const sujet = un ? "un document de vos véhicules" : `${nombre} documents de vos véhicules`;
+  if (p.etape === "echu") return `${sujet} ${un ? "a expiré" : "ont expiré"}`;
+  if (p.etape !== "j30" && p.etape !== "j7") throw new ErreurRedaction("étape");
+  const premiere = date(p.premiereEcheance, "première échéance");
+  return un ? `${sujet} arrive à échéance le ${premiere}` : `${sujet} arrivent à échéance, le premier le ${premiere}`;
+}
+
+/** « visite technique 9011 DOC 01 le 24/11, vignette 9011 DOC 01 le 29/11 et 2 autres » */
+function listeDocuments(p: ParametresRelance): string {
+  const documents = p.documents ?? [];
+  if (documents.length === 0) throw new ErreurRedaction("liste des documents");
+  const cites = documents.slice(0, DOCUMENTS_CITES).map((d) => {
+    const jour = date(d.echeance, "échéance d'un document").slice(0, 5);
+    return `${DOCUMENTS[d.document] ?? "document"} ${exiger(d.immatriculation, "immatriculation")} le ${jour}`;
+  });
+  const autres = (p.nombre ?? documents.length) - cites.length;
+  return autres > 0 ? `${cites.join(", ")} et ${autres} ${autres > 1 ? "autres" : "autre"}` : cites.join(", ");
+}
+
 function parametresDe(type: TypeRelance, p: ParametresRelance): string[] {
   const nom = exiger(p.nom, "nom");
   switch (type) {
+    case "documents_vehicules":
+      return [nom, annonceDocuments(p), listeDocuments(p)];
     case "devis_sans_reponse":
       return [nom, BRANCHES[exiger(p.branche, "branche")] ?? "sur mesure"];
     case "sinistre_avancement":

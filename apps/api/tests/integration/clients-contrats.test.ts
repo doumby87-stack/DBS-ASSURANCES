@@ -1,6 +1,7 @@
 // Clients, contrats, véhicules, devis, échanges et tableau des échéances, rôle par rôle.
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { executerMaintenance } from "../../src/modules/demandes-site/maintenance.js";
 import { connecter, creerCompte, demarrer, envoyer, type Contexte } from "./outils.js";
 
 let ctx: Contexte;
@@ -177,6 +178,26 @@ describe("Contrats et échéances", () => {
 
     const deuxieme = await envoyer(ctx, { url: `/contrats/${contrat.id}/renouveler`, cookie: cookies.charge_clientele, corps: {} });
     expect(deuxieme.statusCode).toBe(409);
+  });
+
+  it("un contrat échu expire à la maintenance, reste au tableau des échéances et se renouvelle", async () => {
+    const client = (await creerClient("charge_clientele", "Échéance Passée")).json().client;
+    const contrat = (await envoyer(ctx, {
+      url: "/contrats", cookie: cookies.charge_clientele,
+      corps: { clientId: client.id, branche: "habitation", dateEffet: aujourdHuiPlus(-370), dateEcheance: aujourdHuiPlus(-5), primeTtc: 30000 },
+    })).json().contrat;
+    expect((await payer(contrat.id, 30000)).statut).toBe("en_vigueur");
+
+    const bilan = await executerMaintenance(ctx.pool, ctx.antivirus, ctx.cleChiffrement);
+    expect(bilan.contratsExpires).toBeGreaterThanOrEqual(1);
+    const fiche = (await envoyer(ctx, { url: `/clients/${client.id}`, cookie: cookies.gerant })).json();
+    expect(fiche.contrats[0]).toMatchObject({ id: contrat.id, statut: "expire" });
+    const echeances = (await envoyer(ctx, { url: "/echeances", cookie: cookies.commercial })).json();
+    expect(echeances.contrats.find((c: { contratId: string }) => c.contratId === contrat.id)).toMatchObject({ categorie: "expire", joursRestants: -5 });
+
+    const renouvellement = await envoyer(ctx, { url: `/contrats/${contrat.id}/renouveler`, cookie: cookies.charge_clientele, corps: {} });
+    expect(renouvellement.json().contrat).toMatchObject({ statut: "en_attente_paiement", dateEffet: aujourdHuiPlus(-5) });
+    expect((await executerMaintenance(ctx.pool, ctx.antivirus, ctx.cleChiffrement)).contratsExpires).toBe(0);
   });
 
   it("le tableau signale aussi les documents des véhicules à renouveler", async () => {

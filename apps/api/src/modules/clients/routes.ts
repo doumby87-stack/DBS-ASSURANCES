@@ -144,7 +144,7 @@ app.get<{ Params: { id: string } }>(
                   k.date_echeance AS "dateEcheance", k.prime_ttc AS "primeTtc", k.prime_nette AS "primeNette", k.statut,
                   k.renouvelle_id AS "renouvelleId",
                   EXISTS (SELECT 1 FROM app.contrats r WHERE r.renouvelle_id = k.id) AS "renouvele",
-                  CASE WHEN $2 THEN (k.prime_ttc - coalesce((SELECT sum(e.montant) FROM app.encaissements e
+                  CASE WHEN $2 THEN (k.prime_ttc + k.primes_avenants - coalesce((SELECT sum(e.montant) FROM app.encaissements e
                                                             WHERE e.contrat_id = k.id), 0))::bigint END AS "resteAPayer"
            FROM app.contrats k WHERE k.client_id = $1 ORDER BY k.date_echeance DESC`,
           [id, voitLaCaisse],

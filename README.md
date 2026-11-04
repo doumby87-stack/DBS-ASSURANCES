@@ -10,8 +10,8 @@ L'objectif dépasse la vitrine : donner à l'agence un outil qui tient ses prome
 | --- | --- | --- |
 | Site vitrine | [`apps/site-vitrine`](apps/site-vitrine) | ✅ En place : neuf pages construites par Astro, testées dans le navigateur (accessibilité, sécurité) |
 | Base de données | [`database`](database) | ✅ Schéma sécurisé et testé (règles CIMA, contrôle d'accès, journal d'audit) |
-| API | [`apps/api`](apps/api) | 🟡 Connexion du personnel, comptes, clients, contrats, véhicules, devis, échanges, échéances, caisse, reversements, commissions, relances automatiques (WhatsApp, SMS) |
-| Back-office de l'agence | [`apps/admin`](apps/admin) | 🟡 Connexion, échéances, clients, fiche client, caisse et reçus, reversements, commissions, relances et consentements, personnel |
+| API | [`apps/api`](apps/api) | 🟡 Connexion du personnel, comptes, clients, contrats, véhicules, devis, échanges, échéances, caisse, reversements, commissions, relances automatiques (WhatsApp, SMS), demandes du site (antivirus), flottes (import Excel, avenants au prorata) |
+| Back-office de l'agence | [`apps/admin`](apps/admin) | 🟡 Connexion, échéances, clients, fiche client, caisse et reçus, reversements, commissions, relances et consentements, demandes du site, flottes, personnel |
 | Espace client | [`apps/espace-client`](apps/espace-client) | ⏳ |
 
 Le détail, tâche par tâche : [feuille de route](docs/feuille-de-route.md).

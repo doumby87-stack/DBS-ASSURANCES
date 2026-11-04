@@ -97,6 +97,13 @@ Le mot de passe provisoire s'affiche une seule fois. Ensuite, tous les comptes s
 | `PATCH /clients/:id` | gérant, chargé, commercial | Coordonnées. |
 | `POST /clients/:id/echanges` | tous sauf auditeur | Appel, message, visite ou note (ajout seul). |
 | `POST /clients/:id/vehicules` | gérant, chargé, commercial | Véhicule et échéances administratives ; immatriculation normalisée et unique. |
+| `GET /clients/:id/flotte` | connecté | Véhicules et échéances, contrats avec leur composition et leurs avenants (réglés ou non). |
+| `POST /clients/:id/vehicules/import` | gérant, chargé, commercial | Liste de véhicules (classeur `.xlsx` ou CSV en base64, 2 Mo) : aperçu ligne par ligne avec toutes les erreurs, puis, avec `confirmer`, enregistrement tout ou rien. Plaque déjà connue du client : mise à jour sans effacer ; d'un autre client : refusée. |
+| `GET /flottes/modele-import.csv` | connecté | Modèle à remplir. |
+| `GET /clients/:id/flotte/export.csv` | gérant, chargé, commercial | Véhicules du client pour la cotation en lot ; consigné au journal de sécurité. |
+| `POST /contrats/:id/vehicules`, `DELETE /contrats/:id/vehicules/:vehiculeId` | gérant, chargé | Véhicule de départ d'un contrat qui attend son paiement (couvert pour toute la période) ; détaché s'il a été rattaché par erreur, tant que le contrat n'est pas payé. |
+| `POST /contrats/:id/avenants` | gérant, chargé | Avenant de mouvement sur un contrat en vigueur : incorporation (réintégration comprise) ou retrait d'un ou plusieurs véhicules à une même date, prime calculée par la base au prorata des jours restants. Sans `confirmer` : aperçu du calcul, rien n'est écrit ; avec : avenant enregistré. |
+| `POST /contrats/:id/avenants/:avenantId/annulation` | gérant, chargé | Avenant d'annulation (motif obligatoire) : défait exactement un avenant saisi par erreur, si aucun avenant postérieur, aucune attestation ni aucun sinistre ne s'est appuyé dessus. Même aperçu, puis `confirmer`. |
 | `POST /clients/:id/devis`, `PATCH /devis/:id` | création : gérant, chargé, commercial, apporteur ; suivi : sans l'apporteur | Devis ; un refus exige son motif. |
 | `POST /contrats`, `PATCH /contrats/:id` | gérant, chargé | Contrats et prime nette ; « en vigueur » refusé tant que la prime n'est pas payée (Code CIMA, art. 13). |
 | `POST /contrats/:id/renouveler` | gérant, chargé | Nouveau contrat à partir de l'échéance, même durée et même prime par défaut. |
@@ -176,7 +183,7 @@ npm run verifier-types -w @dbs/api
 | `src/config/` | Lecture et validation des variables d'environnement. |
 | `src/securite/` | Connexion, deuxième facteur, sessions, limitation des tentatives, protections HTTP. |
 | `src/base-de-donnees/` | Connexions à PostgreSQL et transactions qui déclarent l'utilisateur. |
-| `src/modules/` | Un dossier par domaine métier : `utilisateurs`, `clients`, `contrats` (et échéances), `vehicules`, `devis`, `encaissements` (et caisse), `reversements`, `commissions`, `relances` (planificateur, textes, consentements) en place ; les autres viendront avec leurs tâches. |
+| `src/modules/` | Un dossier par domaine métier : `utilisateurs`, `clients`, `contrats` (et échéances), `vehicules`, `devis`, `encaissements` (et caisse), `reversements`, `commissions`, `relances` (planificateur, textes, consentements), `demandes-site`, `flottes` (import, export, avenants) en place ; les autres viendront avec leurs tâches. |
 | `src/integrations/` | Services extérieurs : WhatsApp (API Cloud de Meta) en place ; SMS : interface prête, opérateur à choisir ; paiement, FNE, fichiers : à venir. |
 | `src/commun/` | Erreurs, formats, montant en lettres, CSV, identité de l'agence imprimée sur les reçus. |
 | `src/outils/` | Outils d'installation (`premier-acces`). |

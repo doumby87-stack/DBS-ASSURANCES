@@ -139,6 +139,8 @@ export async function routesContrats(app: FastifyInstance, options: { pool: Pool
 
   // Renouvellement : nouveau contrat qui commence à l'échéance de l'ancien, pour la même durée par défaut.
   // Il est « en attente de paiement » jusqu'au règlement de la prime ; l'ancien sort du tableau des échéances.
+  // Les véhicules encore couverts à l'échéance (toute une flotte, avec la prime de chacun) sont repris comme
+  // véhicules de départ du nouveau contrat ; ceux sortis en cours de contrat ne le sont pas.
   app.post<{ Params: { id: string }; Body: { dateEcheance?: string; primeTtc?: number } }>(
     "/contrats/:id/renouveler",
     {
@@ -154,8 +156,8 @@ export async function routesContrats(app: FastifyInstance, options: { pool: Pool
     },
     async (requete, reponse) => {
       const { dateEcheance, primeTtc } = requete.body ?? {};
-      const { rows } = await transactionUtilisateur(pool, utilisateurDe(requete).id, (client) =>
-        client.query(
+      const { rows, vehiculesRepris } = await transactionUtilisateur(pool, utilisateurDe(requete).id, async (client) => {
+        const nouveau = await client.query<{ id: string }>(
           `INSERT INTO app.contrats AS k (client_id, branche, date_effet, date_echeance, prime_ttc, prime_nette, renouvelle_id)
            SELECT a.client_id, a.branche, a.date_echeance,
                   coalesce($2::date, a.date_echeance + (a.date_echeance - a.date_effet)),
@@ -166,10 +168,18 @@ export async function routesContrats(app: FastifyInstance, options: { pool: Pool
            FROM app.contrats a WHERE a.id = $1
            RETURNING ${COLONNES}`,
           [requete.params.id, dateEcheance ?? null, primeTtc ?? null],
-        ),
-      );
-      if (!rows[0]) throw erreurs.introuvable();
-      return reponse.status(201).send({ contrat: rows[0] });
+        );
+        if (!nouveau.rows[0]) throw erreurs.introuvable();
+        const repris = await client.query(
+          `INSERT INTO app.contrats_vehicules (contrat_id, vehicule_id, ajoute_le, prime_vehicule)
+           SELECT $2, cv.vehicule_id, k.date_effet, cv.prime_vehicule
+           FROM app.contrats_vehicules cv JOIN app.contrats k ON k.id = $2
+           WHERE cv.contrat_id = $1 AND cv.retire_le IS NULL`,
+          [requete.params.id, nouveau.rows[0].id],
+        );
+        return { rows: nouveau.rows, vehiculesRepris: repris.rowCount ?? 0 };
+      });
+      return reponse.status(201).send({ contrat: rows[0], vehiculesRepris });
     },
   );
 

@@ -54,9 +54,42 @@ describe("Rédaction des relances", () => {
     expect(texteRelance("sinistre_avancement", { nom: "Yao" })).toBeNull();
   });
 
+  it("documents des véhicules : un message groupé par client, cinq documents cités au plus", () => {
+    const documents = [
+      { immatriculation: "9011 DOC 01", document: "visite_technique", echeance: "2026-11-24" },
+      { immatriculation: "9011 DOC 01", document: "vignette", echeance: "2026-11-29" },
+      { immatriculation: "9012 DOC 01", document: "carte_de_transport", echeance: "2026-11-30" },
+      { immatriculation: "9013 DOC 01", document: "vignette", echeance: "2026-12-01" },
+      { immatriculation: "9014 DOC 01", document: "vignette", echeance: "2026-12-02" },
+      { immatriculation: "9015 DOC 01", document: "vignette", echeance: "2026-12-03" },
+    ];
+    const groupe = rediger("documents_vehicules", {
+      nom: "Transports Yao", etape: "j30", nombre: 7, premiereEcheance: "2026-11-24", documents,
+    });
+    expect(groupe.whatsapp.nom).toBe("dbs_documents_vehicules");
+    expect(groupe.texte).toBe(
+      "Bonjour Transports Yao, 7 documents de vos véhicules arrivent à échéance, le premier le 24/11/2026 : "
+      + "visite technique 9011 DOC 01 le 24/11, vignette 9011 DOC 01 le 29/11, carte de transport 9012 DOC 01 le 30/11, "
+      + "vignette 9013 DOC 01 le 01/12, vignette 9014 DOC 01 le 02/12 et 2 autres. "
+      + "Pour rouler en règle, pensez à les renouveler à temps. Pour toute question, répondez à ce message ou appelez DBS-ASSURANCES au 07 49 36 07 02.",
+    );
+    const seul = rediger("documents_vehicules", {
+      nom: "Yao", etape: "j7", nombre: 1, premiereEcheance: "2026-11-24", documents: documents.slice(0, 1),
+    });
+    expect(seul.whatsapp.parametres.slice(1)).toEqual([
+      "un document de vos véhicules arrive à échéance le 24/11/2026", "visite technique 9011 DOC 01 le 24/11",
+    ]);
+    const echus = rediger("documents_vehicules", { nom: "Yao", etape: "echu", nombre: 2, premiereEcheance: "2026-11-01", documents });
+    expect(echus.whatsapp.parametres[1]).toBe("2 documents de vos véhicules ont expiré");
+    expect(() => rediger("documents_vehicules", { nom: "Yao", etape: "j30", nombre: 1, documents: [] })).toThrow(ErreurRedaction);
+  });
+
   it("chaque type de relance a un modèle", () => {
     for (const type of TYPES_RELANCE) {
-      const parametres = { ...client, dateEcheance: "2026-11-29", survenuLe: "2026-11-02", statut: "declare" };
+      const parametres = {
+        ...client, dateEcheance: "2026-11-29", survenuLe: "2026-11-02", statut: "declare", etape: "j30", nombre: 1,
+        premiereEcheance: "2026-11-29", documents: [{ immatriculation: "1234 AB 01", document: "vignette", echeance: "2026-11-29" }],
+      };
       expect(Object.keys(MODELES)).toContain(rediger(type, parametres).whatsapp.nom);
     }
   });

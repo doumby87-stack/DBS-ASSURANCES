@@ -1,6 +1,6 @@
 # Modèles de messages des relances
 
-Sur WhatsApp, une entreprise ne peut écrire la première à un client qu'avec un **modèle validé par Meta**. Voici les quatre modèles à soumettre, mot pour mot : l'API les envoie sous ces noms, avec ces textes. Un test (`apps/api/tests/unitaires/relances-modeles.test.ts`) vérifie que ce document et le code restent identiques.
+Sur WhatsApp, une entreprise ne peut écrire la première à un client qu'avec un **modèle validé par Meta**. Voici les cinq modèles à soumettre, mot pour mot : l'API les envoie sous ces noms, avec ces textes. Un test (`apps/api/tests/unitaires/relances-modeles.test.ts`) vérifie que ce document et le code restent identiques.
 
 ## Soumettre les modèles (tâche de l'agence)
 
@@ -74,6 +74,20 @@ Bonjour {{1}}, votre sinistre du {{2}} (assurance {{3}}) : {{4}}. Pour toute que
 | `{{4}}` | Étape du dossier | l'expertise est en cours |
 
 Étapes possibles : « votre déclaration est bien enregistrée », « votre dossier a été transmis à SanlamAllianz », « l'expertise est en cours », « la compagnie a fait une offre d'indemnisation, contactez-nous pour en parler », « votre dossier est réglé », « la compagnie a refusé la prise en charge, contactez-nous pour en connaître les raisons », « votre dossier est classé sans suite ».
+
+### `dbs_documents_vehicules`
+
+Rappel des documents des véhicules d'un client (visite technique, vignette, carte de transport) : à J-30, à J-7, puis une fois échus (dans les 15 jours). **Un seul message par client et par étape**, qui liste ses véhicules : un transporteur ne reçoit pas un message par camion. Chaque document n'est annoncé qu'une fois par étape.
+
+```text
+Bonjour {{1}}, {{2}} : {{3}}. Pour rouler en règle, pensez à les renouveler à temps. Pour toute question, répondez à ce message ou appelez DBS-ASSURANCES au 07 49 36 07 02.
+```
+
+| Variable | Contenu | Exemple pour Meta |
+| --- | --- | --- |
+| `{{1}}` | Nom du client | Transports Yao |
+| `{{2}}` | Nombre de documents et échéance | 3 documents de vos véhicules arrivent à échéance, le premier le 24/11/2026 |
+| `{{3}}` | Les documents (cinq au plus, puis « et N autres ») | visite technique 9011 AB 01 le 24/11, vignette 9011 AB 01 le 29/11 et 1 autre |
 
 ## Par SMS
 

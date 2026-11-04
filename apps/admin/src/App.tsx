@@ -8,6 +8,7 @@ import { FicheClient } from "./pages/clients/FicheClient";
 import { ListeClients } from "./pages/clients/ListeClients";
 import { Commissions } from "./pages/commissions/Commissions";
 import { DemandeSite, DemandesSite } from "./pages/demandes-site/DemandesSite";
+import { Flotte } from "./pages/flottes/Flotte";
 import { Contrat } from "./pages/contrats/Contrat";
 import { Personnel } from "./pages/parametres/Personnel";
 import { Relances } from "./pages/relances/Relances";
@@ -47,6 +48,8 @@ function Page() {
   const { session, peut, recharger } = useSession();
   if (chemin === "/") return <TableauDeBord />;
   if (chemin === "/clients") return <ListeClients />;
+  const flotte = /^\/clients\/([0-9a-f-]{36})\/flotte$/.exec(chemin);
+  if (flotte) return <Flotte key={flotte[1]} clientId={flotte[1]!} />;
   const client = /^\/clients\/([0-9a-f-]{36})$/.exec(chemin);
   if (client) return <FicheClient key={client[1]} id={client[1]!} />;
   const contrat = /^\/contrats\/([0-9a-f-]{36})$/.exec(chemin);

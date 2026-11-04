@@ -30,17 +30,22 @@ interface SoldeContrat {
   dateEcheance: string;
   primeTtc: number;
   primeNette: number | null;
+  /** Total des avenants de flotte (positif : primes ajoutées ; négatif : ristournes). */
+  primesAvenants: number;
   encaisse: number;
   especes: number;
   plafondEspeces: number;
 }
 
 /** Contrat et ce qui a déjà été payé dessus, ou 404. */
-export async function lireSolde(client: Client, contratId: string): Promise<SoldeContrat & { resteAPayer: number; especesPossibles: number }> {
+export async function lireSolde(
+  client: Client,
+  contratId: string,
+): Promise<SoldeContrat & { primeDue: number; resteAPayer: number; aRembourser: number; especesPossibles: number }> {
   const { rows } = await client.query<SoldeContrat>(
     `SELECT k.id, k.client_id AS "clientId", c.nom AS "clientNom", k.numero_police AS "numeroPolice", k.branche, k.statut,
             k.date_effet AS "dateEffet", k.date_echeance AS "dateEcheance",
-            k.prime_ttc AS "primeTtc", k.prime_nette AS "primeNette",
+            k.prime_ttc AS "primeTtc", k.prime_nette AS "primeNette", k.primes_avenants AS "primesAvenants",
             coalesce((SELECT sum(e.montant) FROM app.encaissements e WHERE e.contrat_id = k.id), 0)::bigint AS encaisse,
             coalesce((SELECT sum(e.montant) FROM app.encaissements e WHERE e.contrat_id = k.id AND e.mode = 'especes'), 0)::bigint AS especes,
             app.plafond_especes_par_police() AS "plafondEspeces"
@@ -50,10 +55,14 @@ export async function lireSolde(client: Client, contratId: string): Promise<Sold
   );
   const solde = rows[0];
   if (!solde) throw erreurs.introuvable();
+  // Prime due : prime du contrat et avenants de flotte. Une ristourne sur une prime déjà payée laisse un trop-perçu.
+  const primeDue = solde.primeTtc + solde.primesAvenants;
   return {
     ...solde,
-    resteAPayer: Math.max(solde.primeTtc - solde.encaisse, 0),
-    especesPossibles: Math.max(Math.min(solde.plafondEspeces - solde.especes, solde.primeTtc - solde.encaisse), 0),
+    primeDue,
+    resteAPayer: Math.max(primeDue - solde.encaisse, 0),
+    aRembourser: Math.max(solde.encaisse - primeDue, 0),
+    especesPossibles: Math.max(Math.min(solde.plafondEspeces - solde.especes, primeDue - solde.encaisse), 0),
   };
 }
 
@@ -189,12 +198,15 @@ export async function routesEncaissements(app: FastifyInstance, options: { pool:
     { preHandler: lecteurs, schema: { params: parametreId } },
     async (requete) => {
       const recu = await transactionUtilisateur(pool, utilisateurDe(requete).id, async (client) => {
-        const { rows } = await client.query<{ montant: number; primeTtc: number; totalADate: number }>(
+        const { rows } = await client.query<{ montant: number; primeTtc: number; avenantsADate: number; totalADate: number }>(
           `SELECT e.id, e.numero_recu AS "numeroRecu", e.montant, e.mode, e.reference_externe AS "reference", e.motif,
                   e.encaisse_le AS "encaisseLe", u.nom AS "encaissePar",
                   c.nom AS "clientNom", c.telephone AS "clientTelephone",
                   k.id AS "contratId", k.numero_police AS "numeroPolice", k.branche, k.date_effet AS "dateEffet",
                   k.date_echeance AS "dateEcheance", k.prime_ttc AS "primeTtc",
+                  -- Avenants de flotte connus au moment du paiement
+                  (SELECT coalesce(sum(a.montant), 0) FROM app.avenants_flotte a
+                   WHERE a.contrat_id = k.id AND a.cree_le <= e.encaisse_le)::bigint AS "avenantsADate",
                   (SELECT coalesce(sum(x.montant), 0) FROM app.encaissements x
                    WHERE x.contrat_id = e.contrat_id AND x.numero_recu <= e.numero_recu)::bigint AS "totalADate",
                   o.numero_recu AS "annuleRecu",
@@ -210,12 +222,12 @@ export async function routesEncaissements(app: FastifyInstance, options: { pool:
         return rows[0];
       });
       if (!recu) throw erreurs.introuvable();
-      const { totalADate, ...reste } = recu;
+      const { totalADate, avenantsADate, ...reste } = recu;
       return {
         recu: {
           ...reste,
           montantEnLettres: montantEnLettres(recu.montant),
-          resteAPayer: Math.max(recu.primeTtc - totalADate, 0),
+          resteAPayer: Math.max(recu.primeTtc + avenantsADate - totalADate, 0),
           agence: AGENCE,
         },
       };

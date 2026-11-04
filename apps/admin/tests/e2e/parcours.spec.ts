@@ -1,7 +1,8 @@
 // Parcours complet dans un vrai navigateur : première connexion du gérant (deuxième facteur, mot de passe),
 // création d'un client et d'un contrat, encaissement et reçu, accord du client pour les rappels et relance
 // automatique (en simulation), relance et renouvellement depuis le tableau des échéances, clôture de caisse,
-// bordereau de reversement, demande de devis reçue du site, commissions, création d'un compte.
+// bordereau de reversement, demande de devis reçue du site, commissions, flotte d'un transporteur (import,
+// avenants d'incorporation et de retrait au prorata, annulation), création d'un compte.
 // Aucune violation de la politique de sécurité du contenu n'est tolérée.
 
 import { expect, test, type Page } from "@playwright/test";
@@ -195,6 +196,111 @@ test("parcours du gérant, de la première connexion à la caisse et au reversem
   await page.getByLabel("Taux (%)").fill("12,5");
   await page.getByRole("button", { name: "Ajouter le taux" }).click();
   await expect(page.getByRole("row", { name: /Automobile/ })).toContainText("12,50 %");
+
+  // --- Flotte d'un transporteur (tâche 8) : import contrôlé, échéances, export, contrat, avenants au prorata
+  const jj = (jours: number) => dans(jours).split("-").reverse().join("/");
+  await page.getByRole("link", { name: "Clients", exact: true }).click();
+  await page.getByRole("button", { name: "Nouveau client" }).click();
+  await page.getByLabel("Nom et prénoms ou raison sociale").fill("Transports Flotte Express");
+  await page.getByLabel("Téléphone").fill("07 22 33 44 55");
+  await page.getByRole("button", { name: "Créer le client" }).click();
+  await expect(page.getByRole("heading", { name: "Transports Flotte Express" })).toBeVisible();
+  await page.getByRole("link", { name: "Flotte : import, échéances, avenants" }).click();
+  await expect(page.getByRole("heading", { name: "Flotte de Transports Flotte Express" })).toBeVisible();
+
+  const fichierFlotte = (lignes: string[]) => ({
+    name: "flotte.csv", mimeType: "text/csv",
+    buffer: Buffer.from(["Immatriculation;Marque;Genre;CV;Visite technique;Vignette", ...lignes].join("\n")),
+  });
+  // Premier essai : une plaque en double et une date impossible, rien n'est importé
+  await page.getByLabel("Fichier de la flotte").setInputFiles(fichierFlotte([
+    `7001 FE 01;Renault Trucks;Tracteur routier;12;${jj(10)};${jj(-5)}`,
+    "7001-fe-01;Isuzu;Camion;9;31/02/2027;",
+  ]));
+  const erreursImport = page.getByRole("row", { name: /Véhicule déjà présent à la ligne 2 du fichier/ });
+  await expect(erreursImport).toContainText("3");
+  await expect(page.getByRole("row", { name: /Date invalide/ })).toContainText("Visite technique");
+  await expect(page.getByRole("button", { name: /^Importer \d/ })).toHaveCount(0);
+  // Fichier corrigé : aperçu, puis import
+  await page.getByLabel("Fichier de la flotte").setInputFiles(fichierFlotte([
+    `7001 FE 01;Renault Trucks;Tracteur routier;12;${jj(10)};${jj(-5)}`,
+    `7002 FE 01;Isuzu;Camion;9;${jj(200)};${jj(150)}`,
+    `7003 FE 01;Toyota;Camionnette;8;${jj(300)};${jj(250)}`,
+  ]));
+  await expect(page.getByText("3 véhicule(s) à ajouter, 0 à mettre à jour.")).toBeVisible();
+  await page.getByRole("button", { name: "Importer 3 véhicule(s)" }).click();
+  await expect(page.getByText("Import terminé : 3 véhicule(s) ajouté(s), 0 mis à jour.")).toBeVisible();
+  const premierCamion = page.getByRole("row", { name: /7001 FE 01/ });
+  await expect(premierCamion).toContainText("10 j");
+  await expect(premierCamion).toContainText("échue");
+  const exportFlotte = await page.evaluate(async (adresse) => {
+    const reponse = await fetch(adresse!);
+    return { type: reponse.headers.get("content-type"), texte: await reponse.text() };
+  }, await page.getByRole("link", { name: "Exporter pour la cotation" }).getAttribute("href"));
+  expect(exportFlotte.type).toBe("text/csv; charset=utf-8");
+  expect(exportFlotte.texte).toContain("7003 FE 01;;Toyota;;Camionnette;;8;");
+
+  // Contrat flotte de 365 jours commencé il y a 100 jours : deux camions au départ (un troisième, rattaché
+  // par erreur, est détaché avant le paiement), payé par virement
+  await page.getByRole("link", { name: "Transports Flotte Express" }).click();
+  await page.getByRole("button", { name: "Nouveau contrat" }).click();
+  await page.getByLabel("Branche").first().selectOption("flotte");
+  await page.getByLabel("N° de police (facultatif)").fill("FLT-2026-0007");
+  await page.getByLabel("Date d'effet").fill(dans(-100));
+  await page.getByLabel("Échéance").fill(dans(265));
+  await page.getByLabel("Prime TTC (F CFA)").fill("900000");
+  await page.getByRole("button", { name: "Créer le contrat" }).click();
+  await expect(page.getByRole("row", { name: /FLT-2026-0007/ })).toContainText("En attente de paiement");
+  await page.getByRole("link", { name: "Flotte : import, échéances, avenants" }).click();
+  const rattachement = page.getByRole("form", { name: "Rattacher un véhicule de départ" });
+  for (const plaque of ["7001 FE 01", "7002 FE 01", "7003 FE 01"]) {
+    await rattachement.getByLabel("Véhicule de départ").selectOption({ label: plaque });
+    await rattachement.getByLabel(/Prime du véhicule/).fill("450000");
+    await rattachement.getByRole("button", { name: "Rattacher au contrat" }).click();
+    await expect(page.getByRole("button", { name: `Détacher ${plaque} du contrat` })).toBeVisible();
+  }
+  await page.getByRole("button", { name: "Détacher 7003 FE 01 du contrat" }).click();
+  await expect(page.getByRole("button", { name: "Détacher 7003 FE 01 du contrat" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Détacher / })).toHaveCount(2);
+  await page.getByRole("link", { name: "Paiements" }).click();
+  await page.getByLabel("Mode de paiement").selectOption("virement");
+  await page.getByLabel("Référence").fill("VIR-FLT-0007");
+  await page.getByRole("button", { name: "Encaisser et imprimer le reçu" }).click();
+  await expect(page.getByRole("heading", { name: /^Reçu n° / })).toBeVisible();
+
+  // Avenant n° 1 : le troisième camion est incorporé aujourd'hui, 365 000 × 265 jours restants / 365 = 265 000 F CFA
+  await page.goto(page.url().replace(/\/recus\/.*$/, "/clients"));
+  await page.getByRole("link", { name: "Transports Flotte Express" }).click();
+  await page.getByRole("link", { name: "Flotte : import, échéances, avenants" }).click();
+  const avenant = page.getByRole("form", { name: "Nouvel avenant" });
+  await expect(avenant.getByRole("button", { name: /Calculer le prorata/ })).toBeDisabled();
+  await avenant.getByRole("checkbox", { name: "Incorporer 7003 FE 01" }).check();
+  await avenant.getByLabel("Prime de 7003 FE 01 pour la période (F CFA)").fill("365000");
+  await avenant.getByRole("button", { name: "Calculer le prorata (1 véhicule)" }).click();
+  await expect(avenant.getByRole("status")).toContainText(/Total de l'avenant : 265\s000\sF CFA à encaisser/);
+  await avenant.getByRole("button", { name: "Enregistrer l'avenant" }).click();
+  await expect(page.getByText(/Avenant n° 1 enregistré : 265\s000\sF CFA à encaisser\./)).toBeVisible();
+  const ligneAvenant = page.getByRole("row", { name: /Incorporation de 7003 FE 01/ });
+  await expect(ligneAvenant).toContainText("À encaisser");
+  await expect(ligneAvenant).toContainText("× 265 / 365 j");
+
+  // Avenant n° 2 : retrait saisi par erreur, puis annulé par l'avenant n° 3 (motif obligatoire, effet affiché)
+  await avenant.getByRole("checkbox", { name: "Retirer 7002 FE 01" }).check();
+  await avenant.getByRole("button", { name: /Calculer le prorata/ }).click();
+  await expect(avenant.getByRole("status")).toContainText(/ristourne de 326\s712\sF CFA/);
+  await avenant.getByRole("button", { name: "Enregistrer l'avenant" }).click();
+  await expect(page.getByText(/Avenant n° 2 enregistré : ristourne de 326\s712\sF CFA\./)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Annuler l'avenant n° 1" })).toBeVisible();
+  await page.getByRole("button", { name: "Annuler l'avenant n° 2" }).click();
+  const annulation = page.getByRole("form", { name: "Annuler l'avenant n° 2" });
+  await expect(annulation.getByRole("button", { name: "Voir l'effet" })).toBeDisabled();
+  await annulation.getByLabel("Motif de l'annulation").fill("Erreur : 7002 FE 01 roule toujours");
+  await annulation.getByRole("button", { name: "Voir l'effet" }).click();
+  await expect(annulation.getByRole("status")).toContainText(/Effet de l'annulation : 326\s712\sF CFA à encaisser/);
+  await annulation.getByRole("button", { name: "Confirmer l'annulation" }).click();
+  await expect(page.getByRole("row", { name: /Retrait de 7002 FE 01/ })).toContainText("Annulé (n° 3)");
+  await expect(page.getByRole("row", { name: /Annulation de l'avenant n° 2/ })).toContainText("Erreur : 7002 FE 01 roule toujours");
+  await expect(page.getByRole("button", { name: /^Annuler l'avenant/ })).toHaveCount(1);
 
   // --- Nouveau compte : mot de passe provisoire affiché une seule fois
   await page.getByRole("link", { name: "Personnel" }).click();

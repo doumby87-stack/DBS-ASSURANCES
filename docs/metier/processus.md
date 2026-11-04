@@ -40,7 +40,9 @@ flowchart LR
   A["J-30"] --> B["J-15"] --> C["J-7"] --> D["Jour de l'échéance"] --> E["J+1 : « vous n'êtes plus couvert »"]
 ```
 
-À chaque étape : message WhatsApp (ou SMS) au client qui l'a accepté, une seule fois, entre 8 h et 20 h ; sans son accord, la relance apparaît dans l'écran « Relances », message prêt, à faire à la main ([modèles de messages](modeles-de-messages.md)). Le message « vous n'êtes plus couvert » part dans les 7 jours qui suivent une échéance non renouvelée. Pour les flottes, les échéances de visite technique, vignette et carte de transport suivront le même rythme (tâche 8).
+À chaque étape : message WhatsApp (ou SMS) au client qui l'a accepté, une seule fois, entre 8 h et 20 h ; sans son accord, la relance apparaît dans l'écran « Relances », message prêt, à faire à la main ([modèles de messages](modeles-de-messages.md)). Le message « vous n'êtes plus couvert » part dans les 7 jours qui suivent une échéance non renouvelée. Pour les flottes, les échéances de visite technique, vignette et carte de transport sont rappelées à J-30, J-7 et une fois échues, en un seul message par client (tâche 8), et seulement pour les véhicules que l'agence assure encore (ou pas encore) : jamais pour un camion vendu ni pour un client parti.
+
+Le lendemain de son échéance, un contrat en vigueur non renouvelé passe de lui-même à « expiré » (maintenance horaire de l'API) : il n'est plus présenté comme couvrant le client, mais reste au tableau des échéances pour être relancé. Le bouton « Renouveler » prépare le nouveau contrat, en attente de paiement, avec les véhicules encore couverts et leur prime ; la prime du nouveau contrat est à ajuster selon la nouvelle cotation.
 
 ## Sinistre
 

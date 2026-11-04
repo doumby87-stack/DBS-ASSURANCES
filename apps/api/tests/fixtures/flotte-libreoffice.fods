@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Source du classeur de test flotte-libreoffice.xlsx (converti en .xlsx par LibreOffice, sans interface).
+     Cellules texte, nombres, dates, cellule vide, caractères spéciaux et accents : ce qu'un transporteur envoie. -->
+<office:document xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:number="urn:oasis:names:tc:opendocument:xmlns:datastyle:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  office:version="1.3" office:mimetype="application/vnd.oasis.opendocument.spreadsheet">
+  <office:automatic-styles>
+    <number:date-style style:name="N37"><number:day number:style="long"/><number:text>/</number:text><number:month number:style="long"/><number:text>/</number:text><number:year number:style="long"/></number:date-style>
+    <style:style style:name="ce1" style:family="table-cell" style:data-style-name="N37"/>
+  </office:automatic-styles>
+  <office:body>
+    <office:spreadsheet>
+      <table:table table:name="Véhicules">
+        <table:table-row>
+          <table:table-cell office:value-type="string"><text:p>Immatriculation</text:p></table:table-cell>
+          <table:table-cell office:value-type="string"><text:p>Marque</text:p></table:table-cell>
+          <table:table-cell office:value-type="string"><text:p>Modèle</text:p></table:table-cell>
+          <table:table-cell office:value-type="string"><text:p>Genre</text:p></table:table-cell>
+          <table:table-cell office:value-type="string"><text:p>Puissance fiscale (CV)</text:p></table:table-cell>
+          <table:table-cell office:value-type="string"><text:p>Valeur vénale</text:p></table:table-cell>
+          <table:table-cell office:value-type="string"><text:p>Visite technique</text:p></table:table-cell>
+          <table:table-cell office:value-type="string"><text:p>Vignette</text:p></table:table-cell>
+          <table:table-cell office:value-type="string"><text:p>Carte de transport</text:p></table:table-cell>
+        </table:table-row>
+        <table:table-row>
+          <table:table-cell office:value-type="string"><text:p>1234 AB 01</text:p></table:table-cell>
+          <table:table-cell office:value-type="string"><text:p>Renault &amp; Trucks</text:p></table:table-cell>
+          <table:table-cell office:value-type="string"><text:p>Série T</text:p></table:table-cell>
+          <table:table-cell office:value-type="string"><text:p>Tracteur routier</text:p></table:table-cell>
+          <table:table-cell office:value-type="float" office:value="12"><text:p>12</text:p></table:table-cell>
+          <table:table-cell office:value-type="float" office:value="45000000"><text:p>45000000</text:p></table:table-cell>
+          <table:table-cell table:style-name="ce1" office:value-type="date" office:date-value="2026-11-24"><text:p>24/11/2026</text:p></table:table-cell>
+          <table:table-cell/>
+          <table:table-cell table:style-name="ce1" office:value-type="date" office:date-value="2027-01-31"><text:p>31/01/2027</text:p></table:table-cell>
+        </table:table-row>
+        <table:table-row>
+          <table:table-cell office:value-type="string"><text:p>5678 CD 01</text:p></table:table-cell>
+          <table:table-cell office:value-type="string"><text:p>Toyota</text:p></table:table-cell>
+          <table:table-cell office:value-type="string"><text:p>Hilux</text:p></table:table-cell>
+          <table:table-cell office:value-type="string"><text:p>Camionnette</text:p></table:table-cell>
+          <table:table-cell office:value-type="float" office:value="9"><text:p>9</text:p></table:table-cell>
+          <table:table-cell/>
+          <table:table-cell office:value-type="string"><text:p>05/03/2027</text:p></table:table-cell>
+          <table:table-cell table:style-name="ce1" office:value-type="date" office:date-value="2026-12-15"><text:p>15/12/2026</text:p></table:table-cell>
+          <table:table-cell/>
+        </table:table-row>
+      </table:table>
+    </office:spreadsheet>
+  </office:body>
+</office:document>

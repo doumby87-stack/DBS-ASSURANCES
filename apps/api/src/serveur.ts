@@ -27,7 +27,8 @@ async function demarrer(): Promise<void> {
   const arreterRelances = config.relances.actives
     ? demarrerRelancesPeriodiques(pool, messagerie, { heuresEnvoi: config.relances.heuresEnvoi }, app.log)
     : () => {};
-  // Purge des demandes du site à 12 mois et analyse des pièces en attente : toujours active
+  // Expiration des contrats échus, purge des demandes du site à 12 mois et analyse des pièces en attente :
+  // toujours active
   const arreterMaintenance = demarrerMaintenancePeriodique(pool, antivirus, config.cleChiffrement, app.log);
 
   const arreter = async (signal: string) => {
