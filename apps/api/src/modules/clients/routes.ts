@@ -1,5 +1,5 @@
 // Clients : liste et recherche, création (avec détection des doublons par téléphone),
-// fiche complète, modification, historique des échanges.
+// fiche complète (avec les consentements et les relances), modification, historique des échanges.
 // Les droits sont appliqués par la base : un apporteur ne voit et ne crée que ses propres clients.
 
 import type { FastifyInstance } from "fastify";
@@ -11,6 +11,7 @@ import { parametreId, texteCourt } from "../../commun/schemas.js";
 import type { Gardes } from "../../securite/gardes.js";
 import { utilisateurDe } from "../../securite/gardes.js";
 import { ROLES_LECTURE_CAISSE } from "../encaissements/routes.js";
+import { texteRelance, type ParametresRelance, type TypeRelance } from "../relances/modeles.js";
 import { exigerClientVisible } from "./visibilite.js";
 
 const TYPES = ["particulier", "professionnel", "entreprise"] as const;
@@ -168,12 +169,28 @@ app.get<{ Params: { id: string } }>(
            WHERE e.client_id = $1 ORDER BY e.survenu_le DESC LIMIT 50`,
           [id],
         );
+        // Dernier choix du client pour chaque canal de relance (preuve comprise)
+        const consentements = await client.query(
+          `SELECT v.canal, v.accorde, v.source, v.preuve, v.enregistre_le AS "enregistreLe", u.nom AS "enregistrePar"
+           FROM app.v_consentements v LEFT JOIN app.utilisateurs u ON u.id = v.enregistre_par
+           WHERE v.client_id = $1 ORDER BY v.canal`,
+          [id],
+        );
+        // Relances récentes (visibles seulement des rôles qui suivent les relances : la base filtre)
+        const relances = await client.query<{ type: TypeRelance; parametres: ParametresRelance }>(
+          `SELECT r.id, r.type, r.canal, r.statut, r.parametres, r.motif, r.planifiee_le AS "planifieeLe",
+                  r.envoyee_le AS "envoyeeLe"
+           FROM app.relances r WHERE r.client_id = $1 ORDER BY r.planifiee_le DESC LIMIT 20`,
+          [id],
+        );
         return {
           client: rows[0],
           contrats: contrats.rows,
           vehicules: vehicules.rows,
           devis: devis.rows,
           echanges: echanges.rows,
+          consentements: consentements.rows,
+          relances: relances.rows.map(({ parametres, ...relance }) => ({ ...relance, texte: texteRelance(relance.type, parametres) })),
         };
       });
       if (!fiche) throw erreurs.introuvable();

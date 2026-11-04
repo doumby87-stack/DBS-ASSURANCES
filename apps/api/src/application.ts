@@ -10,8 +10,11 @@ import { routesClients } from "./modules/clients/routes.js";
 import { routesCommissions } from "./modules/commissions/routes.js";
 import { routesContrats } from "./modules/contrats/routes.js";
 import { routesDevis } from "./modules/devis/routes.js";
+import { routesNotificationsWhatsApp } from "./integrations/whatsapp/notifications.js";
 import { routesCaisse } from "./modules/encaissements/caisse.js";
 import { routesEncaissements } from "./modules/encaissements/routes.js";
+import { creerMessagerie, type Messagerie } from "./modules/relances/messagerie.js";
+import { routesRelances } from "./modules/relances/routes.js";
 import { routesReversements } from "./modules/reversements/routes.js";
 import { routesUtilisateurs } from "./modules/utilisateurs/routes.js";
 import { routesVehicules } from "./modules/vehicules/routes.js";
@@ -27,6 +30,8 @@ export interface DependancesApplication {
   horloge?: () => number;
   /** Vérification des mots de passe divulgués (remplaçable dans les tests). */
   verifierFuite?: VerificateurFuite | null;
+  /** Envoi des relances (remplaçable dans les tests) ; sinon, d'après la configuration. */
+  messagerie?: Messagerie;
   journal?: boolean;
 }
 
@@ -99,6 +104,16 @@ export async function construireApplication(dependances: DependancesApplication)
   await app.register(routesCaisse, { pool, gardes });
   await app.register(routesReversements, { pool, gardes });
   await app.register(routesCommissions, { pool, gardes });
+  await app.register(routesRelances, {
+    pool,
+    gardes,
+    messagerie: dependances.messagerie ?? creerMessagerie(config.relances),
+    cycle: { heuresEnvoi: config.relances.heuresEnvoi },
+  });
+  // Notifications de WhatsApp : seulement si l'accès à WhatsApp est configuré
+  if (config.relances.whatsapp) {
+    await app.register(routesNotificationsWhatsApp, { pool, config: config.relances.whatsapp });
+  }
 
   return app;
 }

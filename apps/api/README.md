@@ -1,6 +1,6 @@
 # API — la seule porte d'accès aux données
 
-**Statut :** connexion du personnel avec deuxième facteur, sessions, comptes (tâche 3) ; clients, contrats, véhicules, devis, échanges et échéances (tâche 4) ; caisse, reçus, clôtures, reversements et commissions (tâche 5). Les relances automatiques viennent à la tâche 6 ([feuille de route](../../docs/feuille-de-route.md)).
+**Statut :** connexion du personnel avec deuxième facteur, sessions, comptes (tâche 3) ; clients, contrats, véhicules, devis, échanges et échéances (tâche 4) ; caisse, reçus, clôtures, reversements et commissions (tâche 5) ; relances automatiques par WhatsApp et SMS, consentements des clients (tâche 6) — [feuille de route](../../docs/feuille-de-route.md).
 
 L'API reçoit toutes les demandes du back-office et de l'espace client, vérifie qui les fait, puis interroge la base. Aucun navigateur ne parle directement à la base de données ([ADR 0003](../../docs/architecture/adr/0003-api-seule-porte-d-acces.md)).
 
@@ -23,10 +23,37 @@ npm run dev -w @dbs/api                  # rechargement automatique
 | `PROXYS_DE_CONFIANCE` | non | Nombre de proxys devant l'API (répartiteur, pare-feu applicatif), pour retrouver l'adresse IP réelle. `0` par défaut. |
 | `VERIFIER_MOTS_DE_PASSE_DIVULGUES` | non | `true` par défaut : refuse les mots de passe présents dans des fuites connues. |
 | `NIVEAU_JOURNAL` | non | `info` par défaut. |
+| `RELANCES_ACTIVES` | non | `true` : le planificateur des relances tourne toutes les 15 minutes. `false` par défaut. |
+| `RELANCES_HEURES_ENVOI` | non | Heures d'envoi, heure d'Abidjan : `8-20` par défaut (début inclus, fin exclue). |
+| `RELANCES_SIMULATION` | non | `true` : relances enregistrées mais rien ne part (développement, tests). **Refusé en production.** |
+| `WHATSAPP_JETON`, `WHATSAPP_IDENTIFIANT_NUMERO`, `WHATSAPP_SECRET_APPLICATION`, `WHATSAPP_JETON_VERIFICATION` | les quatre, ou aucune | Accès à l'API Cloud de Meta : jeton d'un utilisateur système, identifiant du numéro chez Meta, secret de l'application (signature des notifications), jeton choisi pour activer les notifications. Sans elles, aucun canal n'est actif : les relances dues sont listées « à faire à la main ». |
+| `WHATSAPP_VERSION_API` | non | Version de l'API Graph, `v23.0` par défaut. |
 
 L'API refuse de démarrer si une variable obligatoire manque, sans jamais afficher de valeur.
 
 **Déploiement :** le back-office et l'API sont servis sous le **même nom de domaine** (par exemple `gestion.<domaine>`, l'API derrière `/api/` grâce au proxy, qui retire ce préfixe). Le cookie de session (`__Host-`, `SameSite=Strict`) et l'absence de CORS reposent sur ce choix.
+
+## Relances automatiques
+
+Le planificateur (`RELANCES_ACTIVES=true`) tourne toutes les 15 minutes : il planifie les relances dues aux clients qui ont accepté un canal disponible, puis, entre 8 h et 20 h, les envoie par lots ([ADR 0007](../../docs/architecture/adr/0007-relances-whatsapp-et-sms.md)).
+
+| Relance | Quand |
+| --- | --- |
+| Échéance d'un contrat | À J-30, J-15, J-7 et le jour même, contrat en vigueur pas encore renouvelé |
+| Contrat expiré | Une fois, dans les 7 jours qui suivent l'échéance |
+| Devis sans réponse | Une fois, 3 jours après son passage à « envoyé au client » |
+| Avancement d'un sinistre | À la déclaration, puis à chaque changement de statut |
+
+Une relance par étape et par objet ; trois essais en cas d'erreur passagère ; abandon d'une relance qui n'a pas pu partir en 48 heures, ou dont le client a retiré son accord entre-temps. Textes : [modèles de messages](../../docs/metier/modeles-de-messages.md).
+
+**Brancher WhatsApp** (une fois les démarches de la tâche 2 faites) :
+
+1. Dans Meta for Developers, une application de type « Entreprise » reliée au compte WhatsApp Business de l'agence ; un **utilisateur système** avec un jeton permanent limité à `whatsapp_business_messaging` → `WHATSAPP_JETON`.
+2. L'identifiant du numéro de l'agence (« Phone number ID ») → `WHATSAPP_IDENTIFIANT_NUMERO` ; le secret de l'application → `WHATSAPP_SECRET_APPLICATION` ; un jeton de vérification tiré au hasard (`openssl rand -hex 24`) → `WHATSAPP_JETON_VERIFICATION`.
+3. Adresse des notifications : `https://gestion.<domaine>/api/webhooks/whatsapp`, avec ce jeton de vérification, abonnée au champ `messages`.
+4. Les quatre modèles validés par Meta, sous leurs noms exacts.
+
+En développement : `RELANCES_SIMULATION=true` enregistre les relances sans rien envoyer.
 
 ## Installer le premier gérant
 
@@ -80,6 +107,12 @@ Le mot de passe provisoire s'affiche une seule fois. Ensuite, tous les comptes s
 | `GET /reversements/:id/export.csv` | gérant | Export pour Excel, protégé contre l'injection de formules ; consigné au journal de sécurité. |
 | `GET /commissions` | gérant, auditeur | Taux par branche, rapprochement mensuel, contrats payés sans prime nette. |
 | `POST /commissions/taux`, `POST /commissions/releves` | gérant | Taux applicable à partir d'une date ; relevé de la compagnie pour un mois (créé ou corrigé). |
+| `POST /clients/:id/consentements` | gérant, chargé, commercial | Accord ou refus du client pour les relances par WhatsApp ou SMS, avec la façon dont il l'a exprimé (preuve obligatoire). Le dernier choix et les relances récentes figurent sur la fiche (`GET /clients/:id`). |
+| `GET /relances?statut=` | gérant, chargé, commercial, auditeur | Canaux actifs, résumé sur 30 jours, relances avec le texte envoyé, relances dues à faire à la main faute d'accord du client. |
+| `POST /relances/cycle` | gérant | Lance un cycle sans attendre les 15 minutes : planification, puis envoi aux heures prévues. |
+| `POST /relances/:id/annulation` | gérant, chargé | Annule une relance pas encore envoyée. |
+| `GET /webhooks/whatsapp` | public (jeton de vérification) | Activation des notifications par Meta. |
+| `POST /webhooks/whatsapp` | public, **signature de Meta exigée** | Accusés de remise et de lecture, « STOP » des clients. |
 
 ## Sécurité en place
 
@@ -97,6 +130,8 @@ Le mot de passe provisoire s'affiche une seule fois. Ensuite, tous les comptes s
 | Chaque requête métier déclare l'utilisateur à la base, qui applique ses propres droits | `src/base-de-donnees/connexion.ts` |
 | Journal de sécurité en ajout seul : connexions, échecs, blocages, créations et modifications de comptes, exports de données | `securite.evenements` |
 | Exports CSV : réservés au gérant, cellules qui commencent par `=`, `+`, `-`, `@` neutralisées (pas de formule exécutée par Excel) | `src/commun/csv.ts` |
+| Notifications de WhatsApp : signature HMAC-SHA256 de Meta vérifiée sur le corps exact reçu, en temps constant, avant toute lecture ; seule route sans contrôle d'origine | `src/integrations/whatsapp/` |
+| Relances : jamais sans l'accord du client, revérifié avant chaque envoi ; planificateur sans utilisateur connecté, limité à cinq fonctions de la base ; verrou de la base contre deux cycles simultanés ; ni nom, ni numéro, ni contenu de message dans les journaux | `src/modules/relances/` |
 
 **Risques connus :**
 
@@ -114,9 +149,9 @@ npm run verifier-types -w @dbs/api
 
 | Dossier | Contenu |
 | --- | --- |
-| `tests/unitaires/` | Vecteurs officiels de la RFC 6238, chiffrement, politique des mots de passe, vérification des fuites, configuration, traduction des erreurs, montant en lettres, CSV. |
+| `tests/unitaires/` | Vecteurs officiels de la RFC 6238, chiffrement, politique des mots de passe, vérification des fuites, configuration, traduction des erreurs, montant en lettres, CSV ; WhatsApp (appel de l'API, erreurs, signature, notifications, « STOP »), textes des relances identiques aux modèles soumis à Meta. |
 | `tests/securite/` | Parcours de connexion, rejeu d'un code, blocages, CSRF, cookies, expiration, secrets jamais en clair. |
-| `tests/integration/` | Gestion des comptes par le gérant et limites de chaque rôle ; clients et contrats ; caisse, clôtures, reversements et commissions. |
+| `tests/integration/` | Gestion des comptes par le gérant et limites de chaque rôle ; clients et contrats ; caisse, clôtures, reversements et commissions ; relances (consentements, planification et envoi, notifications signées, « STOP », annulation, heures d'envoi, verrou). |
 
 ## Structure
 
@@ -125,8 +160,8 @@ npm run verifier-types -w @dbs/api
 | `src/config/` | Lecture et validation des variables d'environnement. |
 | `src/securite/` | Connexion, deuxième facteur, sessions, limitation des tentatives, protections HTTP. |
 | `src/base-de-donnees/` | Connexions à PostgreSQL et transactions qui déclarent l'utilisateur. |
-| `src/modules/` | Un dossier par domaine métier : `utilisateurs`, `clients`, `contrats` (et échéances), `vehicules`, `devis`, `encaissements` (et caisse), `reversements`, `commissions` en place ; les autres viendront avec leurs tâches. |
-| `src/integrations/` | Services extérieurs (paiement, WhatsApp, SMS, FNE, fichiers) : à venir. |
+| `src/modules/` | Un dossier par domaine métier : `utilisateurs`, `clients`, `contrats` (et échéances), `vehicules`, `devis`, `encaissements` (et caisse), `reversements`, `commissions`, `relances` (planificateur, textes, consentements) en place ; les autres viendront avec leurs tâches. |
+| `src/integrations/` | Services extérieurs : WhatsApp (API Cloud de Meta) en place ; SMS : interface prête, opérateur à choisir ; paiement, FNE, fichiers : à venir. |
 | `src/commun/` | Erreurs, formats, montant en lettres, CSV, identité de l'agence imprimée sur les reçus. |
 | `src/outils/` | Outils d'installation (`premier-acces`). |
 

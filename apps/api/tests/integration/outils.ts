@@ -7,6 +7,7 @@ import { expect, inject } from "vitest";
 import { construireApplication } from "../../src/application.js";
 import { creerPool, type Pool } from "../../src/base-de-donnees/connexion.js";
 import { chargerConfiguration } from "../../src/config/configuration.js";
+import type { Messagerie } from "../../src/modules/relances/messagerie.js";
 import { initialiserPremierAcces, preparerAccesProvisoire } from "../../src/modules/utilisateurs/acces.js";
 import type { VerificateurFuite } from "../../src/securite/mots-de-passe.js";
 import { NOM_COOKIE, type Role } from "../../src/securite/sessions.js";
@@ -31,18 +32,22 @@ export interface Contexte {
   fermer(): Promise<void>;
 }
 
-export async function demarrer(options: { verifierFuite?: VerificateurFuite | null } = {}): Promise<Contexte> {
+export async function demarrer(
+  options: { verifierFuite?: VerificateurFuite | null; env?: Record<string, string>; messagerie?: Messagerie } = {},
+): Promise<Contexte> {
   const config = chargerConfiguration({
     NODE_ENV: "test",
     DATABASE_URL: inject("urlApplication"),
     CLE_CHIFFREMENT_DONNEES: randomBytes(32).toString("base64"),
     URL_BACK_OFFICE: ORIGINE,
+    ...options.env,
   });
   const pool = creerPool(config.urlBaseDeDonnees);
   const base = creerPool(inject("urlSuperutilisateur"));
   const horloge = { ms: Date.now() };
   const app = await construireApplication({
     config, pool, journal: false, horloge: () => horloge.ms, verifierFuite: options.verifierFuite ?? null,
+    ...(options.messagerie ? { messagerie: options.messagerie } : {}),
   });
   return {
     app, pool, base, horloge,

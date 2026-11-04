@@ -39,6 +39,50 @@ describe("Configuration", () => {
   });
 });
 
+describe("Configuration des relances", () => {
+  const whatsapp = {
+    WHATSAPP_JETON: "jeton-secret-meta",
+    WHATSAPP_IDENTIFIANT_NUMERO: "106540352242922",
+    WHATSAPP_SECRET_APPLICATION: "secret-meta",
+    WHATSAPP_JETON_VERIFICATION: "verif-choisie",
+  };
+
+  it("par défaut : planificateur arrêté, pas de WhatsApp, envoi de 8 h à 20 h", () => {
+    expect(chargerConfiguration(valide).relances).toEqual({
+      actives: false, simulation: false, heuresEnvoi: { debut: 8, fin: 20 }, whatsapp: null,
+    });
+  });
+
+  it("WhatsApp complet : accès et version de l'API Graph par défaut", () => {
+    const { relances } = chargerConfiguration({ ...valide, ...whatsapp, RELANCES_ACTIVES: "true", RELANCES_HEURES_ENVOI: "7-21" });
+    expect(relances.actives).toBe(true);
+    expect(relances.heuresEnvoi).toEqual({ debut: 7, fin: 21 });
+    expect(relances.whatsapp).toEqual({
+      jeton: "jeton-secret-meta", identifiantNumero: "106540352242922", secretApplication: "secret-meta",
+      jetonVerification: "verif-choisie", versionApi: "v23.0",
+    });
+  });
+
+  it("refuse WhatsApp à moitié configuré, sans afficher les secrets", () => {
+    try {
+      chargerConfiguration({ ...valide, WHATSAPP_JETON: whatsapp.WHATSAPP_JETON });
+      expect.unreachable();
+    } catch (erreur) {
+      expect((erreur as Error).message).toContain("renseignez ensemble WHATSAPP_JETON");
+      expect((erreur as Error).message).not.toContain("jeton-secret-meta");
+    }
+    expect(() => chargerConfiguration({ ...valide, ...whatsapp, WHATSAPP_IDENTIFIANT_NUMERO: "+225 07 49" })).toThrow("identifiant numérique");
+    expect(() => chargerConfiguration({ ...valide, ...whatsapp, WHATSAPP_VERSION_API: "23" })).toThrow("v23.0");
+  });
+
+  it("interdit la simulation en production, et des heures d'envoi incohérentes", () => {
+    expect(() => chargerConfiguration({ ...valide, NODE_ENV: "production", RELANCES_SIMULATION: "true" })).toThrow("interdit en production");
+    expect(() => chargerConfiguration({ ...valide, RELANCES_HEURES_ENVOI: "20-8" })).toThrow("RELANCES_HEURES_ENVOI");
+    expect(() => chargerConfiguration({ ...valide, RELANCES_HEURES_ENVOI: "8h-20h" })).toThrow("RELANCES_HEURES_ENVOI");
+    expect(() => chargerConfiguration({ ...valide, RELANCES_ACTIVES: "oui" })).toThrow("RELANCES_ACTIVES doit valoir true ou false");
+  });
+});
+
 describe("Erreurs renvoyées au navigateur", () => {
   it("transmet le message d'une règle métier de la base, pas celui d'une contrainte technique", () => {
     const regle = traduireErreur({ code: "23514", severity: "ERROR", message: "Plafond des espèces dépassé : …" });

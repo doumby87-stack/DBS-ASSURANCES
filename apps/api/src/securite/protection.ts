@@ -9,9 +9,20 @@ import { erreurs } from "../commun/erreurs.js";
 
 const METHODES_SANS_EFFET = new Set(["GET", "HEAD", "OPTIONS"]);
 
+declare module "fastify" {
+  interface FastifyContextConfig {
+    /**
+     * Route appelée par un service extérieur (notifications de WhatsApp), jamais par le back-office :
+     * pas de contrôle d'origine, la route vérifie elle-même la signature de chaque requête et la refuse sans elle.
+     */
+    authentifieeParSignature?: boolean;
+  }
+}
+
 export function enregistrerProtections(app: FastifyInstance, config: Configuration): void {
   app.addHook("onRequest", async (requete) => {
     if (METHODES_SANS_EFFET.has(requete.method)) return;
+    if (requete.routeOptions.config?.authentifieeParSignature === true) return;
     if (requete.headers.origin !== config.origineBackOffice) throw erreurs.origineRefusee();
   });
 

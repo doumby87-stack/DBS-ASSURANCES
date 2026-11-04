@@ -31,6 +31,7 @@ export const erreurs = {
     new ErreurApi(403, "mot_de_passe_a_changer", "Choisissez votre mot de passe personnel avant de continuer."),
   origineRefusee: () => new ErreurApi(403, "origine_refusee", "Origine de la requête refusée."),
   introuvable: () => new ErreurApi(404, "introuvable", "Élément introuvable."),
+  signatureInvalide: () => new ErreurApi(401, "signature_invalide", "Signature invalide."),
 };
 
 interface ErreurPostgres {
