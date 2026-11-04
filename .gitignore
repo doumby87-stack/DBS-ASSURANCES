@@ -38,3 +38,8 @@ desktop.ini
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# --- Tests de bout en bout (accès jetables, rapports) ---
+.e2e/
+test-results/
+playwright-report/
