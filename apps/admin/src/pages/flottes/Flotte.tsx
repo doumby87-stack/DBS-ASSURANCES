@@ -1,6 +1,6 @@
 // Flotte d'un client (tâche 8) : import de la liste des véhicules (Excel ou CSV, contrôlée ligne par ligne
 // avant tout enregistrement), échéances des documents, export pour la cotation en lot, composition des
-// contrats et avenants au prorata.
+// contrats et avenants au prorata : incorporation, retrait, réintégration et annulation.
 
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 import { Alerte, Badge, Chargement, Champ, Section, Vide } from "../../composants/communs";
@@ -31,17 +31,31 @@ interface LigneContrat {
   primeVehicule: number | null;
 }
 
+type Mouvement = "incorporation" | "retrait";
+const MOUVEMENTS: Record<Mouvement, string> = { incorporation: "Incorporation", retrait: "Retrait" };
+
+interface LigneAvenant {
+  vehiculeId: string;
+  immatriculation: string;
+  mouvement: Mouvement;
+  primeVehicule: number;
+  joursRestants?: number;
+  joursPeriode?: number;
+  montant: number;
+}
+
 interface Avenant {
   id: string;
   numero: number;
-  nature: "ajout" | "retrait";
-  immatriculation: string;
+  nature: "mouvement" | "annulation";
   dateEffet: string;
-  primeVehicule: number;
-  joursRestants: number;
-  joursPeriode: number;
   montant: number;
+  motif: string | null;
+  annuleNumero: number | null;
+  annuleParNumero: number | null;
   regle: boolean | null;
+  annulable: boolean;
+  lignes: LigneAvenant[];
   creeLe: string;
   creePar: string;
 }
@@ -269,12 +283,56 @@ function ImportVehicules({ clientId, apres }: { clientId: string; apres: () => P
   );
 }
 
+/** « Incorporation de 9003 FL 01, 9004 FL 01 · Retrait de 9001 FL 01 » (cinq plaques au plus par mouvement) */
+function libelleAvenant(a: Avenant): string {
+  if (a.nature === "annulation") return `Annulation de l'avenant n° ${a.annuleNumero}`;
+  const plaques = (mouvement: Mouvement) => {
+    const liste = a.lignes.filter((l) => l.mouvement === mouvement).map((l) => l.immatriculation);
+    return liste.length > 5 ? `${liste.slice(0, 5).join(", ")} et ${liste.length - 5} autre(s)` : liste.join(", ");
+  };
+  return [
+    a.lignes.some((l) => l.mouvement === "incorporation") && `Incorporation de ${plaques("incorporation")}`,
+    a.lignes.some((l) => l.mouvement === "retrait") && `Retrait de ${plaques("retrait")}`,
+  ].filter(Boolean).join(" · ");
+}
+
+const sommeAvenant = (valeur: number) => (valeur >= 0 ? `${montant(valeur)} à encaisser` : `ristourne de ${montant(-valeur)}`);
+
+/** Détail du calcul, ligne par ligne : prime × jours restants ÷ jours de la période */
+function DetailCalcul({ lignes, annulation }: { lignes: LigneAvenant[]; annulation?: boolean }) {
+  const contenu = (
+    <ul className="detail-avenant">
+      {lignes.map((l) => (
+        <li key={l.vehiculeId}>
+          {annulation ? (l.mouvement === "incorporation" ? "Annulation de l'incorporation" : "Annulation du retrait") : MOUVEMENTS[l.mouvement]}
+          {" "}de {l.immatriculation} :{" "}
+          {l.joursRestants !== undefined && <>{montant(l.primeVehicule)} × {l.joursRestants} / {l.joursPeriode} j = </>}
+          {l.montant >= 0 ? montant(l.montant) : `− ${montant(-l.montant)}`}
+        </li>
+      ))}
+    </ul>
+  );
+  return lignes.length > 3 ? <details><summary>{lignes.length} véhicules</summary>{contenu}</details> : contenu;
+}
+
 function ContratFlotte({ contrat, vehicules, apres }: { contrat: Contrat; vehicules: Vehicule[]; apres: () => Promise<void> }) {
   const { peut } = useSession();
-  const actifs = contrat.vehicules.filter((v) => !v.retireLe);
-  const surLeContrat = useMemo(() => new Set(contrat.vehicules.map((v) => v.vehiculeId)), [contrat.vehicules]);
-  const disponibles = vehicules.filter((v) => !surLeContrat.has(v.id));
   const gestion = peut("gerant", "charge_clientele");
+  const [aAnnuler, setAAnnuler] = useState<Avenant | null>(null);
+  const [erreur, setErreur] = useState("");
+  const actifs = contrat.vehicules.filter((v) => !v.retireLe);
+  const enCours = useMemo(() => new Set(actifs.map((v) => v.vehiculeId)), [actifs]);
+  const incorporables = vehicules.filter((v) => !enCours.has(v.id));
+
+  async function detacher(ligne: LigneContrat) {
+    setErreur("");
+    try {
+      await api(`/contrats/${contrat.id}/vehicules/${ligne.vehiculeId}`, { methode: "DELETE" });
+      await apres();
+    } catch (e) {
+      setErreur(messageErreur(e));
+    }
+  }
 
   return (
     <Section titre={`Contrat ${contrat.numeroPolice ?? "sans n° de police"} · ${BRANCHES[contrat.branche] ?? contrat.branche}`}>
@@ -283,21 +341,33 @@ function ContratFlotte({ contrat, vehicules, apres }: { contrat: Contrat; vehicu
           {STATUTS_CONTRAT[contrat.statut] ?? contrat.statut}
         </Badge>{" "}
         Du {dateCourte(contrat.dateEffet)} au {dateCourte(contrat.dateEcheance)} · prime {montant(contrat.primeTtc)}
-        {contrat.primesAvenants !== 0 && <> · avenants {contrat.primesAvenants > 0 ? "+" : ""}{montant(contrat.primesAvenants)}</>}
+        {contrat.primesAvenants !== 0 && <> · avenants {contrat.primesAvenants > 0 ? "+" : "−"} {montant(Math.abs(contrat.primesAvenants))}</>}
         {" · "}<Lien href={`/contrats/${contrat.id}`}>Paiements</Lien>
       </p>
+      <Alerte>{erreur}</Alerte>
 
       {contrat.vehicules.length === 0 ? <Vide>Aucun véhicule sur ce contrat.</Vide> : (
         <div className="tableau-defilant">
           <table className="tableau">
-            <thead><tr><th>Véhicule</th><th>Couvert depuis</th><th>Retiré le</th><th>Prime du véhicule</th></tr></thead>
+            <thead>
+              <tr>
+                <th>Véhicule</th><th>Couvert depuis</th><th>Retiré le</th><th>Prime du véhicule</th>
+                {gestion && contrat.statut === "en_attente_paiement" && <th><span className="visuellement-cache">Actions</span></th>}
+              </tr>
+            </thead>
             <tbody>
               {contrat.vehicules.map((v) => (
-                <tr key={v.vehiculeId}>
+                <tr key={`${v.vehiculeId}-${v.ajouteLe}`}>
                   <td>{v.immatriculation}</td>
                   <td>{dateCourte(v.ajouteLe)}</td>
                   <td>{v.retireLe ? dateCourte(v.retireLe) : "—"}</td>
                   <td>{v.primeVehicule ? montant(v.primeVehicule) : "—"}</td>
+                  {gestion && contrat.statut === "en_attente_paiement" && (
+                    <td>
+                      <button type="button" className="bouton bouton--petit" aria-label={`Détacher ${v.immatriculation} du contrat`}
+                        onClick={() => void detacher(v)}>Détacher</button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -305,11 +375,11 @@ function ContratFlotte({ contrat, vehicules, apres }: { contrat: Contrat; vehicu
         </div>
       )}
 
-      {gestion && contrat.statut === "en_attente_paiement" && disponibles.length > 0 && (
-        <RattachementDepart contrat={contrat} disponibles={disponibles} apres={apres} />
+      {gestion && contrat.statut === "en_attente_paiement" && incorporables.length > 0 && (
+        <RattachementDepart contrat={contrat} disponibles={incorporables} apres={apres} />
       )}
-      {gestion && contrat.statut === "en_vigueur" && (
-        <NouvelAvenant contrat={contrat} disponibles={disponibles} actifs={actifs} apres={apres} />
+      {gestion && contrat.statut === "en_vigueur" && (incorporables.length > 0 || actifs.length > 0) && (
+        <NouvelAvenant contrat={contrat} incorporables={incorporables} actifs={actifs} apres={apres} />
       )}
 
       {contrat.avenants.length > 0 && (
@@ -317,16 +387,30 @@ function ContratFlotte({ contrat, vehicules, apres }: { contrat: Contrat; vehicu
           <h3 className="sous-titre">Avenants</h3>
           <div className="tableau-defilant">
             <table className="tableau">
-              <thead><tr><th>N°</th><th>Avenant</th><th>Effet</th><th>Calcul</th><th>Montant</th><th>Règlement</th></tr></thead>
+              <thead><tr><th>N°</th><th>Avenant</th><th>Effet</th><th>Calcul</th><th>Montant</th><th>État</th>{gestion && <th><span className="visuellement-cache">Actions</span></th>}</tr></thead>
               <tbody>
                 {contrat.avenants.map((a) => (
                   <tr key={a.id}>
                     <td>{a.numero}</td>
-                    <td>{a.nature === "ajout" ? "Ajout" : "Retrait"} de {a.immatriculation}<span className="note"><br />{a.creePar}, {dateHeure(a.creeLe)}</span></td>
+                    <td>
+                      {libelleAvenant(a)}
+                      <span className="note"><br />{a.motif && <>« {a.motif} » · </>}{a.creePar}, {dateHeure(a.creeLe)}</span>
+                    </td>
                     <td>{dateCourte(a.dateEffet)}</td>
-                    <td>{montant(a.primeVehicule)} × {a.joursRestants} / {a.joursPeriode} j</td>
+                    <td><DetailCalcul lignes={a.lignes} annulation={a.nature === "annulation"} /></td>
                     <td>{a.montant >= 0 ? montant(a.montant) : `Ristourne ${montant(-a.montant)}`}</td>
-                    <td>{a.regle === null ? "—" : a.regle ? <Badge ton="vert">Réglé</Badge> : <Badge ton="orange">À encaisser</Badge>}</td>
+                    <td>
+                      {a.annuleParNumero !== null ? <Badge ton="gris">Annulé (n° {a.annuleParNumero})</Badge>
+                        : a.regle === null ? "—" : a.regle ? <Badge ton="vert">Réglé</Badge> : <Badge ton="orange">À encaisser</Badge>}
+                    </td>
+                    {gestion && (
+                      <td>
+                        {a.annulable && (
+                          <button type="button" className="bouton bouton--petit" aria-label={`Annuler l'avenant n° ${a.numero}`}
+                            onClick={() => setAAnnuler(a)}>Annuler…</button>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -334,6 +418,7 @@ function ContratFlotte({ contrat, vehicules, apres }: { contrat: Contrat; vehicu
           </div>
         </>
       )}
+      {aAnnuler && <AnnulationAvenant contrat={contrat} avenant={aAnnuler} fermer={() => setAAnnuler(null)} apres={apres} />}
     </Section>
   );
 }
@@ -342,11 +427,12 @@ function RattachementDepart({ contrat, disponibles, apres }: { contrat: Contrat;
   const [vehiculeId, setVehiculeId] = useState(disponibles[0]?.id ?? "");
   const [prime, setPrime] = useState("");
   const [erreur, setErreur] = useState("");
+  const choisi = disponibles.find((v) => v.id === vehiculeId) ?? disponibles[0];
   async function soumettre(evenement: FormEvent) {
     evenement.preventDefault();
     setErreur("");
     try {
-      await api(`/contrats/${contrat.id}/vehicules`, { corps: { vehiculeId, ...(prime ? { primeVehicule: Number(prime) } : {}) } });
+      await api(`/contrats/${contrat.id}/vehicules`, { corps: { vehiculeId: choisi?.id, ...(prime ? { primeVehicule: Number(prime) } : {}) } });
       setPrime("");
       await apres();
     } catch (e) {
@@ -356,7 +442,7 @@ function RattachementDepart({ contrat, disponibles, apres }: { contrat: Contrat;
   return (
     <form className="formulaire formulaire--grille" aria-label="Rattacher un véhicule de départ" onSubmit={(e) => void soumettre(e)}>
       <Champ libelle="Véhicule de départ" aide={`Couvert du ${dateCourte(contrat.dateEffet)} au ${dateCourte(contrat.dateEcheance)}, inclus dans la prime du contrat.`}>
-        <select value={vehiculeId} onChange={(e) => setVehiculeId(e.target.value)}>
+        <select value={choisi?.id ?? ""} onChange={(e) => setVehiculeId(e.target.value)}>
           {disponibles.map((v) => <option key={v.id} value={v.id}>{v.immatriculation}</option>)}
         </select>
       </Champ>
@@ -369,85 +455,255 @@ function RattachementDepart({ contrat, disponibles, apres }: { contrat: Contrat;
   );
 }
 
-function NouvelAvenant({ contrat, disponibles, actifs, apres }: {
-  contrat: Contrat; disponibles: Vehicule[]; actifs: LigneContrat[]; apres: () => Promise<void>;
+interface Calcul {
+  montant: number;
+  joursRestants?: number;
+  joursPeriode?: number;
+  annuleNumero?: number;
+  lignes: LigneAvenant[];
+}
+
+/** Avenant de mouvement : des véhicules incorporés et des véhicules retirés, à une même date d'effet */
+function NouvelAvenant({ contrat, incorporables, actifs, apres }: {
+  contrat: Contrat; incorporables: Vehicule[]; actifs: LigneContrat[]; apres: () => Promise<void>;
 }) {
-  const [nature, setNature] = useState<"ajout" | "retrait">("ajout");
-  const choix = nature === "ajout" ? disponibles.map((v) => ({ id: v.id, immatriculation: v.immatriculation, prime: null as number | null }))
-    : actifs.map((v) => ({ id: v.vehiculeId, immatriculation: v.immatriculation, prime: v.primeVehicule }));
-  const [vehiculeId, setVehiculeId] = useState("");
   const [dateEffet, setDateEffet] = useState(aujourdHui());
-  const [prime, setPrime] = useState("");
-  const [apercu, setApercu] = useState<{ montant: number; joursRestants: number; joursPeriode: number; primeVehicule: number } | null>(null);
+  const [aIncorporer, setAIncorporer] = useState<Record<string, string>>({});
+  const [aRetirer, setARetirer] = useState<Set<string>>(new Set());
+  const [observation, setObservation] = useState("");
+  const [apercu, setApercu] = useState<Calcul | null>(null);
   const [erreur, setErreur] = useState("");
   const [message, setMessage] = useState("");
+  const [envoi, setEnvoi] = useState(false);
 
-  const choisi = choix.find((c) => c.id === vehiculeId) ?? choix[0];
-  const primeConnue = nature === "retrait" ? choisi?.prime ?? null : null;
-  const corps = () => ({
-    vehiculeId: choisi?.id ?? "", nature, dateEffet, ...(prime && !primeConnue ? { primeVehicule: Number(prime) } : {}),
-  });
+  // Réintégration : véhicule déjà passé sur ce contrat (sa dernière sortie et sa prime d'alors)
+  const sorties = useMemo(() => {
+    const parVehicule = new Map<string, LigneContrat>();
+    for (const l of contrat.vehicules) {
+      if (l.retireLe && (!parVehicule.has(l.vehiculeId) || parVehicule.get(l.vehiculeId)!.retireLe! < l.retireLe)) parVehicule.set(l.vehiculeId, l);
+    }
+    return parVehicule;
+  }, [contrat.vehicules]);
 
-  useEffect(() => setApercu(null), [nature, vehiculeId, dateEffet, prime]);
+  const lignes = () => [
+    ...Object.entries(aIncorporer).map(([vehiculeId, prime]) => ({
+      vehiculeId, mouvement: "incorporation" as const, ...(prime ? { primeVehicule: Number(prime) } : {}),
+    })),
+    ...[...aRetirer].map((vehiculeId) => ({ vehiculeId, mouvement: "retrait" as const })),
+  ];
+  const nombre = Object.keys(aIncorporer).length + aRetirer.size;
+  const corps = (confirmer: boolean) => ({ dateEffet, lignes: lignes(), ...(observation.trim() ? { observation: observation.trim() } : {}), confirmer });
+
+  useEffect(() => setApercu(null), [dateEffet, aIncorporer, aRetirer]);
+
+  function basculerIncorporation(vehiculeId: string, coche: boolean) {
+    setMessage("");
+    setAIncorporer((avant) => {
+      const suite = { ...avant };
+      if (coche) suite[vehiculeId] = "";
+      else delete suite[vehiculeId];
+      return suite;
+    });
+  }
+  function basculerRetrait(vehiculeId: string, coche: boolean) {
+    setMessage("");
+    setARetirer((avant) => {
+      const suite = new Set(avant);
+      if (coche) suite.add(vehiculeId);
+      else suite.delete(vehiculeId);
+      return suite;
+    });
+  }
 
   async function calculer() {
     setErreur("");
+    setEnvoi(true);
     try {
-      setApercu((await api<{ apercu: NonNullable<typeof apercu> }>(`/contrats/${contrat.id}/avenants/apercu`, { corps: corps() })).apercu);
+      setApercu((await api<{ apercu: Calcul }>(`/contrats/${contrat.id}/avenants`, { corps: corps(false) })).apercu);
     } catch (e) {
       setErreur(messageErreur(e));
+    } finally {
+      setEnvoi(false);
     }
   }
 
   async function enregistrer(evenement: FormEvent) {
     evenement.preventDefault();
     setErreur("");
+    setEnvoi(true);
     try {
-      const { avenant } = await api<{ avenant: Avenant }>(`/contrats/${contrat.id}/avenants`, { corps: corps() });
-      setMessage(avenant.montant >= 0
-        ? `Avenant n° ${avenant.numero} enregistré : ${montant(avenant.montant)} à encaisser.`
-        : `Avenant n° ${avenant.numero} enregistré : ristourne de ${montant(-avenant.montant)}.`);
+      const { avenant } = await api<{ avenant: Avenant }>(`/contrats/${contrat.id}/avenants`, { corps: corps(true) });
+      setMessage(`Avenant n° ${avenant.numero} enregistré : ${sommeAvenant(avenant.montant)}.`);
       setApercu(null);
-      setPrime("");
+      setAIncorporer({});
+      setARetirer(new Set());
+      setObservation("");
       await apres();
     } catch (e) {
       setErreur(messageErreur(e));
+    } finally {
+      setEnvoi(false);
     }
   }
 
-  if (choix.length === 0 && nature === "ajout" && actifs.length === 0) return null;
   return (
-    <form className="formulaire formulaire--grille avenant" aria-label="Nouvel avenant" onSubmit={(e) => void enregistrer(e)}>
-      <Champ libelle="Avenant">
-        <select value={nature} onChange={(e) => { setNature(e.target.value as "ajout" | "retrait"); setVehiculeId(""); }}>
-          <option value="ajout">Ajouter un véhicule</option>
-          <option value="retrait">Retirer un véhicule</option>
-        </select>
-      </Champ>
-      <Champ libelle="Véhicule">
-        <select value={choisi?.id ?? ""} onChange={(e) => setVehiculeId(e.target.value)} disabled={choix.length === 0}>
-          {choix.length === 0 && <option value="">Aucun véhicule</option>}
-          {choix.map((c) => <option key={c.id} value={c.id}>{c.immatriculation}</option>)}
-        </select>
-      </Champ>
-      <Champ libelle="Date d'effet">
-        <input type="date" value={dateEffet} min={contrat.dateEffet} max={contrat.dateEcheance} onChange={(e) => setDateEffet(e.target.value)} />
-      </Champ>
-      <Champ libelle="Prime du véhicule pour la période (F CFA)" aide={primeConnue ? `Connue : ${montant(primeConnue)}` : "Cotation de la compagnie, pour toute la durée du contrat."}>
-        <input inputMode="numeric" value={primeConnue ? String(primeConnue) : prime} disabled={!!primeConnue} onChange={(e) => setPrime(e.target.value.replace(/\D/g, ""))} />
-      </Champ>
-      <div className="formulaire__actions">
-        <button type="button" className="bouton" disabled={!choisi} onClick={() => void calculer()}>Calculer le prorata</button>
-        <button type="submit" className="bouton bouton--principal" disabled={!apercu}>Enregistrer l'avenant</button>
+    <form className="formulaire avenant" aria-label="Nouvel avenant" onSubmit={(e) => void enregistrer(e)}>
+      <h3 className="sous-titre sous-titre--serre">Nouvel avenant</h3>
+      <p className="note">
+        Cochez les véhicules à incorporer ou à retirer à une même date d'effet : un seul avenant, un seul numéro. La prime de chaque véhicule
+        incorporé est celle de la compagnie pour toute la période du contrat ; la base calcule le prorata.
+      </p>
+      <div className="formulaire--grille avenant__entete">
+        <Champ libelle="Date d'effet" aide={`Entre le ${dateCourte(contrat.dateEffet)} et le ${dateCourte(contrat.dateEcheance)}, exclus.`}>
+          <input type="date" value={dateEffet} min={contrat.dateEffet} max={contrat.dateEcheance} onChange={(e) => setDateEffet(e.target.value)} required />
+        </Champ>
+        <Champ libelle="Observation (facultatif)" aide="Par exemple : achat de deux tracteurs, vente d'un camion.">
+          <input value={observation} maxLength={500} onChange={(e) => setObservation(e.target.value)} />
+        </Champ>
       </div>
+
+      {incorporables.length > 0 && (
+        <fieldset className="avenant__groupe">
+          <legend>Incorporer</legend>
+          <div className="tableau-defilant">
+            <table className="tableau">
+              <thead><tr><th>Véhicule</th><th>Prime pour la période (F CFA)</th></tr></thead>
+              <tbody>
+                {incorporables.map((v) => {
+                  const coche = v.id in aIncorporer;
+                  const sortie = sorties.get(v.id);
+                  return (
+                    <tr key={v.id}>
+                      <td>
+                        <label className="case-a-cocher">
+                          <input type="checkbox" aria-label={`Incorporer ${v.immatriculation}${sortie?.retireLe ? " (réintégration)" : ""}`} checked={coche}
+                            onChange={(e) => basculerIncorporation(v.id, e.target.checked)} />
+                          <span>
+                            {v.immatriculation}
+                            {sortie?.retireLe && <span className="note"><br />Sorti le {dateCourte(sortie.retireLe)} : réintégration</span>}
+                          </span>
+                        </label>
+                      </td>
+                      <td>
+                        <input inputMode="numeric" aria-label={`Prime de ${v.immatriculation} pour la période (F CFA)`} disabled={!coche}
+                          placeholder={sortie?.primeVehicule ? `${sortie.primeVehicule} (précédente)` : ""}
+                          value={aIncorporer[v.id] ?? ""}
+                          onChange={(e) => setAIncorporer((avant) => ({ ...avant, [v.id]: e.target.value.replace(/\D/g, "") }))} />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </fieldset>
+      )}
+
+      {actifs.length > 0 && (
+        <fieldset className="avenant__groupe">
+          <legend>Retirer</legend>
+          <div className="tableau-defilant">
+            <table className="tableau">
+              <thead><tr><th>Véhicule</th><th>Couvert depuis</th><th>Prime connue</th></tr></thead>
+              <tbody>
+                {actifs.map((v) => (
+                  <tr key={v.vehiculeId}>
+                    <td>
+                      <label className="case-a-cocher">
+                        <input type="checkbox" aria-label={`Retirer ${v.immatriculation}`} checked={aRetirer.has(v.vehiculeId)}
+                          onChange={(e) => basculerRetrait(v.vehiculeId, e.target.checked)} />
+                        <span>{v.immatriculation}</span>
+                      </label>
+                    </td>
+                    <td>{dateCourte(v.ajouteLe)}</td>
+                    <td>{v.primeVehicule ? montant(v.primeVehicule) : <span className="note">Inconnue : à indiquer à la compagnie</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </fieldset>
+      )}
+
       {apercu && (
-        <p className="alerte alerte--info" role="status">
-          {montant(apercu.primeVehicule)} × {apercu.joursRestants} jours restants / {apercu.joursPeriode} jours ={" "}
-          <strong>{apercu.montant >= 0 ? `${montant(apercu.montant)} à encaisser` : `ristourne de ${montant(-apercu.montant)}`}</strong>
-        </p>
+        <div className="alerte alerte--info" role="status">
+          <DetailCalcul lignes={apercu.lignes.map((l) => ({ ...l, joursRestants: apercu.joursRestants, joursPeriode: apercu.joursPeriode }))} />
+          <p><strong>Total de l'avenant : {sommeAvenant(apercu.montant)}</strong></p>
+        </div>
       )}
       <Alerte>{erreur}</Alerte>
       <Alerte type="succes">{message}</Alerte>
+      <div className="formulaire__actions">
+        <button type="button" className="bouton" disabled={nombre === 0 || envoi} onClick={() => void calculer()}>
+          Calculer le prorata{nombre > 0 ? ` (${nombre} véhicule${nombre > 1 ? "s" : ""})` : ""}
+        </button>
+        <button type="submit" className="bouton bouton--principal" disabled={!apercu || envoi}>Enregistrer l'avenant</button>
+      </div>
+    </form>
+  );
+}
+
+/** Avenant d'annulation : défait exactement un avenant saisi par erreur, avec son motif */
+function AnnulationAvenant({ contrat, avenant, fermer, apres }: {
+  contrat: Contrat; avenant: Avenant; fermer: () => void; apres: () => Promise<void>;
+}) {
+  const [motif, setMotif] = useState("");
+  const [apercu, setApercu] = useState<Calcul | null>(null);
+  const [erreur, setErreur] = useState("");
+  const [envoi, setEnvoi] = useState(false);
+  const url = `/contrats/${contrat.id}/avenants/${avenant.id}/annulation`;
+
+  useEffect(() => setApercu(null), [motif]);
+
+  async function calculer() {
+    setErreur("");
+    setEnvoi(true);
+    try {
+      setApercu((await api<{ apercu: Calcul }>(url, { corps: { motif: motif.trim() } })).apercu);
+    } catch (e) {
+      setErreur(messageErreur(e));
+    } finally {
+      setEnvoi(false);
+    }
+  }
+
+  async function confirmer(evenement: FormEvent) {
+    evenement.preventDefault();
+    setErreur("");
+    setEnvoi(true);
+    try {
+      await api(url, { corps: { motif: motif.trim(), confirmer: true } });
+      fermer();
+      await apres();
+    } catch (e) {
+      setErreur(messageErreur(e));
+    } finally {
+      setEnvoi(false);
+    }
+  }
+
+  return (
+    <form className="formulaire avenant" aria-label={`Annuler l'avenant n° ${avenant.numero}`} onSubmit={(e) => void confirmer(e)}>
+      <h3 className="sous-titre sous-titre--serre">Annuler l'avenant n° {avenant.numero}</h3>
+      <p className="note">
+        {libelleAvenant(avenant)}, effet au {dateCourte(avenant.dateEffet)}. L'annulation est elle-même un avenant numéroté : les véhicules
+        incorporés n'auront jamais été couverts, les véhicules retirés le restent, et le montant est contre-passé.
+      </p>
+      <Champ libelle="Motif de l'annulation" aide="5 caractères au moins ; il figure au journal.">
+        <input value={motif} maxLength={500} onChange={(e) => setMotif(e.target.value)} required minLength={5} />
+      </Champ>
+      {apercu && (
+        <div className="alerte alerte--info" role="status">
+          <DetailCalcul lignes={apercu.lignes} annulation />
+          <p><strong>Effet de l'annulation : {sommeAvenant(apercu.montant)}</strong></p>
+        </div>
+      )}
+      <Alerte>{erreur}</Alerte>
+      <div className="formulaire__actions">
+        <button type="button" className="bouton" disabled={motif.trim().length < 5 || envoi} onClick={() => void calculer()}>Voir l'effet</button>
+        <button type="submit" className="bouton bouton--danger" disabled={!apercu || envoi}>Confirmer l'annulation</button>
+        <button type="button" className="bouton bouton--lien" onClick={fermer}>Fermer</button>
+      </div>
     </form>
   );
 }

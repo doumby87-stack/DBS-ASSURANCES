@@ -101,6 +101,7 @@ input, select, textarea {
   border: 1px solid #b9c1d3; border-radius: 8px; padding: 0.55rem 0.7rem; width: 100%;
 }
 .formulaire--ligne select, .formulaire--ligne input { width: auto; }
+input[type="checkbox"], input[type="radio"] { width: auto; padding: 0; }
 textarea { resize: vertical; }
 
 .bouton {
@@ -150,7 +151,7 @@ textarea { resize: vertical; }
 .section__entete { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
 .section__actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: flex-start; }
 .repliable { flex-basis: 100%; width: 100%; padding: 1rem; margin-top: 0.5rem; background: var(--fond); border-radius: var(--rayon); }
-.tableau-defilant { overflow-x: auto; }
+.tableau-defilant { overflow-x: auto; position: relative; }
 .tableau { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
 .tableau th { text-align: left; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--gris); padding: 0.5rem; border-bottom: 2px solid var(--ligne); }
 .tableau td { padding: 0.65rem 0.5rem; border-bottom: 1px solid var(--ligne); vertical-align: top; }
@@ -260,3 +261,12 @@ a.bouton--principal { color: var(--blanc); }
 .avenant .alerte { grid-column: 1 / -1; margin: 0; }
 .avenant .formulaire__actions { grid-column: 1 / -1; flex-wrap: wrap; }
 .sous-titre { margin: 1.5rem 0 0.5rem; }
+.sous-titre--serre { margin-top: 0; }
+.avenant__entete { display: grid; gap: 1rem; margin-bottom: 1rem; }
+.avenant__groupe { border: 1px solid var(--ligne); border-radius: var(--rayon); padding: 0.5rem 1rem 1rem; margin: 0 0 1rem; background: var(--blanc); }
+.avenant__groupe legend { font-weight: 700; padding: 0 0.4rem; }
+.avenant__groupe input[inputmode] { max-width: 14rem; }
+.detail-avenant { margin: 0; padding-left: 1.1rem; }
+.detail-avenant li { margin: 0.15rem 0; }
+.bouton--lien { background: transparent; border-color: transparent; text-decoration: underline; }
+.visuellement-cache { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }

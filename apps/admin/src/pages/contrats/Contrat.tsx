@@ -93,7 +93,7 @@ export function Contrat({ id }: { id: string }) {
         </Alerte>
       )}
       {contrat.aRembourser > 0 && (
-        <Alerte type="info">Ristourne d'avenant : {montant(contrat.aRembourser)} payés en trop, à rembourser au client ou à déduire de sa prochaine prime.</Alerte>
+        <Alerte type="info">Ristourne ou annulation d'avenant : {montant(contrat.aRembourser)} payés en trop, à rembourser au client ou à déduire de sa prochaine prime.</Alerte>
       )}
       {contrat.resteAPayer > 0 && contrat.statut === "en_vigueur" && contrat.primesAvenants > 0 && (
         <Alerte type="info">Prime de départ payée ; {montant(contrat.resteAPayer)} d'avenant restent à encaisser.</Alerte>
