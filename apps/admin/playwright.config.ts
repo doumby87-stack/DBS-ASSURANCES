@@ -31,6 +31,9 @@ export default defineConfig({
             CLE_CHIFFREMENT_DONNEES: acces.cleChiffrement,
             URL_BACK_OFFICE: ADRESSE,
             VERIFIER_MOTS_DE_PASSE_DIVULGUES: "false",
+            // Relances lancées à la main dans le parcours, à toute heure, sans qu'aucun message ne parte
+            RELANCES_SIMULATION: "true",
+            RELANCES_HEURES_ENVOI: "0-24",
             NIVEAU_JOURNAL: "warn",
           },
         },

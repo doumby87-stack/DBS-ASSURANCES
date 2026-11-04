@@ -60,6 +60,30 @@ export const TYPES_CLIENT: Record<string, string> = {
   entreprise: "Entreprise",
 };
 
+export const TYPES_RELANCE: Record<string, string> = {
+  echeance_j30: "Échéance dans 30 jours",
+  echeance_j15: "Échéance dans 15 jours",
+  echeance_j7: "Échéance dans 7 jours",
+  echeance_jour: "Échéance aujourd'hui",
+  contrat_expire: "Contrat expiré",
+  devis_sans_reponse: "Devis sans réponse",
+  sinistre_avancement: "Avancement d'un sinistre",
+};
+
+export const STATUTS_RELANCE: Record<string, string> = {
+  a_envoyer: "À envoyer",
+  envoyee: "Envoyée",
+  remise: "Remise",
+  lue: "Lue",
+  echec: "En échec",
+  annulee: "Annulée",
+};
+
+export const CANAUX_RELANCE: Record<string, string> = {
+  whatsapp: "WhatsApp",
+  sms: "SMS",
+};
+
 export const DOCUMENTS_VEHICULE: Record<string, string> = {
   visite_technique: "Visite technique",
   vignette: "Vignette",

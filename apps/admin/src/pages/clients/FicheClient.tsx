@@ -1,11 +1,13 @@
-// Fiche client : tout ce qui concerne un client sur une seule page (contrats, véhicules, devis, échanges).
+// Fiche client : tout ce qui concerne un client sur une seule page (contrats, véhicules, devis,
+// accord pour les rappels automatiques, échanges).
 
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Alerte, Badge, Champ, Chargement, Section, Vide } from "../../composants/communs";
 import { Lien } from "../../routeur";
 import { api, ErreurApi, messageErreur } from "../../services/api";
 import {
-  aujourdHui, BRANCHES, CANAUX, dateCourte, dateHeure, montant, STATUTS_CONTRAT, STATUTS_DEVIS, telephone, TYPES_CLIENT,
+  aujourdHui, BRANCHES, CANAUX, CANAUX_RELANCE, dateCourte, dateHeure, montant, STATUTS_CONTRAT, STATUTS_DEVIS, STATUTS_RELANCE,
+  telephone, TYPES_CLIENT, TYPES_RELANCE,
 } from "../../services/format";
 import { useSession } from "../../session";
 
@@ -47,12 +49,31 @@ interface Echange {
   survenuLe: string;
   auteur: string;
 }
+interface Consentement {
+  canal: string;
+  accorde: boolean;
+  source: "agence" | "reponse_client";
+  preuve: string;
+  enregistreLe: string;
+  enregistrePar: string | null;
+}
+interface RelanceClient {
+  id: string;
+  type: string;
+  canal: string;
+  statut: string;
+  planifieeLe: string;
+  envoyeeLe: string | null;
+  texte: string | null;
+}
 interface Fiche {
   client: { id: string; type: string; nom: string; telephone: string; email: string | null; commune: string | null; rccm: string | null };
   contrats: Contrat[];
   vehicules: Vehicule[];
   devis: Devis[];
   echanges: Echange[];
+  consentements: Consentement[];
+  relances: RelanceClient[];
 }
 
 const optionsBranches = Object.entries(BRANCHES).map(([valeur, libelle]) => <option key={valeur} value={valeur}>{libelle}</option>);
@@ -164,6 +185,43 @@ export function FicheClient({ id }: { id: string }) {
           )}
         </Section>
       )}
+
+      <Section titre="Rappels automatiques">
+        <ul className="consentements">
+          {Object.entries(CANAUX_RELANCE).map(([canal, libelle]) => {
+            const choix = fiche.consentements.find((c) => c.canal === canal);
+            return (
+              <li key={canal}>
+                <strong>{libelle}</strong>
+                {!choix ? <Badge ton="gris">Pas encore demandé</Badge> : <Badge ton={choix.accorde ? "vert" : "rouge"}>{choix.accorde ? "Accepté" : "Refusé"}</Badge>}
+                {choix && (
+                  <small>
+                    le {dateHeure(choix.enregistreLe)} · {choix.source === "reponse_client" ? "réponse du client" : `noté par ${choix.enregistrePar ?? "l'agence"}`} · {choix.preuve}
+                  </small>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+        {peut("gerant", "charge_clientele", "commercial") && <NouveauConsentement clientId={client.id} apres={charger} />}
+        {fiche.relances.length > 0 && (
+          <div className="tableau-defilant">
+            <table className="tableau">
+              <thead><tr><th>Date</th><th>Relance</th><th>Canal</th><th>Statut</th></tr></thead>
+              <tbody>
+                {fiche.relances.map((r) => (
+                  <tr key={r.id}>
+                    <td>{dateHeure(r.envoyeeLe ?? r.planifieeLe)}</td>
+                    <td>{TYPES_RELANCE[r.type] ?? r.type}{r.texte && <p className="message-relance">{r.texte}</p>}</td>
+                    <td>{CANAUX_RELANCE[r.canal] ?? r.canal}</td>
+                    <td><Badge ton={r.statut === "echec" ? "rouge" : r.statut === "lue" || r.statut === "remise" ? "vert" : "gris"}>{STATUTS_RELANCE[r.statut] ?? r.statut}</Badge></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Section>
 
       <Section titre="Échanges">
         {peut("gerant", "charge_clientele", "caissier", "commercial", "apporteur") && <NouvelEchange clientId={client.id} apres={charger} />}
@@ -313,6 +371,32 @@ function LigneDevis({ devis, modifiable, apres }: { devis: Devis; modifiable: bo
         </form>
       )}
     </li>
+  );
+}
+
+/** Accord ou refus du client pour un canal, avec la façon dont il l'a exprimé (c'est la preuve). */
+function NouveauConsentement({ clientId, apres }: { clientId: string; apres: () => Promise<void> }) {
+  const [canal, setCanal] = useState("whatsapp");
+  const [accorde, setAccorde] = useState("oui");
+  const [preuve, setPreuve] = useState("");
+  const { erreur, envoi, envoyer } = useEnvoi(apres);
+  async function soumettre(evenement: FormEvent) {
+    evenement.preventDefault();
+    if (await envoyer(() => api(`/clients/${clientId}/consentements`, { corps: { canal, accorde: accorde === "oui", preuve } }))) setPreuve("");
+  }
+  return (
+    <form className="formulaire formulaire--ligne" onSubmit={soumettre}>
+      <select aria-label="Canal" value={canal} onChange={(e) => setCanal(e.target.value)}>
+        {Object.entries(CANAUX_RELANCE).map(([valeur, libelle]) => <option key={valeur} value={valeur}>{libelle}</option>)}
+      </select>
+      <select aria-label="Choix du client" value={accorde} onChange={(e) => setAccorde(e.target.value)}>
+        <option value="oui">accepte les rappels</option>
+        <option value="non">refuse les rappels</option>
+      </select>
+      <input aria-label="Comment le client l'a exprimé" placeholder="Comment : accord oral au guichet, formulaire signé…" required minLength={3} maxLength={300} value={preuve} onChange={(e) => setPreuve(e.target.value)} />
+      <button className="bouton bouton--petit" disabled={envoi}>Enregistrer son choix</button>
+      <Alerte>{erreur}</Alerte>
+    </form>
   );
 }
 
