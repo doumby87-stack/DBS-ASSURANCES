@@ -58,6 +58,8 @@ const CONTRAINTES: Record<string, { statut: number; code: string; message: strin
     message: "Cette référence a déjà été enregistrée : même transaction Mobile Money, même chèque ou même virement.",
   },
   encaissements_annulation_unique: { statut: 409, code: "deja_contre_passe", message: "Cet encaissement a déjà été contre-passé." },
+  contrats_vehicules_en_cours_unique: { statut: 409, code: "vehicule_deja_sur_le_contrat", message: "Ce véhicule figure déjà sur ce contrat." },
+  avenants_flotte_annulation_unique: { statut: 409, code: "avenant_deja_annule", message: "Cet avenant a déjà été annulé." },
   encaissements_reference: {
     statut: 422, code: "reference_obligatoire",
     message: "Indiquez la référence du paiement (n° de transaction, de chèque ou de virement).",

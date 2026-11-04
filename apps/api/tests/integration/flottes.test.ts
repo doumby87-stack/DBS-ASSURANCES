@@ -137,13 +137,13 @@ describe("import de la liste des véhicules", () => {
 });
 
 describe("contrat flotte : composition, avenants au prorata, reste à payer", () => {
-  it("composition de départ, paiement, ajout et retrait au prorata, réglés au guichet", async () => {
+  it("composition de départ, paiement, incorporation de plusieurs véhicules et retrait au prorata, réglés au guichet", async () => {
     const clientId = await nouveauClient("Transports Prorata");
-    const plaques = [0, 1, 2].map((n) => `${unique().slice(0, 4)} P${n} 01`);
+    const plaques = [0, 1, 2, 3, 4].map((n) => `${unique().slice(0, 4)} P${n} 01`);
     await importer(clientId, Buffer.from(`Immatriculation\n${plaques.join("\n")}\n`), true);
     const { rows: vehicules } = await ctx.base.query<{ id: string; immatriculation: string }>(
       "SELECT id, immatriculation FROM app.vehicules WHERE client_id = $1 ORDER BY immatriculation", [clientId]);
-    const [v1, v2, v3] = plaques.map((p) => vehicules.find((v) => v.immatriculation === p)!.id);
+    const [v1, v2, v3, v4, v5] = plaques.map((p) => vehicules.find((v) => v.immatriculation === p)!.id) as [string, string, string, string, string];
 
     const contrat = await envoyer(ctx, {
       url: "/contrats", cookie: cookies.charge_clientele,
@@ -152,52 +152,129 @@ describe("contrat flotte : composition, avenants au prorata, reste à payer", ()
     expect(contrat.statusCode).toBe(201);
     const contratId = contrat.json().contrat.id as string;
 
-    for (const vehiculeId of [v1, v2]) {
+    for (const vehiculeId of [v1, v2, v5]) {
       const rattache = await envoyer(ctx, { url: `/contrats/${contratId}/vehicules`, cookie: cookies.charge_clientele, corps: { vehiculeId, primeVehicule: 450000 } });
       expect(rattache.statusCode).toBe(201);
       expect(rattache.json().vehicule.ajouteLe).toBe(aujourdHuiPlus(-100));
     }
+    const doublon = await envoyer(ctx, { url: `/contrats/${contratId}/vehicules`, cookie: cookies.charge_clientele, corps: { vehiculeId: v1 } });
+    expect(doublon.statusCode).toBe(409);
+    expect(doublon.json().code).toBe("vehicule_deja_sur_le_contrat");
+    // Rattaché par erreur : détaché avant le paiement (pas par un commercial)
+    expect((await envoyer(ctx, { methode: "DELETE", url: `/contrats/${contratId}/vehicules/${v5}`, cookie: cookies.commercial })).statusCode).toBe(403);
+    expect((await envoyer(ctx, { methode: "DELETE", url: `/contrats/${contratId}/vehicules/${v5}`, cookie: cookies.charge_clientele })).statusCode).toBe(204);
+    expect((await envoyer(ctx, { methode: "DELETE", url: `/contrats/${contratId}/vehicules/${v5}`, cookie: cookies.charge_clientele })).statusCode).toBe(404);
+
+    const incorporation = (vehiculeId: string, primeVehicule?: number) => ({ vehiculeId, mouvement: "incorporation", primeVehicule });
     const tropTot = await envoyer(ctx, { url: `/contrats/${contratId}/avenants`, cookie: cookies.charge_clientele,
-      corps: { vehiculeId: v3, nature: "ajout", dateEffet: aujourdHuiPlus(0), primeVehicule: 365000 } });
+      corps: { dateEffet: aujourdHuiPlus(0), lignes: [incorporation(v3, 365000)], confirmer: true } });
     expect(tropTot.statusCode).toBe(422);
     expect(tropTot.json().message).toContain("contrat en vigueur");
 
     expect((await envoyer(ctx, { url: "/encaissements", cookie: cookies.caissier,
       corps: { contratId, montant: 900000, mode: "virement", reference: `VIR-${unique()}` } })).statusCode).toBe(201);
+    const fige = await envoyer(ctx, { methode: "DELETE", url: `/contrats/${contratId}/vehicules/${v2}`, cookie: cookies.charge_clientele });
+    expect(fige.statusCode).toBe(422);
+    expect(fige.json().message).toContain("retirez le véhicule par un avenant");
 
-    // Aperçu, puis avenant : 365 000 × 265 ÷ 365 = 265 000 F CFA
-    const corps = { vehiculeId: v3, nature: "ajout", dateEffet: aujourdHuiPlus(0), primeVehicule: 365000 };
-    const apercu = await envoyer(ctx, { url: `/contrats/${contratId}/avenants/apercu`, cookie: cookies.charge_clientele, corps });
-    expect(apercu.json().apercu).toEqual({ primeVehicule: 365000, joursPeriode: 365, joursRestants: 265, montant: 265000 });
-    expect((await envoyer(ctx, { url: `/contrats/${contratId}/avenants`, cookie: cookies.commercial, corps })).statusCode).toBe(403);
-    const ajout = await envoyer(ctx, { url: `/contrats/${contratId}/avenants`, cookie: cookies.charge_clientele, corps });
-    expect(ajout.statusCode).toBe(201);
-    expect(ajout.json().avenant).toMatchObject({ nature: "ajout", montant: 265000, joursRestants: 265, regle: false, immatriculation: plaques[2] });
+    // Aperçu, puis avenant : 365 000 × 265 ÷ 365 + 730 000 × 265 ÷ 365 = 265 000 + 530 000 F CFA
+    const corps = { dateEffet: aujourdHuiPlus(0), lignes: [incorporation(v3, 365000), incorporation(v4, 730000)], observation: "Deux tracteurs" };
+    const apercu = await envoyer(ctx, { url: `/contrats/${contratId}/avenants`, cookie: cookies.charge_clientele, corps });
+    expect(apercu.statusCode).toBe(200);
+    expect(apercu.json().apercu).toMatchObject({ id: null, numero: null, joursPeriode: 365, joursRestants: 265, montant: 795000 });
+    expect(apercu.json().apercu.lignes.map((l: { montant: number }) => l.montant)).toEqual([265000, 530000]);
+    expect((await envoyer(ctx, { url: `/contrats/${contratId}/avenants`, cookie: cookies.commercial, corps: { ...corps, confirmer: true } })).statusCode).toBe(403);
+    const sansPrime = await envoyer(ctx, { url: `/contrats/${contratId}/avenants`, cookie: cookies.charge_clientele,
+      corps: { dateEffet: aujourdHuiPlus(0), lignes: [incorporation(v3)] } });
+    expect(sansPrime.statusCode).toBe(422);
+    expect(sansPrime.json().message).toBe(`Indiquez la prime de ${plaques[2]} pour la période du contrat.`);
+    const avenant = await envoyer(ctx, { url: `/contrats/${contratId}/avenants`, cookie: cookies.charge_clientele, corps: { ...corps, confirmer: true } });
+    expect(avenant.statusCode).toBe(201);
+    expect(avenant.json().avenant).toMatchObject({ nature: "mouvement", montant: 795000, regle: false, motif: "Deux tracteurs", annuleParNumero: null });
+    expect(avenant.json().avenant.lignes.map((l: { immatriculation: string; mouvement: string }) => [l.immatriculation, l.mouvement]))
+      .toEqual([[plaques[2], "incorporation"], [plaques[3], "incorporation"]]);
 
     const paiements = await envoyer(ctx, { url: `/contrats/${contratId}/paiements`, cookie: cookies.caissier });
-    expect(paiements.json().contrat).toMatchObject({ primeTtc: 900000, primesAvenants: 265000, primeDue: 1165000, resteAPayer: 265000 });
+    expect(paiements.json().contrat).toMatchObject({ primeTtc: 900000, primesAvenants: 795000, primeDue: 1695000, resteAPayer: 795000 });
     const fiche = await envoyer(ctx, { url: `/clients/${clientId}`, cookie: cookies.gerant });
-    expect(fiche.json().contrats[0]).toMatchObject({ statut: "en_vigueur", resteAPayer: 265000 });
+    expect(fiche.json().contrats[0]).toMatchObject({ statut: "en_vigueur", resteAPayer: 795000 });
 
     const regle = await envoyer(ctx, { url: "/encaissements", cookie: cookies.caissier,
-      corps: { contratId, montant: 265000, mode: "especes" } });
+      corps: { contratId, montant: 795000, mode: "virement", reference: `VIR-${unique()}` } });
     expect(regle.statusCode).toBe(201);
     const recu = await envoyer(ctx, { url: `/encaissements/${regle.json().encaissement.id}/recu`, cookie: cookies.caissier });
     expect(recu.json().recu.resteAPayer).toBe(0);
 
-    // Retrait : ristourne de 450 000 × 200 ÷ 365 = 246 575 F CFA, prime reprise du rattachement
+    // Retrait : ristourne de 450 000 × 200 ÷ 365 = 246 575 F CFA, prime reprise de l'entrée du véhicule
     const retrait = await envoyer(ctx, { url: `/contrats/${contratId}/avenants`, cookie: cookies.gerant,
-      corps: { vehiculeId: v1, nature: "retrait", dateEffet: aujourdHuiPlus(65) } });
+      corps: { dateEffet: aujourdHuiPlus(65), lignes: [{ vehiculeId: v1, mouvement: "retrait" }], confirmer: true } });
     expect(retrait.statusCode).toBe(201);
-    expect(retrait.json().avenant).toMatchObject({ nature: "retrait", montant: -246575, primeVehicule: 450000, regle: null });
+    expect(retrait.json().avenant).toMatchObject({ montant: -246575, regle: null });
+    expect(retrait.json().avenant.lignes[0]).toMatchObject({ mouvement: "retrait", primeVehicule: 450000, joursRestants: 200 });
 
     const flotte = await envoyer(ctx, { url: `/clients/${clientId}/flotte`, cookie: cookies.charge_clientele });
     const contratFlotte = flotte.json().contrats[0];
-    expect(contratFlotte.primesAvenants).toBe(265000 - 246575);
-    expect(contratFlotte.avenants.map((a: { nature: string; regle: boolean | null }) => [a.nature, a.regle])).toEqual([["retrait", null], ["ajout", true]]);
+    expect(contratFlotte.primesAvenants).toBe(795000 - 246575);
+    expect(contratFlotte.avenants.map((a: { montant: number; regle: boolean | null; annulable: boolean }) => [a.montant, a.regle, a.annulable]))
+      .toEqual([[-246575, null, true], [795000, true, true]]);
     expect(contratFlotte.vehicules.find((v: { vehiculeId: string }) => v.vehiculeId === v1).retireLe).toBe(aujourdHuiPlus(65));
     const apres = await envoyer(ctx, { url: `/contrats/${contratId}/paiements`, cookie: cookies.caissier });
     expect(apres.json().contrat).toMatchObject({ resteAPayer: 0, aRembourser: 246575 });
+  });
+
+  it("annulation d'un avenant saisi par erreur et réintégration d'un véhicule sorti", async () => {
+    const clientId = await nouveauClient("Transports Correction");
+    const plaques = [0, 1].map((n) => `${unique().slice(0, 4)} C${n} 01`);
+    await importer(clientId, Buffer.from(`Immatriculation\n${plaques.join("\n")}\n`), true);
+    const { rows: vehicules } = await ctx.base.query<{ id: string; immatriculation: string }>(
+      "SELECT id, immatriculation FROM app.vehicules WHERE client_id = $1 ORDER BY immatriculation", [clientId]);
+    const [v1, v2] = plaques.map((p) => vehicules.find((v) => v.immatriculation === p)!.id);
+    const contrat = await envoyer(ctx, {
+      url: "/contrats", cookie: cookies.charge_clientele,
+      corps: { clientId, branche: "flotte", numeroPolice: `FLT-${unique()}`, dateEffet: aujourdHuiPlus(-100), dateEcheance: aujourdHuiPlus(265), primeTtc: 450000 },
+    });
+    const contratId = contrat.json().contrat.id as string;
+    await envoyer(ctx, { url: `/contrats/${contratId}/vehicules`, cookie: cookies.charge_clientele, corps: { vehiculeId: v1, primeVehicule: 450000 } });
+    await envoyer(ctx, { url: "/encaissements", cookie: cookies.caissier, corps: { contratId, montant: 450000, mode: "virement", reference: `VIR-${unique()}` } });
+
+    // Mauvais véhicule incorporé : l'avenant est annulé (aperçu, puis confirmation), le véhicule n'a jamais été couvert
+    const erreur = await envoyer(ctx, { url: `/contrats/${contratId}/avenants`, cookie: cookies.charge_clientele,
+      corps: { dateEffet: aujourdHuiPlus(0), lignes: [{ vehiculeId: v2, mouvement: "incorporation", primeVehicule: 365000 }], confirmer: true } });
+    const avenantErrone = erreur.json().avenant;
+    const url = `/contrats/${contratId}/avenants/${avenantErrone.id}/annulation`;
+    expect((await envoyer(ctx, { url, cookie: cookies.charge_clientele, corps: { motif: "Non" } })).statusCode).toBe(400);
+    expect((await envoyer(ctx, { url, cookie: cookies.commercial, corps: { motif: "Mauvais camion" } })).statusCode).toBe(403);
+    expect((await envoyer(ctx, { url: `/contrats/${contratId}/avenants/${contratId}/annulation`, cookie: cookies.gerant,
+      corps: { motif: "Mauvais camion" } })).statusCode).toBe(404);
+    const apercu = await envoyer(ctx, { url, cookie: cookies.charge_clientele, corps: { motif: "Mauvais camion" } });
+    expect(apercu.json().apercu).toMatchObject({ id: null, montant: -265000, annuleNumero: avenantErrone.numero });
+    const annulation = await envoyer(ctx, { url, cookie: cookies.charge_clientele, corps: { motif: "Mauvais camion saisi", confirmer: true } });
+    expect(annulation.statusCode).toBe(201);
+    expect(annulation.json().avenant).toMatchObject({ nature: "annulation", montant: -265000, annuleNumero: avenantErrone.numero, motif: "Mauvais camion saisi" });
+    const deuxFois = await envoyer(ctx, { url, cookie: cookies.charge_clientele, corps: { motif: "Mauvais camion saisi", confirmer: true } });
+    expect(deuxFois.statusCode).toBe(422);
+    expect(deuxFois.json().message).toContain("déjà annulé");
+
+    // Retrait du camion de départ, puis réintégration : la prime précédente est reprise
+    await envoyer(ctx, { url: `/contrats/${contratId}/avenants`, cookie: cookies.gerant,
+      corps: { dateEffet: aujourdHuiPlus(65), lignes: [{ vehiculeId: v1, mouvement: "retrait" }], confirmer: true } });
+    const tropTot = await envoyer(ctx, { url: `/contrats/${contratId}/avenants`, cookie: cookies.gerant,
+      corps: { dateEffet: aujourdHuiPlus(60), lignes: [{ vehiculeId: v1, mouvement: "incorporation" }] } });
+    expect(tropTot.statusCode).toBe(422);
+    expect(tropTot.json().message).toContain("ne peut y revenir qu'à partir");
+    const retour = await envoyer(ctx, { url: `/contrats/${contratId}/avenants`, cookie: cookies.gerant,
+      corps: { dateEffet: aujourdHuiPlus(100), lignes: [{ vehiculeId: v1, mouvement: "incorporation" }], confirmer: true } });
+    expect(retour.statusCode).toBe(201);
+    expect(retour.json().avenant).toMatchObject({ montant: 203425 });
+
+    const flotte = await envoyer(ctx, { url: `/clients/${clientId}/flotte`, cookie: cookies.charge_clientele });
+    const contratFlotte = flotte.json().contrats[0];
+    expect(contratFlotte.vehicules.map((v: { immatriculation: string; ajouteLe: string; retireLe: string | null }) => [v.immatriculation, v.ajouteLe, v.retireLe]))
+      .toEqual([[plaques[0], aujourdHuiPlus(-100), aujourdHuiPlus(65)], [plaques[0], aujourdHuiPlus(100), null]]);
+    // Du plus récent au plus ancien : réintégration, retrait (bloqué par la réintégration), annulation, avenant annulé
+    expect(contratFlotte.avenants.map((a: { nature: string; annulable: boolean; annuleParNumero: number | null }) => [a.nature, a.annulable, a.annuleParNumero !== null]))
+      .toEqual([["mouvement", true, false], ["mouvement", false, false], ["annulation", false, false], ["mouvement", false, true]]);
+    expect(contratFlotte.primesAvenants).toBe(265000 - 265000 - 246575 + 203425);
   });
 });
 

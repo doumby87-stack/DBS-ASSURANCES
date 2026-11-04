@@ -1,9 +1,10 @@
 // Flottes (tâche 8) : véhicules d'un client et leurs échéances, import d'une liste Excel ou CSV contrôlée
-// ligne par ligne, export pour la cotation en lot, composition des contrats et avenants au prorata.
-// Les règles (prorata, contrat en vigueur, véhicule du bon client, ajout seul) sont appliquées par la base.
+// ligne par ligne, export pour la cotation en lot, composition des contrats et avenants au prorata
+// (incorporation, retrait, réintégration, annulation). Les règles (prorata, contrat en vigueur, véhicule du
+// bon client, périodes sans chevauchement, ajout seul) sont appliquées par la base.
 
 import type { FastifyInstance } from "fastify";
-import type { Pool } from "../../base-de-donnees/connexion.js";
+import type { Client as ClientBase, Pool } from "../../base-de-donnees/connexion.js";
 import { transactionUtilisateur } from "../../base-de-donnees/connexion.js";
 import { documentCsv } from "../../commun/csv.js";
 import { ErreurApi, erreurs } from "../../commun/erreurs.js";
@@ -21,9 +22,9 @@ const COLONNES_VEHICULE = `v.id, v.immatriculation, v.numero_chassis AS "numeroC
   v.echeance_visite_technique AS "echeanceVisiteTechnique", v.echeance_vignette AS "echeanceVignette",
   v.echeance_carte_transport AS "echeanceCarteTransport"`;
 
-const COLONNES_AVENANT = `a.id, a.numero, a.contrat_id AS "contratId", a.vehicule_id AS "vehiculeId", a.immatriculation, a.nature,
-  a.date_effet AS "dateEffet", a.prime_vehicule AS "primeVehicule", a.jours_restants AS "joursRestants",
-  a.jours_periode AS "joursPeriode", a.montant, a.regle, a.cree_le AS "creeLe", u.nom AS "creePar"`;
+const COLONNES_AVENANT = `a.id, a.numero, a.contrat_id AS "contratId", a.nature, a.date_effet AS "dateEffet", a.montant,
+  a.motif, a.annule_numero AS "annuleNumero", a.annule_par_numero AS "annuleParNumero", a.regle, a.cree_le AS "creeLe",
+  u.nom AS "creePar"`;
 
 /** « 2026-11-29 » → « 29/11/2026 » pour l'export */
 const jour = (valeur: string | null) => (valeur ? valeur.split("-").reverse().join("/") : "");
@@ -59,20 +60,16 @@ export async function routesFlottes(app: FastifyInstance, options: { pool: Pool;
           `SELECT cv.contrat_id AS "contratId", cv.vehicule_id AS "vehiculeId", v.immatriculation, cv.ajoute_le AS "ajouteLe",
                   cv.retire_le AS "retireLe", cv.prime_vehicule AS "primeVehicule", cv.numero_attestation AS "numeroAttestation"
            FROM app.contrats_vehicules cv JOIN app.vehicules v ON v.id = cv.vehicule_id
-           WHERE cv.contrat_id = ANY($1) ORDER BY v.immatriculation`,
+           WHERE cv.contrat_id = ANY($1) ORDER BY v.immatriculation, cv.ajoute_le`,
           [contrats.rows.map((k: { id: string }) => k.id)],
         );
-        const avenants = await client.query(
-          `SELECT ${COLONNES_AVENANT} FROM app.v_avenants_flotte a JOIN app.utilisateurs u ON u.id = a.cree_par
-           WHERE a.contrat_id = ANY($1) ORDER BY a.numero DESC`,
-          [contrats.rows.map((k: { id: string }) => k.id)],
-        );
+        const avenants = await lireAvenants(client, contrats.rows.map((k: { id: string }) => k.id));
         return {
           vehicules: vehicules.rows,
           contrats: contrats.rows.map((k: { id: string }) => ({
             ...k,
             vehicules: composition.rows.filter((c: { contratId: string }) => c.contratId === k.id),
-            avenants: avenants.rows.filter((a: { contratId: string }) => a.contratId === k.id),
+            avenants: avenants.filter((a) => a.contratId === k.id),
           })),
         };
       });
@@ -254,70 +251,172 @@ export async function routesFlottes(app: FastifyInstance, options: { pool: Pool;
     },
   );
 
-  const schemaAvenant = {
-    type: "object",
-    required: ["vehiculeId", "nature", "dateEffet"],
-    additionalProperties: false,
-    properties: {
-      vehiculeId: { type: "string", format: "uuid" },
-      nature: { type: "string", enum: ["ajout", "retrait"] },
-      dateEffet: date,
-      primeVehicule: montant,
+  // Véhicule rattaché par erreur : il se détache tant que le contrat n'est pas payé (la base le vérifie)
+  app.delete<{ Params: { id: string; vehiculeId: string } }>(
+    "/contrats/:id/vehicules/:vehiculeId",
+    {
+      preHandler: gardes.roles("gerant", "charge_clientele"),
+      schema: {
+        params: {
+          type: "object",
+          required: ["id", "vehiculeId"],
+          properties: { id: { type: "string", format: "uuid" }, vehiculeId: { type: "string", format: "uuid" } },
+        },
+      },
     },
-  } as const;
-  type CorpsAvenant = { vehiculeId: string; nature: "ajout" | "retrait"; dateEffet: string; primeVehicule?: number };
-
-  // Aperçu du montant d'un avenant, calculé comme le fera la base, sans rien enregistrer
-  app.post<{ Params: { id: string }; Body: CorpsAvenant }>(
-    "/contrats/:id/avenants/apercu",
-    { preHandler: gardes.roles("gerant", "charge_clientele"), schema: { params: parametreId, body: schemaAvenant } },
-    async (requete) => {
-      const a = requete.body;
-      const apercu = await transactionUtilisateur(pool, utilisateurDe(requete).id, async (client) => {
-        const { rows } = await client.query<{
-          dateEffet: string; dateEcheance: string; primeConnue: number | null;
-        }>(
-          `SELECT k.date_effet AS "dateEffet", k.date_echeance AS "dateEcheance",
-                  (SELECT cv.prime_vehicule FROM app.contrats_vehicules cv WHERE cv.contrat_id = k.id AND cv.vehicule_id = $2) AS "primeConnue"
-           FROM app.contrats k WHERE k.id = $1`,
-          [requete.params.id, a.vehiculeId],
-        );
-        const contrat = rows[0];
-        if (!contrat) throw erreurs.introuvable();
-        const prime = a.nature === "retrait" ? (contrat.primeConnue ?? a.primeVehicule) : a.primeVehicule;
-        if (!prime) throw new ErreurApi(422, "prime_manquante", "Indiquez la prime du véhicule pour la période du contrat.");
-        if (a.dateEffet <= contrat.dateEffet || a.dateEffet >= contrat.dateEcheance) {
-          throw new ErreurApi(422, "date_hors_contrat", "La date d'effet de l'avenant doit être comprise dans la période du contrat.");
-        }
-        const calcul = await client.query<{ joursPeriode: number; joursRestants: number; montant: number }>(
-          `SELECT ($2::date - $1::date) AS "joursPeriode", ($2::date - $3::date) AS "joursRestants",
-                  app.prorata($4, $2::date - $3::date, $2::date - $1::date) * CASE WHEN $5 = 'ajout' THEN 1 ELSE -1 END AS montant`,
-          [contrat.dateEffet, contrat.dateEcheance, a.dateEffet, prime, a.nature],
-        );
-        return { primeVehicule: prime, ...calcul.rows[0] };
-      });
-      return { apercu };
-    },
-  );
-
-  // Avenant : la base calcule la prime au prorata, met à jour la composition et la prime due du contrat
-  app.post<{ Params: { id: string }; Body: CorpsAvenant }>(
-    "/contrats/:id/avenants",
-    { preHandler: gardes.roles("gerant", "charge_clientele"), schema: { params: parametreId, body: schemaAvenant } },
     async (requete, reponse) => {
-      const a = requete.body;
-      const { rows } = await transactionUtilisateur(pool, utilisateurDe(requete).id, async (client) => {
-        const cree = await client.query<{ id: string }>(
-          `INSERT INTO app.avenants_flotte (contrat_id, vehicule_id, nature, date_effet, prime_vehicule)
-           VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-          [requete.params.id, a.vehiculeId, a.nature, a.dateEffet, a.primeVehicule ?? null],
-        );
-        return client.query(
-          `SELECT ${COLONNES_AVENANT} FROM app.v_avenants_flotte a JOIN app.utilisateurs u ON u.id = a.cree_par WHERE a.id = $1`,
-          [cree.rows[0]!.id],
-        );
-      });
-      return reponse.status(201).send({ avenant: rows[0] });
+      const { rowCount } = await transactionUtilisateur(pool, utilisateurDe(requete).id, (client) =>
+        client.query("DELETE FROM app.contrats_vehicules WHERE contrat_id = $1 AND vehicule_id = $2 AND retire_le IS NULL",
+          [requete.params.id, requete.params.vehiculeId]),
+      );
+      if (!rowCount) throw erreurs.introuvable();
+      return reponse.status(204).send();
     },
   );
+
+  const parametresAvenant = {
+    type: "object",
+    required: ["id", "avenantId"],
+    properties: { id: { type: "string", format: "uuid" }, avenantId: { type: "string", format: "uuid" } },
+  } as const;
+
+  // Avenant de mouvement : incorporation ou retrait d'un ou plusieurs véhicules à une même date. Sans
+  // « confirmer », la base contrôle et calcule sans rien écrire (aperçu) ; avec, elle enregistre l'avenant,
+  // met à jour la composition et la prime due. Le calcul est le même dans les deux cas.
+  app.post<{
+    Params: { id: string };
+    Body: { dateEffet: string; lignes: LigneAvenant[]; observation?: string; confirmer?: boolean };
+  }>(
+    "/contrats/:id/avenants",
+    {
+      preHandler: gardes.roles("gerant", "charge_clientele"),
+      schema: {
+        params: parametreId,
+        body: {
+          type: "object",
+          required: ["dateEffet", "lignes"],
+          additionalProperties: false,
+          properties: {
+            dateEffet: date,
+            lignes: {
+              type: "array",
+              minItems: 1,
+              maxItems: 200,
+              items: {
+                type: "object",
+                required: ["vehiculeId", "mouvement"],
+                additionalProperties: false,
+                properties: {
+                  vehiculeId: { type: "string", format: "uuid" },
+                  mouvement: { type: "string", enum: ["incorporation", "retrait"] },
+                  primeVehicule: montant,
+                },
+              },
+            },
+            observation: texteCourt(500, 0),
+            confirmer: { type: "boolean" },
+          },
+        },
+      },
+    },
+    async (requete, reponse) => {
+      const { dateEffet, lignes, observation, confirmer = false } = requete.body;
+      const resultat = await transactionUtilisateur(pool, utilisateurDe(requete).id, async (client) => {
+        await exigerContratVisible(client, requete.params.id);
+        const { rows } = await client.query<{ r: { id: string | null } }>(
+          "SELECT app.avenant_flotte($1, $2, $3::jsonb, $4, $5) AS r",
+          [requete.params.id, dateEffet, JSON.stringify(lignes), observation?.trim() || null, confirmer],
+        );
+        const calcul = rows[0]!.r;
+        return calcul.id ? { avenant: (await lireAvenants(client, [requete.params.id], calcul.id))[0] } : { apercu: calcul };
+      });
+      return reponse.status(confirmer ? 201 : 200).send(resultat);
+    },
+  );
+
+  // Avenant d'annulation : défait exactement un avenant saisi par erreur (aperçu, puis confirmation)
+  app.post<{ Params: { id: string; avenantId: string }; Body: { motif: string; confirmer?: boolean } }>(
+    "/contrats/:id/avenants/:avenantId/annulation",
+    {
+      preHandler: gardes.roles("gerant", "charge_clientele"),
+      schema: {
+        params: parametresAvenant,
+        body: {
+          type: "object",
+          required: ["motif"],
+          additionalProperties: false,
+          properties: { motif: texteCourt(500, 5), confirmer: { type: "boolean" } },
+        },
+      },
+    },
+    async (requete, reponse) => {
+      const { motif, confirmer = false } = requete.body;
+      const resultat = await transactionUtilisateur(pool, utilisateurDe(requete).id, async (client) => {
+        const existe = await client.query("SELECT 1 FROM app.avenants_flotte WHERE id = $1 AND contrat_id = $2",
+          [requete.params.avenantId, requete.params.id]);
+        if (!existe.rowCount) throw erreurs.introuvable();
+        const { rows } = await client.query<{ r: { id: string | null } }>(
+          "SELECT app.annuler_avenant_flotte($1, $2, $3) AS r",
+          [requete.params.avenantId, motif.trim(), confirmer],
+        );
+        const calcul = rows[0]!.r;
+        return calcul.id ? { avenant: (await lireAvenants(client, [requete.params.id], calcul.id))[0] } : { apercu: calcul };
+      });
+      return reponse.status(confirmer ? 201 : 200).send(resultat);
+    },
+  );
+}
+
+interface LigneAvenant {
+  vehiculeId: string;
+  mouvement: "incorporation" | "retrait";
+  primeVehicule?: number;
+}
+
+interface Avenant {
+  id: string;
+  numero: number;
+  contratId: string;
+  nature: "mouvement" | "annulation";
+  annuleParNumero: number | null;
+  lignes: { vehiculeId: string }[];
+  /** Annulable depuis l'écran : avenant de mouvement, pas encore annulé, sur lequel aucun avenant postérieur ne
+   * s'est appuyé (la base refusera aussi un véhicule déjà attesté ou sinistré, avec le motif) */
+  annulable?: boolean;
+}
+
+async function exigerContratVisible(client: ClientBase, contratId: string): Promise<void> {
+  const { rowCount } = await client.query("SELECT 1 FROM app.contrats WHERE id = $1", [contratId]);
+  if (!rowCount) throw erreurs.introuvable();
+}
+
+/** Avenants des contrats, du plus récent au plus ancien, avec leurs lignes (ou le seul avenant demandé) */
+async function lireAvenants(client: ClientBase, contrats: string[], seul?: string): Promise<Avenant[]> {
+  const avenants = await client.query<Avenant>(
+    `SELECT ${COLONNES_AVENANT}, k.statut = 'en_vigueur' AS "contratEnVigueur"
+     FROM app.v_avenants_flotte a JOIN app.utilisateurs u ON u.id = a.cree_par JOIN app.contrats k ON k.id = a.contrat_id
+     WHERE a.contrat_id = ANY($1) AND ($2::uuid IS NULL OR a.id = $2) ORDER BY a.numero DESC`,
+    [contrats, seul ?? null],
+  );
+  const lignes = await client.query<{ avenantId: string; vehiculeId: string }>(
+    `SELECT l.avenant_id AS "avenantId", l.vehicule_id AS "vehiculeId", v.immatriculation, l.mouvement,
+            l.prime_vehicule AS "primeVehicule", l.jours_restants AS "joursRestants", l.jours_periode AS "joursPeriode", l.montant
+     FROM app.avenants_flotte_lignes l JOIN app.vehicules v ON v.id = l.vehicule_id
+     WHERE l.avenant_id = ANY($1) ORDER BY v.immatriculation`,
+    [avenants.rows.map((a) => a.id)],
+  );
+  const resultat = avenants.rows.map((a) => ({
+    ...a,
+    lignes: lignes.rows.filter((l) => l.avenantId === a.id).map(({ avenantId: _avenantId, ...l }) => l),
+  }));
+  if (seul) return resultat.map(({ contratEnVigueur: _c, ...a }: Avenant & { contratEnVigueur?: boolean }) => a);
+
+  // Un avenant s'annule s'il n'a pas déjà été annulé et qu'aucun avenant de mouvement postérieur, non annulé,
+  // ne porte sur l'un de ses véhicules
+  return resultat.map(({ contratEnVigueur, ...a }: Avenant & { contratEnVigueur?: boolean }) => {
+    const vehicules = new Set(a.lignes.map((l) => l.vehiculeId));
+    const posterieur = resultat.some((b) => b.contratId === a.contratId && b.numero > a.numero && b.nature === "mouvement"
+      && b.annuleParNumero === null && b.lignes.some((l) => vehicules.has(l.vehiculeId)));
+    return { ...a, annulable: Boolean(contratEnVigueur) && a.nature === "mouvement" && a.annuleParNumero === null && !posterieur };
+  });
 }
