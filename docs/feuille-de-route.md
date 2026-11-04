@@ -29,17 +29,17 @@ Légende : ✅ terminé · 🔜 prochaine · ⏳ plus tard · 🧑‍💼 tâche
 - [ ] Demander au comptable quelles factures de l'agence relèvent de la **FNE** ([facturation](conformite/facturation-fne.md)).
 - [ ] Activer les **protections GitHub** ([paramètres GitHub](securite/parametres-github.md)).
 
-## 🔜 Tâche 3 — API : socle sécurisé
+## ✅ Tâche 3 — API : socle sécurisé
 
-Connexion du personnel (mot de passe + deuxième facteur), sessions, rôles, transaction qui déclare l'utilisateur à la base, journal technique, limitation des tentatives, tests de sécurité automatiques. Aucun écran métier encore.
+Connexion du personnel (mot de passe + deuxième facteur), sessions, rôles, transaction qui déclare l'utilisateur à la base, journal de sécurité, limitation des tentatives, tests de sécurité automatiques. Aucun écran métier encore ([API](../apps/api/README.md)).
 
-*Terminé quand :* un gérant se connecte avec son deuxième facteur, crée un compte, et les tests de sécurité de l'API passent en intégration continue.
+## ✅ Tâche 4 — Back-office : clients, contrats, échéancier
 
-## ⏳ Tâche 4 — Back-office : clients, contrats, échéancier
+Fiche client unique (contrats, véhicules, devis, échanges), contrats et renouvellements, tableau des échéances à J-30/J-15/J-7 avec relance WhatsApp, gestion du personnel ([back-office](../apps/admin/README.md)). **C'est la tâche qui tient la promesse du site** : « nous surveillons les échéances à votre place ».
 
-Fiche client unique, contrats, import des états de SanlamAllianz, tableau des échéances à J-30/J-15/J-7. **C'est la tâche qui tient la promesse du site** : « nous surveillons les échéances à votre place ».
+*Reporté :* l'import des états de production de SanlamAllianz attend leur format (tâche 2).
 
-## ⏳ Tâche 5 — Caisse et reversements
+## 🔜 Tâche 5 — Caisse et reversements
 
 Encaissements avec reçus numérotés, clôture de caisse, plafond des espèces, bordereaux de reversement validés à deux, compte à rebours des 30 jours, rapprochement des commissions.
 

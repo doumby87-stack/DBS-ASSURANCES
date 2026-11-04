@@ -18,5 +18,8 @@ Tâche n° … de la feuille de route (`docs/feuille-de-route.md`).
 
 - [ ] `node scripts/verifier-site.mjs`
 - [ ] `node scripts/verifier-liens-docs.mjs`
+- [ ] `npm run verifier`
 - [ ] `./database/tests/executer.sh` (si la base est touchée)
+- [ ] `npm run test -w @dbs/api` (si l'API est touchée)
+- [ ] `npm run test:e2e -w @dbs/admin` (si le back-office est touché)
 - [ ] Testé dans un navigateur (si une page est touchée)

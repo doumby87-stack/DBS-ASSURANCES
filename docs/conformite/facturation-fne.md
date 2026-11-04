@@ -6,12 +6,27 @@ La Direction générale des impôts a rendu la **facture normalisée électroniq
 
 Sources : [Sage](https://www.sage.com/fr-ma/blog/la-fne-en-cote-divoire-guide-complet-sage-cote-divoire/), [Edicom](https://edicomgroup.com/fr/blog/obligation-facturation-electronique-cote-d-ivoire).
 
+## Les assurances sont-elles concernées ? (recherche du 3 novembre 2026)
+
+Les textes officiels de la DGI n'ont pas pu être consultés directement ; les sources secondaires se contredisent :
+
+- **Exception probable pour les compagnies** : une procédure de la DGI antérieure à 2025 range « les banques ; les compagnies d'assurances » parmi les exceptions à la facture normalisée ([PDF DGI](https://www.dgi.gouv.ci/assets/documents/PROCEDURE_D_EDITION_DE_LA_FACTURE_NORMALISEE_ACTUALISE.pdf)). Une autre source rattache cette exception à l'article 145 du Livre de procédures fiscales ([Financesao](https://financesao.com/cote-divoire-amendes-en-cas-de-non-respect-de-la-facture-normalisee-electronique/)).
+- **Avis contraire** : d'autres sources placent banques et assurances parmi les entreprises concernées ([Finself](https://finself.ci/facture-electronique-en-cote-divoire/), [Digital Mag](https://digitalmag.ci/cote-divoire-tout-savoir-sur-la-facture-normalisee-electronique-fne/)).
+- **Rien sur les intermédiaires** : aucune source ne mentionne d'exception pour les agents généraux ou les courtiers.
+- Une source indique que seules les FNE permettent de justifier une charge ou de déduire la TVA : les factures des fournisseurs de l'agence doivent donc être des FNE.
+
 ## Ce qui concerne DBS-ASSURANCES
 
-À confirmer avec l'expert-comptable (tâche 2) :
+L'exception, si elle existe, vise les **compagnies** (SanlamAllianz pour ses quittances de prime). DBS-ASSURANCES est un **intermédiaire** (SARL). Par prudence, on considère donc que :
 
-- Les **quittances de prime** sont émises au nom de SanlamAllianz : ce ne sont pas des factures de l'agence.
-- Les **factures de l'agence** (commissions facturées à la compagnie, honoraires de conseil éventuels) relèvent de la FNE selon le régime fiscal de DBS-ASSURANCES (SARL).
+- les **quittances de prime** restent émises au nom de SanlamAllianz : ce ne sont pas des factures de l'agence ;
+- les **factures de l'agence** (commissions facturées à la compagnie, frais de dossier ou honoraires éventuels) relèvent de la FNE, sauf avis contraire du comptable.
+
+Questions à poser au comptable ou au centre des impôts (tâche 2) :
+
+1. DBS-ASSURANCES doit-elle émettre une FNE pour ses commissions facturées à SanlamAllianz ?
+2. Les quittances de prime relèvent-elles uniquement de SanlamAllianz ?
+3. Quel est le régime fiscal de DBS-ASSURANCES, et donc sa date d'obligation ?
 
 ## Dans l'outil (tâche 12)
 

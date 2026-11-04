@@ -1,6 +1,6 @@
 # 0005 — Deuxième facteur pour le personnel, code à usage unique pour les clients
 
-- Statut : Proposée (mise en œuvre à la tâche 3 pour le personnel, à la tâche 9 pour les clients)
+- Statut : Acceptée. Personnel : en place depuis la tâche 3 ([API](../../../apps/api/README.md)). Clients : tâche 9.
 - Date : 2026-11-03
 
 ## Contexte
@@ -26,6 +26,13 @@ Le vol de mot de passe par hameçonnage est la première cause de compromission 
 
 - Coût d'envoi des codes (quelques francs par connexion).
 - Procédure de secours à écrire pour un membre du personnel qui perd son deuxième facteur (réinitialisation par le gérant, en personne).
+
+## Mise en œuvre (tâche 3)
+
+- Premier accès : le gérant crée le compte et remet en main propre un mot de passe provisoire ; à la première connexion, la personne configure son deuxième facteur puis choisit son mot de passe. Aucun accès aux données avant.
+- Blocage après 5 échecs consécutifs (mot de passe ou code), 15 minutes puis doublé, 24 heures au plus ; le compteur ne revient à zéro qu'après une connexion complète. 20 échecs depuis une même adresse IP en 15 minutes suspendent les tentatives de cette adresse.
+- Mots de passe divulgués : vérification par k-anonymat auprès de Have I Been Pwned (seuls 5 caractères de l'empreinte SHA-1 quittent le serveur). Si le service ne répond pas, le changement est accepté et l'incident journalisé.
+- La procédure de secours (deuxième facteur perdu) est la réinitialisation de l'accès par un gérant.
 
 ## Options écartées
 

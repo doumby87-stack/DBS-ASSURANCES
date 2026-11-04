@@ -73,6 +73,84 @@ jobs:
       - name: Migrations et tests de sécurité
         run: ./database/tests/executer.sh
 
+  api:
+    name: API
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Dépendances (versions exactes du fichier de verrouillage)
+        run: npm ci
+      - name: Failles connues dans les dépendances de production
+        run: npm audit --omit=dev --audit-level=high
+      - name: Vérification des types
+        run: npm run verifier-types -w @dbs/api
+      - name: Tests unitaires et tests de sécurité contre PostgreSQL
+        run: npm run test -w @dbs/api
+      - name: Compilation
+        run: npm run build -w @dbs/api
+
+  back-office:
+    name: Back-office
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Dépendances (versions exactes du fichier de verrouillage)
+        run: npm ci
+      - name: Vérification des types
+        run: npm run verifier-types -w @dbs/admin
+      - name: Navigateur Chromium pour le test de bout en bout
+        run: npx playwright install --with-deps chromium
+      - name: Parcours complet dans le navigateur (base, API, back-office et ses en-têtes de sécurité)
+        run: npm run test:e2e -w @dbs/admin
+
   secrets:
     name: Recherche de secrets
     runs-on: ubuntu-latest

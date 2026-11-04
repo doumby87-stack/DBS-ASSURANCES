@@ -16,8 +16,7 @@ Un secret est tout ce qui donne un accès : mot de passe, clé d'API, clé de ch
 | --- | --- | --- |
 | Mot de passe `dbs_proprietaire` | Migrations | Gestionnaire de secrets de l'hébergeur (production), coffre-fort |
 | Mot de passe `dbs_application` | API | Gestionnaire de secrets de l'hébergeur |
-| Clé de chiffrement des pièces d'identité | API | Gestionnaire de secrets ; copie de secours scellée, hors ligne |
-| Secret de signature des sessions | API | Gestionnaire de secrets |
+| Clé de chiffrement (`CLE_CHIFFREMENT_DONNEES` : secrets du deuxième facteur, pièces d'identité) | API | Gestionnaire de secrets ; copie de secours scellée, hors ligne. Sa perte oblige à réinitialiser l'accès de tout le personnel. |
 | Clés du prestataire de paiement | API | Gestionnaire de secrets |
 | Jeton WhatsApp Business et secret de signature des webhooks | API | Gestionnaire de secrets |
 | Accès FNE (DGI) | API | Gestionnaire de secrets |
