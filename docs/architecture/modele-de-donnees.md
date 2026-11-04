@@ -148,6 +148,8 @@ erDiagram
     integer taille "5 Mo au plus"
     bytea contenu_chiffre "AES-256-GCM"
     bytea empreinte "SHA-256 du fichier"
+    analyse_piece etat_analyse "à analyser, saine, infectée (contenu effacé)"
+    text signature_detectee "menace trouvée par l'antivirus"
   }
   RELANCES {
     uuid id
@@ -181,7 +183,7 @@ Toutes les vues appliquent les droits de la personne qui les consulte (`security
 
 Documents des contrats et des sinistres (stockage de fichiers, tâche 11), identification des clients et réclamations (tâche 12), comptes des clients de l'espace en ligne (tâche 9).
 
-Les demandes du site n'entrent que par la fonction `app.enregistrer_demande_site`, appelée sans utilisateur connecté par la route publique du formulaire : elle limite les envois par adresse (5 par heure) et par jour (300), et range la carte grise chiffrée dans `app.pieces_demandes_site`, en ajout seul et hors du journal d'audit ([ADR 0009](adr/0009-demandes-de-devis-du-site.md)).
+Les demandes du site n'entrent que par la fonction `app.enregistrer_demande_site`, appelée sans utilisateur connecté par la route publique du formulaire : elle limite les envois par adresse (5 par heure) et par jour (300), et range la carte grise chiffrée dans `app.pieces_demandes_site`, en ajout seul et hors du journal d'audit. Le verdict de l'antivirus ne s'enregistre que par `app.enregistrer_analyse_piece` ; la maintenance de l'API retrouve les pièces à analyser par `app.pieces_a_analyser` et supprime les demandes sans suite depuis 12 mois par `app.purger_demandes_site`, seule à pouvoir supprimer dans ces tables ([ADR 0009](adr/0009-demandes-de-devis-du-site.md)).
 
 Les relances ne sont créées que par le planificateur de l'API, au moyen des fonctions `app.planifier_relances`, `app.prendre_relances_a_envoyer`, `app.enregistrer_envoi`, `app.enregistrer_statut_fournisseur` et `app.enregistrer_desinscription` ([ADR 0007](adr/0007-relances-whatsapp-et-sms.md)).
 

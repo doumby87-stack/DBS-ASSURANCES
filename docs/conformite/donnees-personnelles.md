@@ -21,7 +21,7 @@ Le site publié n'enregistre rien : le formulaire prépare un message que le vis
 
 | Traitement | Finalité | Données | Destinataires | Conservation | Hébergement |
 | --- | --- | --- | --- | --- | --- |
-| Demandes de devis du site | Répondre et établir un devis | Nom, téléphone, e-mail, commune, besoin, carte grise (chiffrée), texte des cases cochées, empreinte de l'adresse IP (limite des envois) | Agence, SanlamAllianz | 12 mois sans suite (purge à mettre en place, tâche 11) ; convertie : comme le dossier client | ADR 0006 |
+| Demandes de devis du site | Répondre et établir un devis | Nom, téléphone, e-mail, commune, besoin, carte grise (chiffrée), texte des cases cochées, empreinte de l'adresse IP (limite des envois) | Agence, SanlamAllianz | Sans suite ou jamais traitée : supprimée avec sa carte grise 12 mois après (purge automatique) ; convertie : comme le dossier client | ADR 0006 |
 | Gestion des clients et contrats | Souscription, renouvellement, attestations | Identité, coordonnées, pièce d'identité (chiffrée), véhicules, contrats | Agence, SanlamAllianz, ASACI (attestations) | Contrat + 10 ans | ADR 0006 |
 | Encaissements et reversements | Caisse, obligations CIMA | Montants, modes, références de paiement | Agence, SanlamAllianz, prestataire de paiement | 10 ans | ADR 0006 |
 | Sinistres | Déclaration et suivi | Circonstances, photos, constats, parfois données médicales | Agence, SanlamAllianz, experts | Clôture + 10 ans | ADR 0006 |
@@ -35,7 +35,9 @@ Aucune relance automatique sans l'**accord du client pour le canal** (WhatsApp o
 
 ## Demandes reçues par le site
 
-Le visiteur coche une case pour accepter que l'agence utilise ses informations ; le texte exact de cette case est enregistré avec la demande, comme preuve. Une seconde case, facultative, recueille son accord pour les rappels sur WhatsApp : il devient un consentement de sa fiche quand la demande est convertie, avec la case, le numéro et la date de la demande comme preuve. La carte grise est chiffrée dès sa réception ; seuls le gérant, les chargés de clientèle et les commerciaux peuvent la télécharger, et chaque téléchargement est consigné. L'adresse IP n'est pas conservée, seulement une empreinte qui sert à limiter les envois.
+Le visiteur coche une case pour accepter que l'agence utilise ses informations ; le texte exact de cette case est enregistré avec la demande, comme preuve. Une seconde case, facultative, recueille son accord pour les rappels sur WhatsApp : il devient un consentement de sa fiche quand la demande est convertie, avec la case, le numéro et la date de la demande comme preuve. La carte grise est chiffrée dès sa réception ; seuls le gérant, les chargés de clientèle et les commerciaux peuvent la télécharger, et chaque téléchargement est consigné. L'adresse IP n'est pas conservée, seulement une empreinte qui sert à limiter les envois. La carte grise est analysée par un antivirus installé chez l'agence (ClamAV), sans quitter ses serveurs.
+
+Une demande qui n'est pas devenue un devis est **supprimée automatiquement 12 mois** après son classement sans suite, ou après sa réception si personne ne l'a traitée, avec sa carte grise. Le journal d'audit ne recopie pas les données personnelles des demandes : après la purge, il ne reste que la trace de qui a reçu, traité et supprimé quelle demande, et quand.
 
 ## Droits des personnes
 

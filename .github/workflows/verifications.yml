@@ -117,8 +117,15 @@ jobs:
         run: npm audit --omit=dev --audit-level=high
       - name: Vérification des types
         run: npm run verifier-types -w @dbs/api
-      - name: Tests unitaires et tests de sécurité contre PostgreSQL
+      - name: Antivirus ClamAV de test (signature EICAR seulement, aucune base téléchargée)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends clamav-daemon
+          apps/api/tests/antivirus/demarrer-clamd.sh 3310
+      - name: Tests unitaires et tests de sécurité contre PostgreSQL (et le vrai ClamAV)
         run: npm run test -w @dbs/api
+        env:
+          ANTIVIRUS_ADRESSE_TEST: 127.0.0.1:3310
       - name: Compilation
         run: npm run build -w @dbs/api
 
