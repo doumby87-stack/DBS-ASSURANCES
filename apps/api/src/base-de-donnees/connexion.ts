@@ -11,6 +11,8 @@ export type Client = pg.PoolClient;
 
 // bigint (int8) en nombre JavaScript : nos valeurs (montants en F CFA, pas TOTP) restent très en deçà de 2^53
 pg.types.setTypeParser(pg.types.builtins.INT8, (valeur) => Number(valeur));
+// Dates sans heure (échéances) gardées telles quelles, « 2026-11-29 » : aucun décalage de fuseau horaire
+pg.types.setTypeParser(pg.types.builtins.DATE, (valeur) => valeur);
 
 export function creerPool(url: string): Pool {
   return new pg.Pool({

@@ -1,6 +1,6 @@
 # API — la seule porte d'accès aux données
 
-**Statut : socle en place** (tâche 3 de la [feuille de route](../../docs/feuille-de-route.md)) : connexion du personnel avec deuxième facteur, sessions, gestion des comptes. Les modules métier viendront aux tâches suivantes.
+**Statut :** connexion du personnel avec deuxième facteur, sessions, comptes (tâche 3) ; clients, contrats, véhicules, devis, échanges et échéances (tâche 4). La caisse et les reversements viennent à la tâche 5 ([feuille de route](../../docs/feuille-de-route.md)).
 
 L'API reçoit toutes les demandes du back-office et de l'espace client, vérifie qui les fait, puis interroge la base. Aucun navigateur ne parle directement à la base de données ([ADR 0003](../../docs/architecture/adr/0003-api-seule-porte-d-acces.md)).
 
@@ -54,6 +54,16 @@ Le mot de passe provisoire s'affiche une seule fois. Ensuite, tous les comptes s
 | `POST /utilisateurs` | gérant | Crée un compte ; renvoie une fois son mot de passe provisoire. |
 | `PATCH /utilisateurs/:id` | gérant | Nom, rôle, activation. Une désactivation ou un changement de rôle ferme les sessions du compte. |
 | `POST /utilisateurs/:id/reinitialiser-acces` | gérant | Mot de passe oublié, téléphone perdu : nouveau mot de passe provisoire, deuxième facteur à reconfigurer. |
+| `GET /clients?recherche=` | connecté | Clients visibles (l'apporteur ne voit que les siens), recherche par nom ou numéro. |
+| `POST /clients` | gérant, chargé, commercial, apporteur | Téléphone normalisé (+225…) ; si le numéro existe déjà : 409 `doublon_possible`, sauf `confirmerDoublon`. |
+| `GET /clients/:id` | connecté | Fiche : client, contrats, véhicules, devis, échanges. |
+| `PATCH /clients/:id` | gérant, chargé, commercial | Coordonnées. |
+| `POST /clients/:id/echanges` | tous sauf auditeur | Appel, message, visite ou note (ajout seul). |
+| `POST /clients/:id/vehicules` | gérant, chargé, commercial | Véhicule et échéances administratives ; immatriculation normalisée et unique. |
+| `POST /clients/:id/devis`, `PATCH /devis/:id` | création : gérant, chargé, commercial, apporteur ; suivi : sans l'apporteur | Devis ; un refus exige son motif. |
+| `POST /contrats`, `PATCH /contrats/:id` | gérant, chargé | Contrats ; « en vigueur » refusé tant que la prime n'est pas payée (Code CIMA, art. 13). |
+| `POST /contrats/:id/renouveler` | gérant, chargé | Nouveau contrat à partir de l'échéance, même durée et même prime par défaut. |
+| `GET /echeances` | connecté | Contrats à renouveler (expirés, J-7, J-15, J-30, J-60) et documents de véhicules. |
 
 ## Sécurité en place
 
@@ -98,7 +108,7 @@ npm run verifier-types -w @dbs/api
 | `src/config/` | Lecture et validation des variables d'environnement. |
 | `src/securite/` | Connexion, deuxième facteur, sessions, limitation des tentatives, protections HTTP. |
 | `src/base-de-donnees/` | Connexions à PostgreSQL et transactions qui déclarent l'utilisateur. |
-| `src/modules/` | Un dossier par domaine métier. `utilisateurs` est en place ; les autres viendront avec leurs tâches. |
+| `src/modules/` | Un dossier par domaine métier : `utilisateurs`, `clients`, `contrats` (et échéances), `vehicules`, `devis` en place ; les autres viendront avec leurs tâches. |
 | `src/integrations/` | Services extérieurs (paiement, WhatsApp, SMS, FNE, fichiers) : à venir. |
 | `src/commun/` | Erreurs et réponses. |
 | `src/outils/` | Outils d'installation (`premier-acces`). |

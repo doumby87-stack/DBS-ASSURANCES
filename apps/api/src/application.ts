@@ -6,7 +6,11 @@ import type { Pool } from "./base-de-donnees/connexion.js";
 import { transactionSysteme } from "./base-de-donnees/connexion.js";
 import { erreurs, gestionnaireErreurs } from "./commun/erreurs.js";
 import type { Configuration } from "./config/configuration.js";
+import { routesClients } from "./modules/clients/routes.js";
+import { routesContrats } from "./modules/contrats/routes.js";
+import { routesDevis } from "./modules/devis/routes.js";
 import { routesUtilisateurs } from "./modules/utilisateurs/routes.js";
+import { routesVehicules } from "./modules/vehicules/routes.js";
 import { creerGardes } from "./securite/gardes.js";
 import { creerVerificateurFuite, type VerificateurFuite } from "./securite/mots-de-passe.js";
 import { enregistrerProtections } from "./securite/protection.js";
@@ -83,6 +87,10 @@ export async function construireApplication(dependances: DependancesApplication)
     verifierFuite,
   });
   await app.register(routesUtilisateurs, { pool, gardes });
+  await app.register(routesClients, { pool, gardes });
+  await app.register(routesContrats, { pool, gardes });
+  await app.register(routesVehicules, { pool, gardes });
+  await app.register(routesDevis, { pool, gardes });
 
   return app;
 }
