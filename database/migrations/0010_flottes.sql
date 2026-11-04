@@ -139,6 +139,10 @@ BEGIN
     IF v_contrat.statut <> 'en_attente_paiement' THEN
       RAISE EXCEPTION 'Contrat déjà en vigueur : retirez le véhicule par un avenant, au prorata.' USING ERRCODE = 'check_violation';
     END IF;
+    -- Contrat revenu en attente de paiement après une contre-passation : ses avenants restent la référence
+    IF OLD.incorpore_par IS NOT NULL OR OLD.retire_par IS NOT NULL THEN
+      RAISE EXCEPTION 'Véhicule entré ou sorti par avenant : annulez l''avenant plutôt que de le détacher.' USING ERRCODE = 'check_violation';
+    END IF;
     IF OLD.numero_attestation IS NOT NULL THEN
       RAISE EXCEPTION 'Attestation % déjà émise pour ce véhicule : faites-la d''abord annuler.', OLD.numero_attestation
         USING ERRCODE = 'check_violation';

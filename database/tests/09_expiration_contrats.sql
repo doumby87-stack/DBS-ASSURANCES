@@ -117,4 +117,42 @@ ROLLBACK;
 SELECT tests.verifier((SELECT premiere_anomalie IS NULL FROM audit.verifier_chaine()), 'journal d''audit toujours intègre');
 
 \echo
+\echo '37. Contrat revenu en attente de paiement : un véhicule entré par avenant ne se détache pas'
+BEGIN;
+SET LOCAL ROLE dbs_api;
+SELECT set_config('app.utilisateur_id', '10000000-0000-4000-8000-000000000004', true);
+INSERT INTO app.vehicules (id, client_id, immatriculation) VALUES
+  ('40000000-0000-4000-8000-000000000925', '20000000-0000-4000-8000-000000000912', '9105 EX 01');
+INSERT INTO app.contrats (id, client_id, numero_police, branche, date_effet, date_echeance, prime_ttc) VALUES
+  ('30000000-0000-4000-8000-000000000925', '20000000-0000-4000-8000-000000000912', 'EXP-925', 'flotte',
+   current_date - 10, current_date + 355, 100000);
+COMMIT;
+BEGIN;
+SET LOCAL ROLE dbs_api;
+SELECT set_config('app.utilisateur_id', '10000000-0000-4000-8000-000000000003', true);  -- caissier
+INSERT INTO app.encaissements (contrat_id, montant, mode) VALUES ('30000000-0000-4000-8000-000000000925', 100000, 'especes')
+RETURNING id AS paiement_925 \gset
+COMMIT;
+BEGIN;
+SET LOCAL ROLE dbs_api;
+SELECT set_config('app.utilisateur_id', '10000000-0000-4000-8000-000000000004', true);
+SELECT app.avenant_flotte('30000000-0000-4000-8000-000000000925', current_date,
+  '[{"vehiculeId": "40000000-0000-4000-8000-000000000925", "mouvement": "incorporation", "primeVehicule": 365000}]', NULL, true);
+COMMIT;
+BEGIN;
+SET LOCAL ROLE dbs_api;
+SELECT set_config('app.utilisateur_id', '10000000-0000-4000-8000-000000000001', true);  -- gérant
+INSERT INTO app.encaissements (contrat_id, montant, mode, annule_encaissement_id, motif)
+VALUES ('30000000-0000-4000-8000-000000000925', -100000, 'especes', :'paiement_925', 'Paiement saisi sur le mauvais contrat');
+COMMIT;
+BEGIN;
+SET LOCAL ROLE dbs_api;
+SELECT set_config('app.utilisateur_id', '10000000-0000-4000-8000-000000000004', true);
+SELECT tests.verifier((SELECT statut = 'en_attente_paiement' FROM app.contrats WHERE id = '30000000-0000-4000-8000-000000000925'),
+                      'contre-passation : le contrat revient en attente de paiement');
+SELECT tests.doit_echouer($q$DELETE FROM app.contrats_vehicules WHERE vehicule_id = '40000000-0000-4000-8000-000000000925'$q$,
+  'annulez l''avenant plutôt que de le détacher');
+ROLLBACK;
+
+\echo
 \echo 'Tests de l''expiration des contrats et du suivi des véhicules passés.'
