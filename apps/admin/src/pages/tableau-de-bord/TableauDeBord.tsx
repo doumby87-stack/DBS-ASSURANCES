@@ -77,8 +77,11 @@ export function TableauDeBord() {
     setErreur("");
     setMessage("");
     try {
-      await api(`/contrats/${ligne.contratId}/renouveler`, { corps: {} });
-      setMessage(`Renouvellement préparé pour ${ligne.clientNom} : le nouveau contrat attend le paiement de la prime.`);
+      const { vehiculesRepris } = await api<{ vehiculesRepris: number }>(`/contrats/${ligne.contratId}/renouveler`, { corps: {} });
+      const vehicules = vehiculesRepris > 0
+        ? ` ${vehiculesRepris} véhicule${vehiculesRepris > 1 ? "s repris" : " repris"} ; vérifiez la prime avec la nouvelle cotation.`
+        : "";
+      setMessage(`Renouvellement préparé pour ${ligne.clientNom} : le nouveau contrat attend le paiement de la prime.${vehicules}`);
       await charger();
     } catch (e) {
       setErreur(messageErreur(e));
