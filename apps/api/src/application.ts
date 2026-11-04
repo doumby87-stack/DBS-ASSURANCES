@@ -17,9 +17,13 @@ import { routesNotificationsWhatsApp } from "./integrations/whatsapp/notificatio
 import { routesCaisse } from "./modules/encaissements/caisse.js";
 import { routesEncaissements } from "./modules/encaissements/routes.js";
 import { routesFlottes } from "./modules/flottes/routes.js";
+import { creerEnvoiCodes, type EnvoiCodes } from "./modules/portail/connexion.js";
+import { routesPortail } from "./modules/portail/routes.js";
+import { routesPortailAgence } from "./modules/portail/routes-agence.js";
 import { creerMessagerie, type Messagerie } from "./modules/relances/messagerie.js";
 import { routesRelances } from "./modules/relances/routes.js";
 import { routesReversements } from "./modules/reversements/routes.js";
+import { routesSinistres } from "./modules/sinistres/routes.js";
 import { routesUtilisateurs } from "./modules/utilisateurs/routes.js";
 import { routesVehicules } from "./modules/vehicules/routes.js";
 import { creerGardes } from "./securite/gardes.js";
@@ -38,6 +42,8 @@ export interface DependancesApplication {
   messagerie?: Messagerie;
   /** Analyse antivirus des pièces jointes (remplaçable dans les tests) ; sinon, d'après la configuration. */
   antivirus?: Antivirus;
+  /** Envoi des codes de connexion au portail (remplaçable dans les tests) ; sinon, d'après la configuration. */
+  envoiCodes?: EnvoiCodes;
   journal?: boolean;
 }
 
@@ -71,6 +77,7 @@ export async function construireApplication(dependances: DependancesApplication)
 
   await app.register(cookie);
   app.decorateRequest("utilisateur", null);
+  app.decorateRequest("gestionnaire", null);
   app.setErrorHandler(gestionnaireErreurs);
   app.setNotFoundHandler(async () => {
     throw erreurs.introuvable();
@@ -107,11 +114,20 @@ export async function construireApplication(dependances: DependancesApplication)
   await app.register(routesVehicules, { pool, gardes });
   await app.register(routesFlottes, { pool, gardes });
   await app.register(routesDevis, { pool, gardes });
+  await app.register(routesSinistres, { pool, gardes });
   const antivirus = dependances.antivirus ?? creerAntivirus(config.antivirus);
   await app.register(routesDemandesSiteBackOffice, { pool, gardes, cleChiffrement: config.cleChiffrement, antivirus });
   // Formulaire du site : seulement si l'adresse du site est configurée (sinon le site garde l'envoi par WhatsApp)
   if (config.origineSite) {
     await app.register(routesDemandesSite, { pool, cleChiffrement: config.cleChiffrement, origineSite: config.origineSite, antivirus });
+  }
+  // Portail des entreprises : accès et attestations gérés par l'agence ; le portail lui-même seulement si son
+  // adresse est configurée
+  await app.register(routesPortailAgence, { pool, gardes, cleChiffrement: config.cleChiffrement, antivirus });
+  if (config.originePortail) {
+    await app.register(routesPortail, {
+      pool, cleChiffrement: config.cleChiffrement, envoiCodes: dependances.envoiCodes ?? creerEnvoiCodes(config.relances),
+    });
   }
   await app.register(routesEncaissements, { pool, gardes });
   await app.register(routesCaisse, { pool, gardes });

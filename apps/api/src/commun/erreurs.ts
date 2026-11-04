@@ -60,6 +60,12 @@ const CONTRAINTES: Record<string, { statut: number; code: string; message: strin
   encaissements_annulation_unique: { statut: 409, code: "deja_contre_passe", message: "Cet encaissement a déjà été contre-passé." },
   contrats_vehicules_en_cours_unique: { statut: 409, code: "vehicule_deja_sur_le_contrat", message: "Ce véhicule figure déjà sur ce contrat." },
   avenants_flotte_annulation_unique: { statut: 409, code: "avenant_deja_annule", message: "Cet avenant a déjà été annulé." },
+  contrats_vehicules_attestation_unique: {
+    statut: 409, code: "attestation_deja_enregistree", message: "Ce numéro d'attestation est déjà enregistré pour un autre véhicule.",
+  },
+  gestionnaires_portail_telephone_unique: {
+    statut: 409, code: "telephone_deja_utilise", message: "Ce numéro a déjà un accès au portail (une personne, un numéro).",
+  },
   encaissements_reference: {
     statut: 422, code: "reference_obligatoire",
     message: "Indiquez la référence du paiement (n° de transaction, de chèque ou de virement).",
@@ -114,6 +120,8 @@ export function traduireErreur(erreur: unknown) {
     const connue = erreur.constraint ? CONTRAINTES[erreur.constraint] : undefined;
     if (connue) return reponse(connue.statut, connue.code, connue.message);
     switch (erreur.code) {
+      case "P0002": // élément introuvable, signalé par une fonction de la base
+        return reponse(404, "introuvable", erreur.message);
       case "28000": // utilisateur non déclaré, inconnu ou désactivé
         return reponse(401, "non_authentifie", "Connectez-vous pour continuer.");
       case "42501": // droits ligne par ligne ou par colonne

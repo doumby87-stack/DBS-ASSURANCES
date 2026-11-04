@@ -44,7 +44,11 @@ export async function routesFlottes(app: FastifyInstance, options: { pool: Pool;
           `SELECT ${COLONNES_VEHICULE},
                   (SELECT k.numero_police FROM app.contrats_vehicules cv JOIN app.contrats k ON k.id = cv.contrat_id
                    WHERE cv.vehicule_id = v.id AND cv.retire_le IS NULL AND k.statut IN ('en_attente_paiement', 'en_vigueur')
-                   ORDER BY k.date_echeance DESC LIMIT 1) AS "policeEnCours"
+                   ORDER BY k.date_echeance DESC LIMIT 1) AS "policeEnCours",
+                  -- Historique des sinistres du véhicule, du plus récent au plus ancien
+                  coalesce((SELECT jsonb_agg(jsonb_build_object('id', s.id, 'survenuLe', s.survenu_le, 'nature', s.nature,
+                                                                'statut', s.statut) ORDER BY s.survenu_le DESC)
+                            FROM app.sinistres s WHERE s.vehicule_id = v.id), '[]'::jsonb) AS sinistres
            FROM app.vehicules v WHERE v.client_id = $1 ORDER BY v.immatriculation`,
           [requete.params.id],
         );
@@ -57,9 +61,11 @@ export async function routesFlottes(app: FastifyInstance, options: { pool: Pool;
           [requete.params.id],
         );
         const composition = await client.query(
-          `SELECT cv.contrat_id AS "contratId", cv.vehicule_id AS "vehiculeId", v.immatriculation, cv.ajoute_le AS "ajouteLe",
-                  cv.retire_le AS "retireLe", cv.prime_vehicule AS "primeVehicule", cv.numero_attestation AS "numeroAttestation"
+          `SELECT cv.id AS "ligneId", cv.contrat_id AS "contratId", cv.vehicule_id AS "vehiculeId", v.immatriculation,
+                  cv.ajoute_le AS "ajouteLe", cv.retire_le AS "retireLe", cv.prime_vehicule AS "primeVehicule",
+                  cv.numero_attestation AS "numeroAttestation", a.etat_analyse AS "attestation"
            FROM app.contrats_vehicules cv JOIN app.vehicules v ON v.id = cv.vehicule_id
+           LEFT JOIN app.attestations_vehicules a ON a.contrat_vehicule_id = cv.id
            WHERE cv.contrat_id = ANY($1) ORDER BY v.immatriculation, cv.ajoute_le`,
           [contrats.rows.map((k: { id: string }) => k.id)],
         );

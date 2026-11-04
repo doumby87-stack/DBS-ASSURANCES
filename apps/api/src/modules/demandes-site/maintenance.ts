@@ -33,6 +33,8 @@ export async function executerMaintenance(
   });
   const purgees = await transactionSysteme(pool, async (client) => {
     const { rows } = await client.query<{ nombre: number }>("SELECT app.purger_demandes_site() AS nombre");
+    // Codes de connexion au portail de plus d'un jour et sessions expirées (database/migrations/0012)
+    await client.query("SELECT portail.purger()");
     return rows[0]?.nombre ?? 0;
   });
 

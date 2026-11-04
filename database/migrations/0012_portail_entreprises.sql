@@ -447,6 +447,28 @@ CREATE TRIGGER z_journal AFTER INSERT OR UPDATE OR DELETE ON app.attestations_ve
   FOR EACH ROW EXECUTE FUNCTION audit.journaliser('contenu_chiffre');
 
 -- ---------------------------------------------------------------------
+-- Historique des sinistres par véhicule : un sinistre n'est rattaché qu'à un véhicule couvert ce jour-là
+-- ---------------------------------------------------------------------
+CREATE FUNCTION app.controler_vehicule_sinistre() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog
+AS $$
+BEGIN
+  IF NEW.vehicule_id IS NOT NULL AND NOT EXISTS (
+       SELECT 1 FROM app.contrats_vehicules cv
+       WHERE cv.contrat_id = NEW.contrat_id AND cv.vehicule_id = NEW.vehicule_id
+         AND cv.ajoute_le <= NEW.survenu_le AND (cv.retire_le IS NULL OR cv.retire_le > NEW.survenu_le)) THEN
+    RAISE EXCEPTION 'Ce véhicule n''était pas couvert par ce contrat le %.', to_char(NEW.survenu_le, 'DD/MM/YYYY')
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END
+$$;
+CREATE TRIGGER b_couverture BEFORE INSERT OR UPDATE OF contrat_id, vehicule_id, survenu_le ON app.sinistres
+  FOR EACH ROW EXECUTE FUNCTION app.controler_vehicule_sinistre();
+CREATE INDEX sinistres_vehicule_idx ON app.sinistres (vehicule_id);
+
+-- ---------------------------------------------------------------------
 -- Droits du personnel (docs/securite/controle-des-acces.md)
 -- ---------------------------------------------------------------------
 ALTER TABLE app.gestionnaires_portail ENABLE ROW LEVEL SECURITY;

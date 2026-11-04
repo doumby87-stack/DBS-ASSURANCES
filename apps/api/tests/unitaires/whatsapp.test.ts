@@ -24,6 +24,20 @@ function faux(statut: number, corps: unknown) {
   return { appels, recuperer };
 }
 
+describe("Code de connexion au portail", () => {
+  it("envoie le modèle d'authentification avec le code dans le corps et dans le bouton « Copier le code »", async () => {
+    const { appels, recuperer } = faux(200, { messaging_product: "whatsapp", messages: [{ id: "wamid.CODE" }] });
+    const resultat = await creerClientWhatsApp(config, recuperer).envoyerCodeConnexion("+2250716000001", "042917");
+    expect(resultat).toEqual({ ok: true, identifiant: "wamid.CODE" });
+    const corps = JSON.parse(String(appels[0]!.init.body));
+    expect(corps).toMatchObject({ to: "2250716000001", template: { name: "dbs_code_connexion", language: { code: "fr" } } });
+    expect(corps.template.components).toEqual([
+      { type: "body", parameters: [{ type: "text", text: "042917" }] },
+      { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: "042917" }] },
+    ]);
+  });
+});
+
 describe("Envoi d'un modèle", () => {
   it("appelle l'API Cloud avec le jeton, le modèle validé, la langue et les paramètres", async () => {
     const { appels, recuperer } = faux(200, { messaging_product: "whatsapp", messages: [{ id: "wamid.HBgM" }] });

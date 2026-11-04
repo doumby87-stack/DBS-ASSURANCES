@@ -36,6 +36,12 @@ INSERT INTO app.gestionnaires_portail (id, client_id, nom, telephone, role) VALU
   ('70000000-0000-4000-8000-000000001001', '20000000-0000-4000-8000-000000001001', 'Awa Alpha', '+2250716000001', 'titulaire'),
   ('70000000-0000-4000-8000-000000001002', '20000000-0000-4000-8000-000000001001', 'Koné Alpha', '+2250716000002', 'gestionnaire'),
   ('70000000-0000-4000-8000-000000001003', '20000000-0000-4000-8000-000000001002', 'Bamba Beta', '+2250716000003', 'titulaire');
+SELECT tests.doit_echouer($q$INSERT INTO app.sinistres (contrat_id, vehicule_id, survenu_le, nature)
+  VALUES ('30000000-0000-4000-8000-000000001001', '40000000-0000-4000-8000-000000001003', current_date - 1, 'vol')$q$,
+  'n''était pas couvert par ce contrat');
+SELECT tests.doit_echouer($q$INSERT INTO app.sinistres (contrat_id, vehicule_id, survenu_le, nature)
+  VALUES ('30000000-0000-4000-8000-000000001001', '40000000-0000-4000-8000-000000001001', current_date - 40, 'vol')$q$,
+  'n''était pas couvert par ce contrat');
 SELECT tests.doit_echouer($q$INSERT INTO app.gestionnaires_portail (client_id, nom, telephone)
   VALUES ('20000000-0000-4000-8000-000000001003', 'Gamma', '+2250716000009')$q$, 'réservé aux entreprises');
 SELECT tests.doit_echouer($q$INSERT INTO app.gestionnaires_portail (client_id, nom, telephone)

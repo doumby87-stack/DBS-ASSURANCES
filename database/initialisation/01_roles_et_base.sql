@@ -46,7 +46,15 @@ $$;
 -- Garde-fous du compte applicatif : une requête bloquée ou une transaction oubliée ne paralyse pas la base
 -- Le compte applicatif peut prendre le rôle du portail (SET ROLE), sans en hériter les droits : une requête du
 -- personnel ne voit jamais les règles du portail, une requête du portail ne voit jamais celles du personnel
-GRANT dbs_portail TO dbs_application WITH INHERIT FALSE, SET TRUE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_auth_members m
+                 JOIN pg_roles r ON r.oid = m.roleid JOIN pg_roles u ON u.oid = m.member
+                 WHERE r.rolname = 'dbs_portail' AND u.rolname = 'dbs_application') THEN
+    GRANT dbs_portail TO dbs_application WITH INHERIT FALSE, SET TRUE;
+  END IF;
+END
+$$;
 
 ALTER ROLE dbs_application SET statement_timeout = '15s';
 ALTER ROLE dbs_application SET idle_in_transaction_session_timeout = '30s';
