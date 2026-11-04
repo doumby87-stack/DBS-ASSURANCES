@@ -277,11 +277,14 @@ describe("Reversements à la compagnie", () => {
     expect(aReverser.encaissements.some((e: { id: string }) => e.id === etat.premier)).toBe(false);
   });
 
-  it("exporte le bordereau en CSV pour Excel, sans formule exécutable", async () => {
+  it("exporte le bordereau en CSV pour Excel (gérant seulement, consigné), sans formule exécutable", async () => {
     const contrat = await nouveauContrat("=HYPERLINK(\"http://piege\")", 20_000);
     await encaisser("caissier", { contratId: contrat, montant: 20_000, mode: "especes" });
     const bordereau = (await envoyer(ctx, { url: "/reversements", cookie: cookies.caissier, corps: { jusquAu: aujourdHuiPlus(0) } })).json().bordereau;
-    const csv = await envoyer(ctx, { url: `/reversements/${bordereau.id}/export.csv`, cookie: cookies.auditeur });
+    for (const role of ["caissier", "auditeur"]) {
+      expect((await envoyer(ctx, { url: `/reversements/${bordereau.id}/export.csv`, cookie: cookies[role] })).statusCode).toBe(403);
+    }
+    const csv = await envoyer(ctx, { url: `/reversements/${bordereau.id}/export.csv`, cookie: cookies.gerant });
     expect(csv.statusCode).toBe(200);
     expect(csv.headers["content-type"]).toBe("text/csv; charset=utf-8");
     expect(csv.headers["content-disposition"]).toBe(`attachment; filename="bordereau-${bordereau.numero}.csv"`);
@@ -289,6 +292,12 @@ describe("Reversements à la compagnie", () => {
     expect(csv.body).toContain(`Bordereau de reversement ${bordereau.numero}`);
     expect(csv.body).toContain("\"'=HYPERLINK(\"\"http://piege\"\")\"");
     expect(csv.body).not.toMatch(/;=HYPERLINK/);
+
+    const { rows } = await ctx.base.query(
+      "SELECT utilisateur_id, objet, adresse_ip FROM securite.evenements WHERE type = 'export_donnees' AND objet = $1",
+      [`bordereau ${bordereau.numero}`],
+    );
+    expect(rows).toEqual([{ utilisateur_id: ids.gerant, objet: `bordereau ${bordereau.numero}`, adresse_ip: "198.51.100.1" }]);
   });
 });
 

@@ -10,7 +10,8 @@
 --     un écart se justifie, un gérant vise ; une période clôturée ne reçoit plus d'encaissement ;
 --   · un bordereau pas encore validé peut être annulé : ses encaissements redeviennent à reverser ;
 --   · commissions : prime nette des contrats, taux par branche datés, relevés de la compagnie
---     et rapprochement mensuel.
+--     et rapprochement mensuel ;
+--   · journal de sécurité : les exports de données y sont consignés.
 -- =====================================================================
 
 -- ---------------------------------------------------------------------
@@ -394,6 +395,19 @@ BEGIN
 END
 $$;
 GRANT EXECUTE ON FUNCTION app.annuler_bordereau(uuid, text) TO dbs_api;
+
+-- ---------------------------------------------------------------------
+-- Exports : réservés au gérant et journalisés (docs/securite/classification-des-donnees.md)
+-- Le journal de sécurité, en ajout seul, garde qui a exporté quoi, quand et depuis quelle adresse.
+-- ---------------------------------------------------------------------
+ALTER TABLE securite.evenements ADD COLUMN objet text;
+ALTER TABLE securite.evenements ADD CONSTRAINT evenements_objet_longueur CHECK (objet IS NULL OR char_length(objet) <= 120);
+ALTER TABLE securite.evenements DROP CONSTRAINT evenements_type;
+ALTER TABLE securite.evenements ADD CONSTRAINT evenements_type CHECK (type IN (
+  'connexion_reussie', 'connexion_echouee', 'mfa_echoue', 'compte_bloque', 'mfa_active',
+  'mot_de_passe_modifie', 'acces_reinitialise', 'compte_cree', 'compte_modifie', 'deconnexion',
+  'export_donnees'
+));
 
 -- ---------------------------------------------------------------------
 -- Commissions

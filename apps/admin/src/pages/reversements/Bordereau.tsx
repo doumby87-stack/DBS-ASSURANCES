@@ -66,7 +66,7 @@ export function PageBordereau({ id }: { id: string }) {
       <p className="fil non-imprimable"><Lien href="/reversements">Reversements</Lien> › {b.numero}</p>
       <div className="barre-outils non-imprimable">
         <button type="button" className="bouton bouton--petit" onClick={() => window.print()}>Imprimer</button>
-        <a className="bouton bouton--petit" href={`/api/reversements/${b.id}/export.csv`} download>Télécharger pour Excel</a>
+        {peut("gerant") && <a className="bouton bouton--petit" href={`/api/reversements/${b.id}/export.csv`} download>Télécharger pour Excel</a>}
         {peut("gerant") && b.statut === "prepare" && b.prepareParId !== moi && (
           <button type="button" className="bouton bouton--principal bouton--petit" onClick={() => void action("validation")}>Valider le bordereau</button>
         )}

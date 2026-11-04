@@ -10,6 +10,7 @@ import { ErreurApi, erreurs } from "../../commun/erreurs.js";
 import { date, parametreId, texteCourt } from "../../commun/schemas.js";
 import type { Gardes } from "../../securite/gardes.js";
 import { utilisateurDe } from "../../securite/gardes.js";
+import { consignerEvenement } from "../../securite/limitation.js";
 import { totauxParMode, type Mode } from "../encaissements/routes.js";
 
 /** Alerte quand il reste 5 jours ou moins (soit J+25 après l'encaissement). */
@@ -228,13 +229,17 @@ export async function routesReversements(app: FastifyInstance, options: { pool: 
   );
 
   // Export pour la compagnie (Excel en français). Le format définitif suivra celui de SanlamAllianz.
+  // Données confidentielles hors de l'application : réservé au gérant, consigné au journal de sécurité.
   app.get<{ Params: { id: string } }>(
     "/reversements/:id/export.csv",
-    { preHandler: lecteurs, schema: { params: parametreId } },
+    { preHandler: gardes.roles("gerant"), schema: { params: parametreId } },
     async (requete, reponse) => {
-      const { bordereau, lignes, totaux } = await transactionUtilisateur(pool, utilisateurDe(requete).id, (client) =>
-        lireBordereau(client, requete.params.id),
-      );
+      const moi = utilisateurDe(requete).id;
+      const { bordereau, lignes, totaux } = await transactionUtilisateur(pool, moi, async (client) => {
+        const detail = await lireBordereau(client, requete.params.id);
+        await consignerEvenement(client, "export_donnees", { utilisateurId: moi, ip: requete.ip, objet: `bordereau ${detail.bordereau.numero}` });
+        return detail;
+      });
       const csv = documentCsv([
         [`Bordereau de reversement ${bordereau.numero}`],
         [`${AGENCE.nom} — ${AGENCE.qualite} — code agence ${AGENCE.codeAgence}`],

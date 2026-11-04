@@ -182,6 +182,17 @@ SELECT tests.doit_echouer($q$SELECT app.annuler_bordereau('50000000-0000-4000-80
                           'Seul un gérant');
 ROLLBACK;
 
+BEGIN;
+SET LOCAL ROLE dbs_api;
+SELECT set_config('app.utilisateur_id', '10000000-0000-4000-8000-000000000001', true);  -- gérant
+INSERT INTO securite.evenements (type, utilisateur_id, objet)
+VALUES ('export_donnees', '10000000-0000-4000-8000-000000000001', 'bordereau BR-2026-0001');
+SELECT tests.verifier(true, 'un export de données est consigné au journal de sécurité');
+SELECT tests.doit_echouer($q$UPDATE securite.evenements SET objet = 'rien' WHERE type = 'export_donnees'$q$, 'permission denied|ajout seul');
+SELECT tests.doit_echouer($q$INSERT INTO securite.evenements (type, objet) VALUES ('export_donnees', repeat('x', 121))$q$,
+                          'evenements_objet_longueur');
+ROLLBACK;
+
 \echo
 \echo '21. Commissions : taux datés, prime nette, rapprochement avec le relevé de la compagnie'
 BEGIN;
