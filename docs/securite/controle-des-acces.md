@@ -4,7 +4,7 @@
 
 1. **Moindre privilège** : chacun a exactement ce dont son travail a besoin.
 2. **Refus par défaut** : ce qui n'est pas explicitement autorisé est interdit.
-3. **Quatre yeux** sur l'argent : celui qui prépare un reversement ne le valide pas ; seul le gérant annule un encaissement.
+3. **Quatre yeux** sur l'argent : celui qui prépare un reversement ne le valide pas ; celui qui clôture sa caisse ne vise pas sa clôture ; seul le gérant annule un encaissement.
 4. **Rien ne s'efface** : aucun rôle n'a le droit de supprimer une donnée métier.
 5. **Appliqué deux fois** : par l'API, puis par la base de données. Masquer un bouton à l'écran n'est jamais une protection.
 
@@ -30,13 +30,15 @@ L = lire · C = créer · M = modifier · — = aucun accès
 | Véhicules | L C M | L C M | L | L C M | ses clients : L | L |
 | Contrats | L C M | L C M | L | L | ses clients : L | L |
 | Encaissements | L C, annulation | L | L C | — | — | L |
-| Reversements | L C, validation, versement | — | L C (préparation) | — | — | L |
+| Reversements | L C, validation, versement, annulation, export | — | L C (préparation), annulation des siens avant validation | — | — | L |
+| Clôtures de caisse | L C, visa (des autres) | — | sa caisse : L C | — | — | L |
+| Commissions (taux, relevés) | L C M | — | — | — | — | L |
 | Sinistres | L C M | L C M | — | L | — | L |
 | Devis | L C M | L C M | — | L C M | ses clients : L C | L |
 | Échanges (ajout seul) | L C | L C | L C | L C | ses clients : L C | L |
 | Journal d'audit | via le rôle `dbs_audit` | — | — | — | — | via le rôle `dbs_audit` |
 
-Personne, pas même le gérant, ne modifie un encaissement, ne valide son propre bordereau ou ne supprime une ligne.
+Personne, pas même le gérant, ne modifie un encaissement, ne valide son propre bordereau, ne vise sa propre clôture de caisse ou ne supprime une ligne. Les exports de données (bordereaux) sont réservés au gérant et consignés au journal de sécurité.
 
 ## Vie des comptes
 

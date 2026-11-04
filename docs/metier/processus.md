@@ -11,10 +11,10 @@ flowchart TD
   C --> D["Devis envoyé<br/>relance automatique si pas de réponse"]
   D -->|accepté| E["Contrat créé<br/>statut : en attente de paiement"]
   D -->|refusé| X["Motif de perte noté"]
-  E --> F["Encaissement<br/>reçu numéroté · plafond espèces · référence obligatoire hors espèces"]
+  E --> F["Encaissement<br/>reçu numéroté sans trou · plafond espèces · référence obligatoire hors espèces<br/>jamais plus que le reste à payer"]
   F --> G{"Prime entièrement payée ?"}
   G -->|non| F
-  G -->|oui| H["Contrat en vigueur<br/>(Code CIMA, art. 13)"]
+  G -->|oui| H["Contrat en vigueur, automatiquement<br/>(Code CIMA, art. 13)"]
   H --> I["Attestation ASACI émise<br/>numéro rattaché au véhicule"]
 ```
 
@@ -22,12 +22,15 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-  A["Encaissements du mois"] --> B["Bordereau préparé<br/>par la caisse"]
-  B --> C["Encaissements rattachés"]
-  C --> D["Validation par le gérant<br/>jamais par la personne qui a préparé"]
+  A["Encaissements de la journée"] --> K["Clôture de chaque caisse<br/>billetage · écart expliqué · visa d'un autre gérant"]
+  K --> B["Bordereau préparé par la caisse<br/>tous les encaissements hors bordereau jusqu'à une date"]
+  B --> C{"Correct ?"}
+  C -->|non| X["Annulé avant validation<br/>les encaissements redeviennent à reverser"]
+  C -->|oui| D["Validation par le gérant<br/>jamais par la personne qui a préparé"]
   D --> E["Versement à SanlamAllianz<br/>référence du virement obligatoire"]
   E --> F["Bordereau figé"]
   A -.->|"compte à rebours<br/>30 jours (art. 542)"| G["Alerte à J+25"]
+  F -.-> H["Rapprochement mensuel<br/>avec le relevé de commissions (art. 559)"]
 ```
 
 ## Renouvellement

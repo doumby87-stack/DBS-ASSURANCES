@@ -4,7 +4,7 @@ Deux journaux distincts, aux usages différents.
 
 ## 1. Journal d'audit (dans la base)
 
-**Ce qu'il contient** : chaque création, modification ou suppression de donnée métier (clients, véhicules, contrats, encaissements, reversements, sinistres, utilisateurs), avec l'état avant et après, l'utilisateur, le compte de base et l'heure.
+**Ce qu'il contient** : chaque création, modification ou suppression de donnée métier (clients, véhicules, contrats, encaissements, reversements, clôtures de caisse, taux et relevés de commissions, sinistres, utilisateurs), avec l'état avant et après, l'utilisateur, le compte de base et l'heure.
 
 **Pourquoi on peut s'y fier** :
 
@@ -18,6 +18,8 @@ Deux journaux distincts, aux usages différents.
 
 **Conservation** : 10 ans au moins, comme les pièces comptables et les dossiers d'identification des clients ([lutte contre le blanchiment](../conformite/lbc-ft.md)).
 
+Les événements de sécurité sont aussi enregistrés dans la base, dans `securite.evenements`, en ajout seul : connexions et échecs, blocages, comptes, deuxième facteur, exports de données.
+
 ## 2. Journal technique (de l'API)
 
 **Ce qu'il contient** : démarrages, erreurs, temps de réponse, et les événements de sécurité :
@@ -25,7 +27,7 @@ Deux journaux distincts, aux usages différents.
 - connexions réussies et échouées, déconnexions, blocages ;
 - création, désactivation, changement de rôle d'un compte ;
 - activation ou réinitialisation d'un deuxième facteur ;
-- exports de données ;
+- exports de données (bordereaux exportés pour Excel : qui, quand, lequel, depuis quelle adresse) ;
 - notifications de paiement rejetées (signature invalide, doublon).
 
 **Ce qu'il ne contient jamais** : mots de passe, codes de connexion, jetons, numéros de pièce d'identité, contenu des messages clients, données médicales.
