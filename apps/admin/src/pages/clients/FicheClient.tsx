@@ -36,6 +36,7 @@ interface Vehicule {
 interface Devis {
   id: string;
   branche: string;
+  origine: string;
   description: string | null;
   primeProposee: number | null;
   statut: string;
@@ -356,7 +357,7 @@ function LigneDevis({ devis, modifiable, apres }: { devis: Devis; modifiable: bo
     <li className="devis">
       <p>
         <strong>{BRANCHES[devis.branche]}</strong> · {montant(devis.primeProposee)} · <Badge ton={tonStatut(devis.statut)}>{STATUTS_DEVIS[devis.statut]}</Badge>
-        <small> créé le {dateHeure(devis.creeLe)}</small>
+        <small> créé le {dateHeure(devis.creeLe)}{devis.origine === "site" ? " · demande reçue par le site" : ""}</small>
       </p>
       {devis.description && <p>{devis.description}</p>}
       {devis.motifRefus && <p className="note">Motif du refus : {devis.motifRefus}</p>}

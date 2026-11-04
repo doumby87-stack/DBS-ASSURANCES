@@ -30,6 +30,8 @@ export default defineConfig({
             DATABASE_URL: acces.urlApplication,
             CLE_CHIFFREMENT_DONNEES: acces.cleChiffrement,
             URL_BACK_OFFICE: ADRESSE,
+            // Formulaire du site vitrine (tâche 7) : le parcours envoie une demande comme le ferait le site
+            URL_SITE_VITRINE: "http://localhost:4321",
             VERIFIER_MOTS_DE_PASSE_DIVULGUES: "false",
             // Relances lancées à la main dans le parcours, à toute heure, sans qu'aucun message ne parte
             RELANCES_SIMULATION: "true",
