@@ -1,5 +1,5 @@
 // Fiche client : tout ce qui concerne un client sur une seule page (contrats, véhicules, devis,
-// accord pour les rappels automatiques, échanges).
+// accès au portail des entreprises, accord pour les rappels automatiques, échanges).
 
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Alerte, Badge, Champ, Chargement, Section, Vide } from "../../composants/communs";
@@ -10,6 +10,7 @@ import {
   telephone, TYPES_CLIENT, TYPES_RELANCE,
 } from "../../services/format";
 import { useSession } from "../../session";
+import { AccesPortail } from "./AccesPortail";
 
 interface Contrat {
   id: string;
@@ -191,6 +192,10 @@ export function FicheClient({ id }: { id: string }) {
             </ul>
           )}
         </Section>
+      )}
+
+      {(client.type === "entreprise" || client.type === "professionnel") && peut("gerant", "charge_clientele", "commercial", "auditeur") && (
+        <AccesPortail clientId={client.id} />
       )}
 
       <Section titre="Rappels automatiques">

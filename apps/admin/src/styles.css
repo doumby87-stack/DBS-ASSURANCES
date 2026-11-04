@@ -270,3 +270,5 @@ a.bouton--principal { color: var(--blanc); }
 .detail-avenant li { margin: 0.15rem 0; }
 .bouton--lien { background: transparent; border-color: transparent; text-decoration: underline; }
 .visuellement-cache { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+details.avenant > summary { cursor: pointer; font-weight: 700; color: var(--encre); }
+details.avenant[open] > summary { margin-bottom: 0.75rem; }

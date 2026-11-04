@@ -2,7 +2,8 @@
 // création d'un client et d'un contrat, encaissement et reçu, accord du client pour les rappels et relance
 // automatique (en simulation), relance et renouvellement depuis le tableau des échéances, clôture de caisse,
 // bordereau de reversement, demande de devis reçue du site, commissions, flotte d'un transporteur (import,
-// avenants d'incorporation et de retrait au prorata, annulation), création d'un compte.
+// avenants d'incorporation et de retrait au prorata, annulation, attestation, sinistre, accès au portail),
+// création d'un compte.
 // Aucune violation de la politique de sécurité du contenu n'est tolérée.
 
 import { expect, test, type Page } from "@playwright/test";
@@ -28,6 +29,8 @@ function surveillerCsp(page: Page): string[] {
 }
 
 test("parcours du gérant, de la première connexion à la caisse et au reversement", async ({ page }) => {
+  // Long parcours : toutes les tâches du back-office, l'une après l'autre
+  test.setTimeout(120_000);
   const violations = surveillerCsp(page);
 
   // --- Première connexion : mot de passe provisoire
@@ -201,6 +204,7 @@ test("parcours du gérant, de la première connexion à la caisse et au reversem
   const jj = (jours: number) => dans(jours).split("-").reverse().join("/");
   await page.getByRole("link", { name: "Clients", exact: true }).click();
   await page.getByRole("button", { name: "Nouveau client" }).click();
+  await page.getByLabel("Type", { exact: true }).selectOption("entreprise");
   await page.getByLabel("Nom et prénoms ou raison sociale").fill("Transports Flotte Express");
   await page.getByLabel("Téléphone").fill("07 22 33 44 55");
   await page.getByRole("button", { name: "Créer le client" }).click();
@@ -301,6 +305,41 @@ test("parcours du gérant, de la première connexion à la caisse et au reversem
   await expect(page.getByRole("row", { name: /Retrait de 7002 FE 01/ })).toContainText("Annulé (n° 3)");
   await expect(page.getByRole("row", { name: /Annulation de l'avenant n° 2/ })).toContainText("Erreur : 7002 FE 01 roule toujours");
   await expect(page.getByRole("button", { name: /^Annuler l'avenant/ })).toHaveCount(1);
+
+  // Attestation du premier camion (PDF de l'ASACI), analysée puis disponible sur le portail de l'entreprise
+  await page.getByText(/^Attestations : 0 déposée\(s\) sur 3 véhicule\(s\)/).click();
+  await page.getByLabel("N° d'attestation de 7001 FE 01").fill("ASACI-E2E-7001");
+  await page.getByLabel("PDF de l'attestation de 7001 FE 01").setInputFiles({
+    name: "attestation-7001-FE-01.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n% attestation de test\n%%EOF\n"),
+  });
+  await page.getByRole("button", { name: "Déposer 1 attestation(s)" }).click();
+  await expect(page.getByText("1 attestation(s) déposée(s) sur 1.")).toBeVisible();
+  const lienAttestation = page.getByRole("link", { name: "Attestation ASACI-E2E-7001 de 7001 FE 01 (PDF)" });
+  await expect(lienAttestation).toBeVisible();
+  expect(await page.evaluate(async (adresse) => (await fetch(adresse!)).headers.get("content-type"), await lienAttestation.getAttribute("href")))
+    .toBe("application/pdf");
+
+  // Sinistre sur ce camion, puis suivi de son statut : il rejoint l'historique du véhicule
+  await page.getByText("Déclarer un sinistre").click();
+  const declaration = page.getByRole("form", { name: "Déclarer un sinistre" });
+  await declaration.getByLabel("Véhicule concerné").selectOption({ label: "7001 FE 01" });
+  await declaration.getByLabel("Nature").selectOption("bris_de_glace");
+  await declaration.getByRole("button", { name: "Enregistrer le sinistre" }).click();
+  const statutSinistre = page.getByLabel(/^Statut du sinistre de 7001 FE 01/);
+  await expect(statutSinistre).toHaveValue("declare");
+  await statutSinistre.selectOption("transmis_compagnie");
+  await expect(page.getByRole("row", { name: /^7001 FE 01 Renault Trucks/ })).toContainText("dernier le");
+  await expect(page.getByLabel(/^Statut du sinistre de 7001 FE 01/)).toHaveValue("transmis_compagnie");
+
+  // Accès du transporteur à son portail, depuis sa fiche
+  await page.getByRole("link", { name: "Transports Flotte Express" }).first().click();
+  const nouvelAcces = page.getByRole("form", { name: "Nouvel accès au portail" });
+  await nouvelAcces.getByLabel("Nom et prénoms").fill("Awa Flotte");
+  await nouvelAcces.getByLabel("Numéro WhatsApp").fill("07 11 22 33 44");
+  await nouvelAcces.getByRole("button", { name: "Créer l'accès" }).click();
+  await expect(page.getByText(/Accès créé pour Awa Flotte/)).toBeVisible();
+  await expect(page.getByRole("row", { name: /Awa Flotte/ })).toContainText("Titulaire");
+  await expect(page.getByRole("row", { name: /Awa Flotte/ })).toContainText("Jamais");
 
   // --- Nouveau compte : mot de passe provisoire affiché une seule fois
   await page.getByRole("link", { name: "Personnel" }).click();

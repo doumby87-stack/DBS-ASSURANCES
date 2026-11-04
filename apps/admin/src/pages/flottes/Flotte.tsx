@@ -21,14 +21,19 @@ interface Vehicule {
   echeanceVignette: string | null;
   echeanceCarteTransport: string | null;
   policeEnCours: string | null;
+  sinistres: { id: string; survenuLe: string; nature: string; statut: string }[];
 }
 
 interface LigneContrat {
+  ligneId: string;
   vehiculeId: string;
   immatriculation: string;
   ajouteLe: string;
   retireLe: string | null;
   primeVehicule: number | null;
+  numeroAttestation: string | null;
+  /** Attestation PDF déposée : analysée (« saine ») ou en attente d'analyse */
+  attestation: "saine" | "a_analyser" | null;
 }
 
 type Mouvement = "incorporation" | "retrait";
@@ -163,7 +168,7 @@ export function Flotte({ clientId }: { clientId: string }) {
           <div className="tableau-defilant">
             <table className="tableau">
               <thead>
-                <tr><th>Immatriculation</th><th>Véhicule</th><th>Contrat</th>{DOCUMENTS.map(([, libelle]) => <th key={libelle}>{libelle}</th>)}</tr>
+                <tr><th>Immatriculation</th><th>Véhicule</th><th>Contrat</th>{DOCUMENTS.map(([, libelle]) => <th key={libelle}>{libelle}</th>)}<th>Sinistres</th></tr>
               </thead>
               <tbody>
                 {donnees.vehicules.map((v) => (
@@ -177,6 +182,11 @@ export function Flotte({ clientId }: { clientId: string }) {
                     </td>
                     <td>{v.policeEnCours ?? <span className="note">Aucun</span>}</td>
                     {DOCUMENTS.map(([cle]) => <td key={cle}><Echeance date={v[cle] as string | null} /></td>)}
+                    <td>
+                      {v.sinistres.length === 0 ? <span className="note">Aucun</span> : (
+                        <>{v.sinistres.length}<span className="note"><br />dernier le {dateCourte(v.sinistres[0]!.survenuLe)}</span></>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -189,6 +199,8 @@ export function Flotte({ clientId }: { clientId: string }) {
       {donnees.contrats.map((contrat) => (
         <ContratFlotte key={contrat.id} contrat={contrat} vehicules={donnees.vehicules} apres={charger} />
       ))}
+
+      <SinistresFlotte vehicules={donnees.vehicules} contrats={donnees.contrats} apres={charger} />
     </>
   );
 }
@@ -351,7 +363,7 @@ function ContratFlotte({ contrat, vehicules, apres }: { contrat: Contrat; vehicu
           <table className="tableau">
             <thead>
               <tr>
-                <th>Véhicule</th><th>Couvert depuis</th><th>Retiré le</th><th>Prime du véhicule</th>
+                <th>Véhicule</th><th>Couvert depuis</th><th>Retiré le</th><th>Prime du véhicule</th><th>Attestation</th>
                 {gestion && contrat.statut === "en_attente_paiement" && <th><span className="visuellement-cache">Actions</span></th>}
               </tr>
             </thead>
@@ -362,6 +374,13 @@ function ContratFlotte({ contrat, vehicules, apres }: { contrat: Contrat; vehicu
                   <td>{dateCourte(v.ajouteLe)}</td>
                   <td>{v.retireLe ? dateCourte(v.retireLe) : "—"}</td>
                   <td>{v.primeVehicule ? montant(v.primeVehicule) : "—"}</td>
+                  <td>
+                    {v.attestation === "saine" ? (
+                      <a href={`/api/attestations/${v.ligneId}`} download aria-label={`Attestation ${v.numeroAttestation} de ${v.immatriculation} (PDF)`}>{v.numeroAttestation}</a>
+                    ) : v.numeroAttestation ? (
+                      <>{v.numeroAttestation}{v.attestation === "a_analyser" && <span className="note"><br />PDF en attente d'analyse</span>}</>
+                    ) : <span className="note">—</span>}
+                  </td>
                   {gestion && contrat.statut === "en_attente_paiement" && (
                     <td>
                       <button type="button" className="bouton bouton--petit" aria-label={`Détacher ${v.immatriculation} du contrat`}
@@ -377,6 +396,9 @@ function ContratFlotte({ contrat, vehicules, apres }: { contrat: Contrat; vehicu
 
       {gestion && contrat.statut === "en_attente_paiement" && incorporables.length > 0 && (
         <RattachementDepart contrat={contrat} disponibles={incorporables} apres={apres} />
+      )}
+      {gestion && contrat.statut === "en_vigueur" && actifs.length > 0 && (
+        <DepotAttestations contrat={contrat} actifs={actifs} apres={apres} />
       )}
       {gestion && contrat.statut === "en_vigueur" && (incorporables.length > 0 || actifs.length > 0) && (
         <NouvelAvenant contrat={contrat} incorporables={incorporables} actifs={actifs} apres={apres} />
@@ -705,5 +727,239 @@ function AnnulationAvenant({ contrat, avenant, fermer, apres }: {
         <button type="button" className="bouton bouton--lien" onClick={fermer}>Fermer</button>
       </div>
     </form>
+  );
+}
+
+/** Plaque sans espaces ni tirets, en majuscules : « 1234-ab-01 » et « 1234 AB 01 » donnent « 1234AB01 » */
+const clePlaque = (texte: string) => texte.toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+/**
+ * Attestations des véhicules couverts (PDF de l'ASACI) : une à une, ou plusieurs PDF choisis d'un coup,
+ * rapprochés du véhicule dont la plaque figure dans le nom du fichier. Chaque PDF est analysé par
+ * l'antivirus, chiffré, puis visible par l'entreprise sur son portail.
+ */
+function DepotAttestations({ contrat, actifs, apres }: { contrat: Contrat; actifs: LigneContrat[]; apres: () => Promise<void> }) {
+  const [saisies, setSaisies] = useState<Record<string, { numero: string; fichier: File | null }>>({});
+  const [etats, setEtats] = useState<Record<string, { ok: boolean; texte: string }>>({});
+  const [message, setMessage] = useState("");
+  const [envoi, setEnvoi] = useState(false);
+  const deposees = actifs.filter((v) => v.attestation).length;
+  const saisie = (v: LigneContrat) => saisies[v.vehiculeId] ?? { numero: v.numeroAttestation ?? "", fichier: null };
+  const pretes = actifs.filter((v) => saisie(v).fichier && saisie(v).numero.trim().length >= 3);
+
+  function modifier(v: LigneContrat, changement: Partial<{ numero: string; fichier: File | null }>) {
+    setMessage("");
+    setSaisies((avant) => ({ ...avant, [v.vehiculeId]: { ...saisie(v), ...avant[v.vehiculeId], ...changement } }));
+  }
+
+  function choisirPlusieurs(evenement: ChangeEvent<HTMLInputElement>) {
+    const fichiers = [...(evenement.target.files ?? [])];
+    const rapproches = new Map<string, File>();
+    const ignores: string[] = [];
+    for (const fichier of fichiers) {
+      const nom = clePlaque(fichier.name);
+      const vehicule = actifs.find((v) => nom.includes(clePlaque(v.immatriculation)));
+      if (vehicule) rapproches.set(vehicule.vehiculeId, fichier);
+      else ignores.push(fichier.name);
+    }
+    setSaisies((avant) => {
+      const suite = { ...avant };
+      for (const v of actifs) {
+        const fichier = rapproches.get(v.vehiculeId);
+        if (fichier) suite[v.vehiculeId] = { ...saisie(v), ...avant[v.vehiculeId], fichier };
+      }
+      return suite;
+    });
+    setMessage(`${rapproches.size} PDF rapproché(s) d'un véhicule d'après la plaque dans leur nom.`
+      + (ignores.length ? ` Sans plaque reconnue : ${ignores.join(", ")}.` : "") + " Indiquez le n° de chaque attestation, puis déposez.");
+    evenement.target.value = "";
+  }
+
+  async function deposer(evenement: FormEvent) {
+    evenement.preventDefault();
+    setEnvoi(true);
+    setMessage("");
+    let reussies = 0;
+    for (const v of pretes) {
+      const { numero, fichier } = saisie(v);
+      try {
+        await api(`/contrats/${contrat.id}/vehicules/${v.vehiculeId}/attestation`, {
+          corps: { numero: numero.trim(), fichier: await lireEnBase64(fichier!) },
+        });
+        reussies += 1;
+        setEtats((avant) => ({ ...avant, [v.vehiculeId]: { ok: true, texte: "Déposée" } }));
+        setSaisies((avant) => {
+          const suite = { ...avant };
+          delete suite[v.vehiculeId];
+          return suite;
+        });
+      } catch (e) {
+        setEtats((avant) => ({ ...avant, [v.vehiculeId]: { ok: false, texte: messageErreur(e) } }));
+      }
+    }
+    setEnvoi(false);
+    setMessage(`${reussies} attestation(s) déposée(s) sur ${pretes.length}.`);
+    await apres();
+  }
+
+  return (
+    <details className="avenant">
+      <summary>Attestations : {deposees} déposée(s) sur {actifs.length} véhicule(s)</summary>
+      <form className="formulaire" aria-label={`Attestations du contrat ${contrat.numeroPolice ?? ""}`} onSubmit={(e) => void deposer(e)}>
+        <p className="note">
+          PDF de l'attestation digitale (ASACI), 2 Mo au plus. Choisissez-les un à un, ou plusieurs d'un coup : chaque fichier est rapproché du
+          véhicule dont la plaque figure dans son nom (par exemple « attestation-1234-AB-01.pdf »).
+        </p>
+        <Champ libelle="Plusieurs PDF d'un coup">
+          <input type="file" accept="application/pdf,.pdf" multiple onChange={choisirPlusieurs} />
+        </Champ>
+        <div className="tableau-defilant">
+          <table className="tableau">
+            <thead><tr><th>Véhicule</th><th>N° d'attestation</th><th>Fichier PDF</th><th>État</th></tr></thead>
+            <tbody>
+              {actifs.map((v) => {
+                const s = saisie(v);
+                const etat = etats[v.vehiculeId];
+                return (
+                  <tr key={v.ligneId}>
+                    <td>{v.immatriculation}</td>
+                    <td>
+                      <input aria-label={`N° d'attestation de ${v.immatriculation}`} value={s.numero} maxLength={40}
+                        onChange={(e) => modifier(v, { numero: e.target.value })} />
+                    </td>
+                    <td>
+                      <input type="file" accept="application/pdf,.pdf" aria-label={`PDF de l'attestation de ${v.immatriculation}`}
+                        onChange={(e) => modifier(v, { fichier: e.target.files?.[0] ?? null })} />
+                      {s.fichier && <span className="note"><br />{s.fichier.name}</span>}
+                    </td>
+                    <td>
+                      {etat ? <Badge ton={etat.ok ? "vert" : "rouge"}>{etat.texte}</Badge>
+                        : v.attestation === "saine" ? <Badge ton="vert">Disponible sur le portail</Badge>
+                        : <span className="note">À déposer</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <Alerte type="info">{message}</Alerte>
+        <div className="formulaire__actions">
+          <button type="submit" className="bouton bouton--principal" disabled={pretes.length === 0 || envoi}>
+            {envoi ? "Dépôt en cours…" : `Déposer ${pretes.length} attestation(s)`}
+          </button>
+        </div>
+      </form>
+    </details>
+  );
+}
+
+const NATURES_SINISTRE: Record<string, string> = {
+  materiel: "Dommages matériels", corporel: "Dommages corporels", vol: "Vol", incendie: "Incendie",
+  bris_de_glace: "Bris de glace", degat_des_eaux: "Dégât des eaux", autre: "Autre",
+};
+const STATUTS_SINISTRE: Record<string, string> = {
+  declare: "Déclaré", transmis_compagnie: "Transmis à la compagnie", expertise: "En expertise", offre_recue: "Offre reçue",
+  regle: "Réglé", refuse: "Refusé", classe_sans_suite: "Classé sans suite",
+};
+
+/** Sinistres de la flotte : historique par véhicule, déclaration et suivi (le portail les montre à l'entreprise) */
+function SinistresFlotte({ vehicules, contrats, apres }: { vehicules: Vehicule[]; contrats: Contrat[]; apres: () => Promise<void> }) {
+  const { peut } = useSession();
+  const gestion = peut("gerant", "charge_clientele");
+  const [erreur, setErreur] = useState("");
+  const [contratId, setContratId] = useState(contrats[0]?.id ?? "");
+  const [vehiculeId, setVehiculeId] = useState("");
+  const [survenuLe, setSurvenuLe] = useState(aujourdHui());
+  const [nature, setNature] = useState("materiel");
+  const [description, setDescription] = useState("");
+  const sinistres = vehicules.flatMap((v) => v.sinistres.map((s) => ({ ...s, immatriculation: v.immatriculation })))
+    .sort((a, b) => b.survenuLe.localeCompare(a.survenuLe));
+  const contrat = contrats.find((k) => k.id === contratId) ?? contrats[0];
+  const couverts = contrat?.vehicules.filter((l) => l.ajouteLe <= survenuLe && (!l.retireLe || l.retireLe > survenuLe)) ?? [];
+
+  async function changerStatut(id: string, statut: string) {
+    setErreur("");
+    try {
+      await api(`/sinistres/${id}`, { methode: "PATCH", corps: { statut } });
+      await apres();
+    } catch (e) {
+      setErreur(messageErreur(e));
+    }
+  }
+
+  async function declarer(evenement: FormEvent) {
+    evenement.preventDefault();
+    setErreur("");
+    try {
+      await api(`/contrats/${contrat!.id}/sinistres`, {
+        corps: { survenuLe, nature, ...(vehiculeId ? { vehiculeId } : {}), ...(description.trim() ? { description } : {}) },
+      });
+      setDescription("");
+      await apres();
+    } catch (e) {
+      setErreur(messageErreur(e));
+    }
+  }
+
+  if (sinistres.length === 0 && (!gestion || contrats.length === 0)) return null;
+  return (
+    <Section titre="Sinistres de la flotte">
+      <Alerte>{erreur}</Alerte>
+      {sinistres.length === 0 ? <Vide>Aucun sinistre enregistré sur les véhicules de ce client.</Vide> : (
+        <div className="tableau-defilant">
+          <table className="tableau">
+            <thead><tr><th>Survenu le</th><th>Véhicule</th><th>Nature</th><th>Statut</th></tr></thead>
+            <tbody>
+              {sinistres.map((s) => (
+                <tr key={s.id}>
+                  <td>{dateCourte(s.survenuLe)}</td>
+                  <td>{s.immatriculation}</td>
+                  <td>{NATURES_SINISTRE[s.nature] ?? s.nature}</td>
+                  <td>
+                    {gestion ? (
+                      <select aria-label={`Statut du sinistre de ${s.immatriculation} du ${dateCourte(s.survenuLe)}`} value={s.statut}
+                        onChange={(e) => void changerStatut(s.id, e.target.value)}>
+                        {Object.entries(STATUTS_SINISTRE).map(([valeur, libelle]) => <option key={valeur} value={valeur}>{libelle}</option>)}
+                      </select>
+                    ) : STATUTS_SINISTRE[s.statut] ?? s.statut}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {gestion && contrat && (
+        <details className="avenant">
+          <summary>Déclarer un sinistre</summary>
+          <form className="formulaire formulaire--grille" aria-label="Déclarer un sinistre" onSubmit={(e) => void declarer(e)}>
+            <Champ libelle="Contrat">
+              <select value={contrat.id} onChange={(e) => { setContratId(e.target.value); setVehiculeId(""); }}>
+                {contrats.map((k) => <option key={k.id} value={k.id}>{k.numeroPolice ?? "Sans n° de police"} · {STATUTS_CONTRAT[k.statut] ?? k.statut}</option>)}
+              </select>
+            </Champ>
+            <Champ libelle="Survenu le">
+              <input type="date" value={survenuLe} max={aujourdHui()} onChange={(e) => { setSurvenuLe(e.target.value); setVehiculeId(""); }} required />
+            </Champ>
+            <Champ libelle="Véhicule concerné" aide="Seuls les véhicules couverts ce jour-là.">
+              <select value={vehiculeId} onChange={(e) => setVehiculeId(e.target.value)}>
+                <option value="">Aucun véhicule précis</option>
+                {couverts.map((l) => <option key={l.ligneId} value={l.vehiculeId}>{l.immatriculation}</option>)}
+              </select>
+            </Champ>
+            <Champ libelle="Nature">
+              <select value={nature} onChange={(e) => setNature(e.target.value)}>
+                {Object.entries(NATURES_SINISTRE).map(([valeur, libelle]) => <option key={valeur} value={valeur}>{libelle}</option>)}
+              </select>
+            </Champ>
+            <Champ libelle="Circonstances (note interne, non visible par le client)">
+              <textarea value={description} maxLength={4000} rows={2} onChange={(e) => setDescription(e.target.value)} />
+            </Champ>
+            <button type="submit" className="bouton bouton--principal">Enregistrer le sinistre</button>
+          </form>
+        </details>
+      )}
+    </Section>
   );
 }
