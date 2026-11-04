@@ -12,6 +12,7 @@ import { routesContrats } from "./modules/contrats/routes.js";
 import { routesDevis } from "./modules/devis/routes.js";
 import { routesDemandesSiteBackOffice } from "./modules/demandes-site/routes.js";
 import { routesDemandesSite } from "./modules/demandes-site/routes-site.js";
+import { creerAntivirus, type Antivirus } from "./integrations/antivirus/clamav.js";
 import { routesNotificationsWhatsApp } from "./integrations/whatsapp/notifications.js";
 import { routesCaisse } from "./modules/encaissements/caisse.js";
 import { routesEncaissements } from "./modules/encaissements/routes.js";
@@ -34,6 +35,8 @@ export interface DependancesApplication {
   verifierFuite?: VerificateurFuite | null;
   /** Envoi des relances (remplaçable dans les tests) ; sinon, d'après la configuration. */
   messagerie?: Messagerie;
+  /** Analyse antivirus des pièces jointes (remplaçable dans les tests) ; sinon, d'après la configuration. */
+  antivirus?: Antivirus;
   journal?: boolean;
 }
 
@@ -102,10 +105,11 @@ export async function construireApplication(dependances: DependancesApplication)
   await app.register(routesContrats, { pool, gardes });
   await app.register(routesVehicules, { pool, gardes });
   await app.register(routesDevis, { pool, gardes });
-  await app.register(routesDemandesSiteBackOffice, { pool, gardes, cleChiffrement: config.cleChiffrement });
+  const antivirus = dependances.antivirus ?? creerAntivirus(config.antivirus);
+  await app.register(routesDemandesSiteBackOffice, { pool, gardes, cleChiffrement: config.cleChiffrement, antivirus });
   // Formulaire du site : seulement si l'adresse du site est configurée (sinon le site garde l'envoi par WhatsApp)
   if (config.origineSite) {
-    await app.register(routesDemandesSite, { pool, cleChiffrement: config.cleChiffrement, origineSite: config.origineSite });
+    await app.register(routesDemandesSite, { pool, cleChiffrement: config.cleChiffrement, origineSite: config.origineSite, antivirus });
   }
   await app.register(routesEncaissements, { pool, gardes });
   await app.register(routesCaisse, { pool, gardes });

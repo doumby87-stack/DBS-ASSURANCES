@@ -66,6 +66,14 @@ describe("Configuration du site vitrine", () => {
     expect(() => chargerConfiguration({ ...valide, URL_SITE_VITRINE: "https://gestion.exemple.ci/site" })).toThrow("différentes");
   });
 
+  it("exige l'antivirus en production dès que le site envoie des demandes", () => {
+    const production = { ...valide, NODE_ENV: "production", URL_SITE_VITRINE: "https://www.exemple.ci" };
+    expect(() => chargerConfiguration(production)).toThrow("ANTIVIRUS_ADRESSE est obligatoire");
+    expect(chargerConfiguration({ ...production, ANTIVIRUS_ADRESSE: "clamav:3310" }).antivirus).toEqual({ hote: "clamav", port: 3310 });
+    expect(chargerConfiguration({ ...valide, NODE_ENV: "production" }).antivirus).toBeNull();
+    expect(() => chargerConfiguration({ ...valide, ANTIVIRUS_ADRESSE: "tcp://clamav" })).toThrow("ANTIVIRUS_ADRESSE");
+  });
+
   it("traduit les limites de la base en messages pour le visiteur", () => {
     const parAdresse = traduireErreur({ code: "23514", severity: "ERROR", constraint: "demandes_site_limite_adresse", message: "x" });
     expect(parAdresse).toMatchObject({ statut: 429, corps: { code: "trop_de_demandes" } });

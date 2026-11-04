@@ -2,6 +2,7 @@
 // carte grise chiffrée), puis traitement au back-office rôle par rôle.
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { executerMaintenance } from "../../src/modules/demandes-site/maintenance.js";
 import { connecter, creerCompte, demarrer, envoyer, ORIGINE, type Contexte } from "./outils.js";
 
 const SITE = "https://www.site.test.ci";
@@ -14,6 +15,9 @@ const PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
   "base64",
 );
+
+const EICAR = "X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*";
+const PDF_PIEGE = Buffer.from(`%PDF-1.4\n${EICAR}\n%%EOF\n`, "latin1");
 
 let ctx: Contexte;
 const cookies: Record<string, string> = {};
@@ -172,7 +176,7 @@ describe("traitement au back-office", () => {
     expect((await envoyer(ctx, { url: `/demandes-site/${id}/piece`, cookie: cookies.auditeur })).statusCode).toBe(403);
 
     const vueCommercial = await envoyer(ctx, { url: `/demandes-site/${id}`, cookie: cookies.commercial });
-    expect(vueCommercial.json().piece).toEqual({ type: "image/png", taille: PNG.length });
+    expect(vueCommercial.json().piece).toMatchObject({ type: "image/png", taille: PNG.length, etatAnalyse: "saine", signatureDetectee: null });
     expect(vueCommercial.json().demande).not.toHaveProperty("empreinteIp");
   });
 
@@ -253,5 +257,103 @@ describe("traitement au back-office", () => {
     const liste = await envoyer(ctx, { url: "/demandes-site?statut=sans_suite", cookie: cookies.gerant });
     expect(liste.json().demandes.find((d: { id: string }) => d.id === id)).toMatchObject({ motif: "Numéro injoignable", statut: "sans_suite" });
     expect((await envoyer(ctx, { url: `/demandes-site/${id}/conversion`, cookie: cookies.gerant, corps: {} })).statusCode).toBe(409);
+  });
+});
+
+describe("antivirus et durée de conservation", () => {
+  async function pieceDe(numero: number) {
+    const { rows } = await ctx.base.query(
+      `SELECT p.etat_analyse, p.signature_detectee, p.contenu_chiffre IS NULL AS vide
+       FROM app.pieces_demandes_site p JOIN app.demandes_site d ON d.id = p.demande_id WHERE d.numero = $1`,
+      [numero],
+    );
+    return rows[0] as { etat_analyse: string; signature_detectee: string | null; vide: boolean } | undefined;
+  }
+
+  it("refuse dès la réception une carte grise infectée, sans rien enregistrer", async () => {
+    const telephone = telephoneUnique();
+    const reponse = await envoyerDemande(demande({ telephone, piece: { type: "application/pdf", contenu: PDF_PIEGE.toString("base64") } }));
+    expect(reponse.statusCode).toBe(422);
+    expect(reponse.json().code).toBe("piece_infectee");
+    const { rowCount } = await ctx.base.query("SELECT 1 FROM app.demandes_site WHERE telephone = $1", [`+225${telephone}`]);
+    expect(rowCount).toBe(0);
+  });
+
+  it("une carte grise saine est notée comme analysée dès la réception", async () => {
+    const numero = (await envoyerDemande(demande({ piece: { type: "image/png", contenu: PNG.toString("base64") } }))).json().numero;
+    expect(await pieceDe(numero)).toMatchObject({ etat_analyse: "saine", vide: false });
+  });
+
+  it("antivirus en panne : la demande est reçue, la pièce attend son analyse et ne sort pas avant", async () => {
+    ctx.antivirus.disponible = false;
+    try {
+      const numero = (await envoyerDemande(demande({ piece: { type: "image/png", contenu: PNG.toString("base64") } }))).json().numero;
+      expect(numero).toBeGreaterThan(0);
+      expect(await pieceDe(numero)).toMatchObject({ etat_analyse: "a_analyser" });
+      const id = await idDe(numero);
+
+      const bloquee = await envoyer(ctx, { url: `/demandes-site/${id}/piece`, cookie: cookies.commercial });
+      expect(bloquee.statusCode).toBe(503);
+      expect(bloquee.json().code).toBe("analyse_en_attente");
+
+      // La maintenance réessaie quand l'antivirus revient
+      expect((await executerMaintenance(ctx.pool, ctx.antivirus, ctx.cleChiffrement)).enAttente).toBeGreaterThan(0);
+      ctx.antivirus.disponible = true;
+      const bilan = await executerMaintenance(ctx.pool, ctx.antivirus, ctx.cleChiffrement);
+      expect(bilan.analysees).toBeGreaterThan(0);
+      expect(await pieceDe(numero)).toMatchObject({ etat_analyse: "saine" });
+      expect((await envoyer(ctx, { url: `/demandes-site/${id}/piece`, cookie: cookies.commercial })).statusCode).toBe(200);
+    } finally {
+      ctx.antivirus.disponible = true;
+    }
+  });
+
+  it("une pièce saine est analysée de nouveau à chaque téléchargement : infectée, elle est supprimée", async () => {
+    const numero = (await envoyerDemande(demande({ piece: { type: "image/png", contenu: PNG.toString("base64") } }))).json().numero;
+    const id = await idDe(numero);
+    ctx.antivirus.toutEstInfecte = true;
+    try {
+      const reponse = await envoyer(ctx, { url: `/demandes-site/${id}/piece`, cookie: cookies.charge_clientele });
+      expect(reponse.statusCode).toBe(409);
+      expect(reponse.json().code).toBe("piece_infectee");
+    } finally {
+      ctx.antivirus.toutEstInfecte = false;
+    }
+    expect(await pieceDe(numero)).toEqual({ etat_analyse: "infectee", signature_detectee: "Eicar-Test-Signature", vide: true });
+    const detail = await envoyer(ctx, { url: `/demandes-site/${id}`, cookie: cookies.charge_clientele });
+    expect(detail.json().piece).toMatchObject({ etatAnalyse: "infectee", signatureDetectee: "Eicar-Test-Signature" });
+    expect((await envoyer(ctx, { url: `/demandes-site/${id}/piece`, cookie: cookies.charge_clientele })).statusCode).toBe(409);
+    const { rows } = await ctx.base.query(
+      "SELECT count(*)::int AS n FROM securite.evenements WHERE type = 'piece_telechargee' AND objet = $1",
+      [`Carte grise, demande du site n° ${numero}`],
+    );
+    expect(rows[0].n).toBe(0);
+  });
+
+  it("purge : une demande sans suite depuis plus de 12 mois disparaît avec sa carte grise, pas une demande convertie", async () => {
+    const sansSuite = await idDe((await envoyerDemande(demande({ piece: { type: "image/png", contenu: PNG.toString("base64") } }))).json().numero);
+    const convertie = await idDe((await envoyerDemande(demande())).json().numero);
+    expect((await envoyer(ctx, { url: `/demandes-site/${sansSuite}/sans-suite`, cookie: cookies.gerant, corps: { motif: "Injoignable" } })).statusCode).toBe(200);
+    expect((await envoyer(ctx, { url: `/demandes-site/${convertie}/conversion`, cookie: cookies.gerant, corps: {} })).statusCode).toBe(201);
+
+    // On vieillit les deux demandes de 13 mois (sans passer par les gardiens de la base, réservé aux tests)
+    const client = await ctx.base.connect();
+    try {
+      await client.query("SET session_replication_role = replica");
+      await client.query(
+        `UPDATE app.demandes_site SET recue_le = recue_le - interval '13 months', traitee_le = traitee_le - interval '13 months'
+         WHERE id = ANY($1)`,
+        [[sansSuite, convertie]],
+      );
+      await client.query("SET session_replication_role = origin");
+    } finally {
+      client.release();
+    }
+
+    const bilan = await executerMaintenance(ctx.pool, ctx.antivirus, ctx.cleChiffrement);
+    expect(bilan.purgees).toBeGreaterThanOrEqual(1);
+    const { rows } = await ctx.base.query("SELECT id FROM app.demandes_site WHERE id = ANY($1)", [[sansSuite, convertie]]);
+    expect(rows.map((r) => r.id)).toEqual([convertie]);
+    expect((await envoyer(ctx, { url: `/demandes-site/${sansSuite}`, cookie: cookies.gerant })).statusCode).toBe(404);
   });
 });

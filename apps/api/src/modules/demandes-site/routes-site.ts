@@ -3,7 +3,8 @@
 //   · aucune session, aucune lecture : la route ne fait qu'enregistrer, par la seule fonction que la base
 //     lui ouvre (app.enregistrer_demande_site), qui limite les envois par adresse et par jour ;
 //   · l'adresse IP n'est pas gardée : seule son empreinte HMAC, avec une clé dérivée de la clé de l'API ;
-//   · la carte grise éventuelle est vérifiée (type réel, taille) puis chiffrée avant d'entrer en base ;
+//   · la carte grise éventuelle est vérifiée (type réel, taille), analysée par l'antivirus (refusée si elle est
+//     infectée ; gardée « à analyser » si l'antivirus ne répond pas), puis chiffrée avant d'entrer en base ;
 //   · un champ invisible pour les visiteurs (« siteWeb ») piège les robots : rempli, la demande est
 //     acceptée en apparence et n'est pas enregistrée.
 
@@ -12,6 +13,7 @@ import type { FastifyInstance } from "fastify";
 import type { Pool } from "../../base-de-donnees/connexion.js";
 import { transactionSysteme } from "../../base-de-donnees/connexion.js";
 import { ErreurApi } from "../../commun/erreurs.js";
+import type { Antivirus } from "../../integrations/antivirus/clamav.js";
 import { normaliserTelephone } from "../../commun/formats.js";
 import { BRANCHES, texteCourt, type Branche } from "../../commun/schemas.js";
 import { chiffrerPiece, LONGUEUR_BASE64_MAX, TYPES_PIECE, verifierPiece, type TypePiece } from "./piece.js";
@@ -45,9 +47,9 @@ const MESSAGES_PIECE = {
 
 export async function routesDemandesSite(
   app: FastifyInstance,
-  options: { pool: Pool; cleChiffrement: Buffer; origineSite: string },
+  options: { pool: Pool; cleChiffrement: Buffer; origineSite: string; antivirus: Antivirus },
 ): Promise<void> {
-  const { pool, cleChiffrement, origineSite } = options;
+  const { pool, cleChiffrement, origineSite, antivirus } = options;
   // Clé dédiée aux empreintes d'adresses : jamais la clé de chiffrement elle-même
   const cleEmpreinte = Buffer.from(hkdfSync("sha256", cleChiffrement, Buffer.alloc(0), "dbs:empreinte-adresse-ip", 32));
 
@@ -122,25 +124,37 @@ export async function routesDemandesSite(
         throw new ErreurApi(422, "email_invalide", "Cette adresse e-mail semble incomplète.");
       }
 
-      let piece: ReturnType<typeof chiffrerPiece> & { type: TypePiece; taille: number } | null = null;
+      let piece: ReturnType<typeof chiffrerPiece> & { type: TypePiece; taille: number; saine: boolean } | null = null;
       if (d.piece) {
         if (!BRANCHES_AVEC_CARTE_GRISE.includes(d.assurance)) {
           throw new ErreurApi(422, "piece_inattendue", "Une carte grise ne se joint qu'à une demande pour un véhicule.");
         }
         const verifiee = verifierPiece(d.piece.type, d.piece.contenu);
         if (!verifiee.ok) throw new ErreurApi(422, "piece_invalide", MESSAGES_PIECE[verifiee.raison]);
-        piece = { ...chiffrerPiece(cleChiffrement, verifiee.contenu), type: verifiee.type, taille: verifiee.contenu.length };
+        const verdict = await antivirus.analyser(verifiee.contenu);
+        if (verdict.etat === "infectee") {
+          requete.log.warn({ signature: verdict.signature }, "carte grise refusée par l'antivirus");
+          throw new ErreurApi(422, "piece_infectee",
+            "Ce fichier a été refusé par notre antivirus. Envoyez une autre photo de la carte grise, ou envoyez votre demande sans elle.");
+        }
+        if (verdict.etat === "indisponible") requete.log.warn({ raison: verdict.raison }, "carte grise gardée en attente d'analyse antivirus");
+        piece = {
+          ...chiffrerPiece(cleChiffrement, verifiee.contenu), type: verifiee.type, taille: verifiee.contenu.length,
+          saine: verdict.etat === "saine",
+        };
       }
 
       const empreinteIp = createHmac("sha256", cleEmpreinte).update(requete.ip).digest();
-      const { rows } = await transactionSysteme(pool, (client) =>
-        client.query<{ numero: number }>(
+      const { rows } = await transactionSysteme(pool, async (client) => {
+        const resultat = await client.query<{ numero: number }>(
           `SELECT numero FROM app.enregistrer_demande_site($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
           [d.assurance, d.profil, d.nom, telephone, email, d.commune ?? null, d.besoin ?? null,
            d.accordTraitement.trim(), d.accordWhatsApp?.trim() ?? null, empreinteIp,
            piece?.id ?? null, piece?.type ?? null, piece?.taille ?? null, piece?.contenuChiffre ?? null, piece?.empreinte ?? null],
-        ),
-      );
+        );
+        if (piece?.saine) await client.query("SELECT app.enregistrer_analyse_piece($1, true, NULL)", [piece.id]);
+        return resultat;
+      });
       requete.log.info({ numero: rows[0]?.numero, piece: piece !== null }, "demande de devis reçue du site");
       return reponse.status(201).send({ numero: rows[0]?.numero ?? null });
     },

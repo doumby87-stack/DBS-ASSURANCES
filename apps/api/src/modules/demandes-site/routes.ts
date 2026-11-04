@@ -5,6 +5,7 @@ import type { FastifyInstance } from "fastify";
 import type { Pool } from "../../base-de-donnees/connexion.js";
 import { transactionUtilisateur } from "../../base-de-donnees/connexion.js";
 import { ErreurApi, erreurs } from "../../commun/erreurs.js";
+import type { Antivirus } from "../../integrations/antivirus/clamav.js";
 import { BRANCHES, parametreId, texteCourt, type Branche } from "../../commun/schemas.js";
 import type { Gardes } from "../../securite/gardes.js";
 import { utilisateurDe } from "../../securite/gardes.js";
@@ -19,12 +20,16 @@ const COLONNES = `d.id, d.numero, d.branche, d.profil, d.nom, d.telephone, d.ema
   u.nom AS "traiteePar"`;
 
 const dejaTraitee = () => new ErreurApi(409, "deja_traitee", "Cette demande a déjà été traitée.");
+const pieceInfectee = () =>
+  new ErreurApi(409, "piece_infectee", "L'antivirus a détecté une menace dans cette pièce : elle a été supprimée. Demandez une autre photo au client.");
+const analyseEnAttente = () =>
+  new ErreurApi(503, "analyse_en_attente", "L'antivirus n'a pas encore pu analyser cette pièce. Réessayez dans quelques minutes.");
 
 export async function routesDemandesSiteBackOffice(
   app: FastifyInstance,
-  options: { pool: Pool; gardes: Gardes; cleChiffrement: Buffer },
+  options: { pool: Pool; gardes: Gardes; cleChiffrement: Buffer; antivirus: Antivirus },
 ): Promise<void> {
-  const { pool, gardes, cleChiffrement } = options;
+  const { pool, gardes, cleChiffrement, antivirus } = options;
 
   app.get<{ Querystring: { statut?: (typeof STATUTS)[number] } }>(
     "/demandes-site",
@@ -42,7 +47,7 @@ export async function routesDemandesSiteBackOffice(
       const statut = requete.query.statut ?? "nouvelle";
       return transactionUtilisateur(pool, utilisateurDe(requete).id, async (client) => {
         const { rows: demandes } = await client.query(
-          `SELECT ${COLONNES}, EXISTS (SELECT 1 FROM app.pieces_demandes_site p WHERE p.demande_id = d.id) AS "aUnePiece"
+          `SELECT ${COLONNES}, EXISTS (SELECT 1 FROM app.pieces_demandes_site p WHERE p.demande_id = d.id AND p.etat_analyse <> 'infectee') AS "aUnePiece"
            FROM app.demandes_site d LEFT JOIN app.utilisateurs u ON u.id = d.traitee_par
            WHERE d.statut = $1
            ORDER BY CASE WHEN d.statut = 'nouvelle' THEN d.recue_le END ASC, d.traitee_le DESC NULLS LAST
@@ -70,7 +75,9 @@ export async function routesDemandesSiteBackOffice(
         if (!demande) return null;
         // Invisible pour l'auditeur (droits de la base) : la pièce apparaît alors absente
         const piece = await client.query(
-          `SELECT type_contenu AS type, taille FROM app.pieces_demandes_site WHERE demande_id = $1`,
+          `SELECT type_contenu AS type, taille, etat_analyse AS "etatAnalyse", analysee_le AS "analyseeLe",
+                  signature_detectee AS "signatureDetectee"
+           FROM app.pieces_demandes_site WHERE demande_id = $1`,
           [requete.params.id],
         );
         // Même numéro déjà enregistré : probablement le même client, à rattacher plutôt qu'à recréer
@@ -85,7 +92,8 @@ export async function routesDemandesSiteBackOffice(
     },
   );
 
-  // Carte grise : déchiffrée à la demande, téléchargée (jamais affichée par le navigateur), et consignée
+  // Carte grise : déchiffrée à la demande, analysée de nouveau par l'antivirus (signatures du jour), téléchargée
+  // (jamais affichée par le navigateur), et consignée. Sans analyse réussie, elle ne sort pas.
   app.get<{ Params: { id: string } }>(
     "/demandes-site/:id/piece",
     { preHandler: gardes.roles("gerant", "charge_clientele", "commercial"), schema: { params: parametreId } },
@@ -93,22 +101,41 @@ export async function routesDemandesSiteBackOffice(
       const moi = utilisateurDe(requete);
       const piece = await transactionUtilisateur(pool, moi.id, async (client) => {
         const { rows } = await client.query<{
-          id: string; type: TypePiece; contenu: Buffer; empreinte: Buffer; numero: number;
+          id: string; type: TypePiece; contenu: Buffer | null; empreinte: Buffer; numero: number; etat: string;
         }>(
-          `SELECT p.id, p.type_contenu AS type, p.contenu_chiffre AS contenu, p.empreinte, d.numero
+          `SELECT p.id, p.type_contenu AS type, p.contenu_chiffre AS contenu, p.empreinte, d.numero, p.etat_analyse AS etat
            FROM app.pieces_demandes_site p JOIN app.demandes_site d ON d.id = p.demande_id
            WHERE p.demande_id = $1`,
           [requete.params.id],
         );
-        const ligne = rows[0];
-        if (!ligne) return null;
-        await consignerEvenement(client, "piece_telechargee", {
-          utilisateurId: moi.id, ip: requete.ip, objet: `Carte grise, demande du site n° ${ligne.numero}`,
-        });
-        return ligne;
+        return rows[0] ?? null;
       });
       if (!piece) throw erreurs.introuvable();
+      if (piece.etat === "infectee" || !piece.contenu) throw pieceInfectee();
       const contenu = dechiffrerPiece(cleChiffrement, piece.id, piece.contenu, piece.empreinte);
+
+      const verdict = await antivirus.analyser(contenu);
+      if (verdict.etat === "indisponible") {
+        requete.log.warn({ raison: verdict.raison }, "analyse antivirus impossible au téléchargement");
+        // Déjà déclarée saine : elle peut sortir, l'antivirus la reverra au prochain téléchargement
+        if (piece.etat !== "saine") throw analyseEnAttente();
+      }
+      await transactionUtilisateur(pool, moi.id, async (client) => {
+        if (verdict.etat !== "indisponible") {
+          await client.query("SELECT app.enregistrer_analyse_piece($1, $2, $3)", [
+            piece.id, verdict.etat === "saine", verdict.etat === "infectee" ? verdict.signature : null,
+          ]);
+        }
+        if (verdict.etat !== "infectee") {
+          await consignerEvenement(client, "piece_telechargee", {
+            utilisateurId: moi.id, ip: requete.ip, objet: `Carte grise, demande du site n° ${piece.numero}`,
+          });
+        }
+      });
+      if (verdict.etat === "infectee") {
+        requete.log.warn({ signature: verdict.signature }, "carte grise infectée découverte au téléchargement");
+        throw pieceInfectee();
+      }
       return reponse
         .type(piece.type)
         .header("Content-Disposition", `attachment; filename="carte-grise-demande-${piece.numero}.${EXTENSIONS[piece.type]}"`)
