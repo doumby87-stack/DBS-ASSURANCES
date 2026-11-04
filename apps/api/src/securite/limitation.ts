@@ -13,7 +13,7 @@ export const ECHECS_PAR_IP_MAX = 20;
 export type TypeEvenement =
   | "connexion_reussie" | "connexion_echouee" | "mfa_echoue" | "compte_bloque" | "mfa_active"
   | "mot_de_passe_modifie" | "acces_reinitialise" | "compte_cree" | "compte_modifie" | "deconnexion"
-  | "export_donnees";
+  | "export_donnees" | "piece_telechargee";
 
 export async function consignerEvenement(
   client: Client,

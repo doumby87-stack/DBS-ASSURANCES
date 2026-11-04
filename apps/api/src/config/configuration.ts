@@ -38,6 +38,11 @@ export interface Configuration {
   cleChiffrement: Buffer;
   /** Seule origine autorisée à envoyer des requêtes qui modifient des données (protection CSRF). */
   origineBackOffice: string;
+  /**
+   * Origine du site vitrine, seule autorisée à envoyer une demande de devis (tâche 7). Sans elle,
+   * la route publique des demandes n'existe pas : le site garde l'envoi par WhatsApp seulement.
+   */
+  origineSite: string | null;
   /** Nombre de proxys (répartiteur, pare-feu applicatif) devant l'API, pour retrouver l'adresse IP réelle. */
   proxysDeConfiance: number;
   /** Refuser les mots de passe présents dans des fuites connues (service Have I Been Pwned). */
@@ -100,6 +105,23 @@ export function chargerConfiguration(env: NodeJS.ProcessEnv = process.env): Conf
       }
     } catch {
       problemes.push("URL_BACK_OFFICE doit être une adresse complète, par exemple https://gestion.exemple.ci");
+    }
+  }
+
+  let origineSite: string | null = null;
+  const urlSite = env.URL_SITE_VITRINE?.trim();
+  if (urlSite) {
+    try {
+      const url = new URL(urlSite);
+      origineSite = url.origin;
+      if (environnement === "production" && url.protocol !== "https:") {
+        problemes.push("URL_SITE_VITRINE doit être en https en production");
+      }
+      if (origineSite === origineBackOffice) {
+        problemes.push("URL_SITE_VITRINE et URL_BACK_OFFICE doivent être deux adresses différentes");
+      }
+    } catch {
+      problemes.push("URL_SITE_VITRINE doit être une adresse complète, par exemple https://www.exemple.ci");
     }
   }
 
@@ -167,6 +189,7 @@ export function chargerConfiguration(env: NodeJS.ProcessEnv = process.env): Conf
     urlBaseDeDonnees,
     cleChiffrement,
     origineBackOffice,
+    origineSite,
     proxysDeConfiance: entier("PROXYS_DE_CONFIANCE", 0, 0, 5),
     verifierMotsDePasseDivulgues: verification !== "false",
     niveauJournal: niveau,

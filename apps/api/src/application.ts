@@ -10,6 +10,8 @@ import { routesClients } from "./modules/clients/routes.js";
 import { routesCommissions } from "./modules/commissions/routes.js";
 import { routesContrats } from "./modules/contrats/routes.js";
 import { routesDevis } from "./modules/devis/routes.js";
+import { routesDemandesSiteBackOffice } from "./modules/demandes-site/routes.js";
+import { routesDemandesSite } from "./modules/demandes-site/routes-site.js";
 import { routesNotificationsWhatsApp } from "./integrations/whatsapp/notifications.js";
 import { routesCaisse } from "./modules/encaissements/caisse.js";
 import { routesEncaissements } from "./modules/encaissements/routes.js";
@@ -100,6 +102,11 @@ export async function construireApplication(dependances: DependancesApplication)
   await app.register(routesContrats, { pool, gardes });
   await app.register(routesVehicules, { pool, gardes });
   await app.register(routesDevis, { pool, gardes });
+  await app.register(routesDemandesSiteBackOffice, { pool, gardes, cleChiffrement: config.cleChiffrement });
+  // Formulaire du site : seulement si l'adresse du site est configurée (sinon le site garde l'envoi par WhatsApp)
+  if (config.origineSite) {
+    await app.register(routesDemandesSite, { pool, cleChiffrement: config.cleChiffrement, origineSite: config.origineSite });
+  }
   await app.register(routesEncaissements, { pool, gardes });
   await app.register(routesCaisse, { pool, gardes });
   await app.register(routesReversements, { pool, gardes });
