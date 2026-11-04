@@ -11,7 +11,7 @@
     "dev": "astro dev",
     "build": "astro build",
     "apercu": "node tests/serveur.mjs",
-    "test:navigateur": "astro build && playwright test"
+    "test:navigateur": "node tests/construire.mjs && playwright test"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",

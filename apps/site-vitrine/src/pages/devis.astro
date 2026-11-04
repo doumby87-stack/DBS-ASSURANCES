@@ -2,6 +2,7 @@
 import EntetePage from "../composants/EntetePage.astro";
 import Icone from "../composants/Icone.astro";
 import { AGENCE, LIEN_EMAIL, LIEN_TELEPHONE, lienWhatsApp } from "../donnees/agence";
+import { ACCORD_TRAITEMENT, ACCORD_WHATSAPP, ADRESSE_DEMANDES, ASSURANCES_AVEC_CARTE_GRISE } from "../donnees/formulaire";
 import { AUTRE_BESOIN, OFFRES } from "../donnees/offres";
 import Base from "../mises-en-page/Base.astro";
 
@@ -12,6 +13,8 @@ const choix = [
 // Textes d'aide, lus par le script du formulaire
 const aides = Object.fromEntries(choix.map((c) => [c.id, c.aPreciser]));
 const coordonnees = { whatsapp: AGENCE.whatsapp, email: AGENCE.email };
+// Enregistrement par l'API (tâche 7) : seulement si l'adresse de l'API est connue à la construction
+const enregistre = ADRESSE_DEMANDES !== null;
 ---
 <Base
   titre="Demander un devis d'assurance gratuit"
@@ -24,7 +27,15 @@ const coordonnees = { whatsapp: AGENCE.whatsapp, email: AGENCE.email };
 
   <section class="section">
     <div class="conteneur devis">
-      <form class="formulaire" id="formulaire-devis" novalidate data-aides={JSON.stringify(aides)} data-coordonnees={JSON.stringify(coordonnees)}>
+      <form
+        class="formulaire"
+        id="formulaire-devis"
+        novalidate
+        data-aides={JSON.stringify(aides)}
+        data-coordonnees={JSON.stringify(coordonnees)}
+        data-api={ADRESSE_DEMANDES ?? undefined}
+        data-carte-grise={JSON.stringify(ASSURANCES_AVEC_CARTE_GRISE)}
+      >
         <ol class="progression" data-progression>
           <li aria-current="step"><span class="visuellement-cache">Étape 1 sur 3 : </span>Votre besoin</li>
           <li><span class="visuellement-cache">Étape 2 sur 3 : </span>Les détails</li>
@@ -78,6 +89,14 @@ const coordonnees = { whatsapp: AGENCE.whatsapp, email: AGENCE.email };
             <label for="champ-commune">Commune ou ville <span class="champ__facultatif">(facultatif)</span></label>
             <input class="saisie" id="champ-commune" name="commune" type="text" maxlength="80" autocomplete="address-level2" placeholder="Yopougon, Cocody, Bouaké…" />
           </div>
+          {enregistre && (
+            <div class="champ" data-champ-carte-grise hidden>
+              <label for="champ-carte-grise">Carte grise <span class="champ__facultatif">(facultatif)</span></label>
+              <input class="saisie saisie--fichier" id="champ-carte-grise" name="carteGrise" type="file" accept="image/jpeg,image/png,application/pdf,.jpg,.jpeg,.png,.pdf" aria-describedby="aide-carte-grise erreur-carte-grise" />
+              <p class="champ__aide" id="aide-carte-grise">Une photo nette ou un PDF, 5 Mo au plus : nous n'aurons pas à vous la redemander.</p>
+              <p class="champ__erreur" id="erreur-carte-grise"></p>
+            </div>
+          )}
           <div class="formulaire__actions">
             <button class="bouton bouton--contour" type="button" data-precedent>Retour</button>
             <button class="bouton bouton--principal bouton--grand" type="button" data-suivant>Continuer <Icone nom="fleche" /></button>
@@ -107,20 +126,59 @@ const coordonnees = { whatsapp: AGENCE.whatsapp, email: AGENCE.email };
           </div>
           <label class="case">
             <input type="checkbox" name="consentement" required aria-describedby="erreur-consentement" />
-            <span>J'accepte que {AGENCE.nom} utilise ces informations pour répondre à ma demande. <a href="/mentions-legales/#donnees">En savoir plus</a></span>
+            <span><span data-texte-accord>{ACCORD_TRAITEMENT}</span> <a href="/mentions-legales/#donnees">En savoir plus</a></span>
           </label>
           <p class="champ__erreur" id="erreur-consentement"></p>
+          {enregistre && (
+            <label class="case">
+              <input type="checkbox" name="rappelsWhatsApp" />
+              <span data-texte-accord>{ACCORD_WHATSAPP}</span>
+            </label>
+          )}
+          {enregistre && (
+            <div class="champ-piege" aria-hidden="true">
+              <label for="champ-site-web">Ne remplissez pas ce champ</label>
+              <input id="champ-site-web" name="siteWeb" type="text" tabindex="-1" autocomplete="off" />
+            </div>
+          )}
           <div class="formulaire__actions">
             <button class="bouton bouton--contour" type="button" data-precedent>Retour</button>
-            <button class="bouton bouton--whatsapp bouton--grand" type="submit" name="canal" value="whatsapp"><Icone nom="whatsapp" />Envoyer sur WhatsApp</button>
+            {enregistre ? (
+              <button class="bouton bouton--principal bouton--grand" type="submit" name="canal" value="site"><Icone nom="envoi" />Envoyer ma demande</button>
+            ) : (
+              <button class="bouton bouton--whatsapp bouton--grand" type="submit" name="canal" value="whatsapp"><Icone nom="whatsapp" />Envoyer sur WhatsApp</button>
+            )}
           </div>
+          {enregistre ? (
+            <p class="formulaire__note">
+              <Icone nom="whatsapp" />
+              <span>Vous préférez écrire vous-même ? <button class="lien-bouton" type="submit" name="canal" value="whatsapp">Envoyer plutôt sur WhatsApp</button> ou <button class="lien-bouton" type="submit" name="canal" value="email">par e-mail</button></span>
+            </p>
+          ) : (
+            <p class="formulaire__note">
+              <Icone nom="courriel" />
+              <span>Vous préférez l'e-mail ? <button class="lien-bouton" type="submit" name="canal" value="email">Envoyer ma demande par e-mail</button></span>
+            </p>
+          )}
           <p class="formulaire__note">
-            <Icone nom="courriel" />
-            <span>Vous préférez l'e-mail ? <button class="lien-bouton" type="submit" name="canal" value="email">Envoyer ma demande par e-mail</button></span>
+            <Icone nom="cadenas" />
+            {enregistre ? (
+              <span>Votre demande est enregistrée par l'agence, uniquement pour vous répondre ; la carte grise est chiffrée et seuls les conseillers qui traitent votre demande y ont accès. <a href="/mentions-legales/#donnees">Vos données</a></span>
+            ) : (
+              <span>Rien n'est enregistré sur ce site : votre demande nous parvient uniquement quand vous l'envoyez depuis WhatsApp ou votre messagerie.</span>
+            )}
           </p>
-          <p class="formulaire__note"><Icone nom="cadenas" /><span>Rien n'est enregistré sur ce site : votre demande nous parvient uniquement quand vous l'envoyez depuis WhatsApp ou votre messagerie.</span></p>
         </fieldset>
-        <p class="etat-envoi" role="status" aria-live="polite" data-statut-envoi></p>
+        {enregistre && (
+          <div class="confirmation" data-confirmation tabindex="-1" hidden>
+            <span class="confirmation__icone"><Icone nom="cocheRonde" /></span>
+            <h2 class="h3" data-confirmation-titre>Demande enregistrée</h2>
+            <p>Un conseiller de l'agence étudie votre demande et vous rappelle au numéro indiqué.</p>
+            <p>Une question d'ici là ? Écrivez-nous sur WhatsApp en rappelant le numéro de votre demande.</p>
+            <a class="bouton bouton--whatsapp" data-confirmation-whatsapp href={lienWhatsApp("Bonjour DBS-ASSURANCES, ")} target="_blank" rel="noopener noreferrer"><Icone nom="whatsapp" />Écrire à l'agence</a>
+          </div>
+        )}
+        <p class="etat-envoi" role="status" aria-live="polite" tabindex="-1" data-statut-envoi></p>
       </form>
 
       <aside class="aside-devis" aria-label="Ce qui se passe ensuite">

@@ -97,6 +97,7 @@ h3 { font-size: 1.25rem; font-stretch: 92%; letter-spacing: -0.01em; }
 /* Titre de niveau h2 ou h3 qui doit garder la taille d'un intertitre (encadrés, colonnes latérales) */
 .h3 { font-size: 1.25rem; font-stretch: 92%; letter-spacing: -0.01em; line-height: 1.25; }
 :focus-visible { outline: 3px solid var(--or-500); outline-offset: 3px; border-radius: 6px; }
+[hidden] { display: none !important; }
 [id] { scroll-margin-top: calc(var(--hauteur-entete) + 24px); }
 ::selection { background: var(--or-400); color: var(--encre); }
 
@@ -651,6 +652,19 @@ textarea.saisie { min-height: 130px; resize: vertical; line-height: 1.5; }
 .etat-envoi { margin: 16px 0 0; padding: 14px 16px; border-radius: 12px; background: #e6f4ea; color: #166534; font-weight: 650; }
 .etat-envoi:empty { display: none; }
 .etat-envoi--erreur { background: #fdecea; color: #8a1c13; }
+.etat-envoi:focus { outline: none; }
+.etat-envoi a { color: inherit; font-weight: 750; }
+/* Champ piège pour les robots : hors de l'écran, ignoré par les lecteurs d'écran et le clavier */
+.champ-piege { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+.saisie--fichier { padding: 10px 12px; font-size: 0.95rem; cursor: pointer; }
+.saisie--fichier::file-selector-button { margin-right: 12px; padding: 8px 14px; border: 1px solid var(--ligne); border-radius: 999px; background: var(--sable-50); color: var(--encre); font: inherit; font-weight: 700; cursor: pointer; }
+.confirmation { display: grid; gap: 12px; justify-items: start; padding: 8px 0; }
+.confirmation[hidden] { display: none; }
+.confirmation:focus { outline: none; }
+.confirmation p { margin: 0; }
+.confirmation__icone { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 50%; background: #e6f4ea; color: #166534; }
+.confirmation__icone .icone { width: 30px; height: 30px; }
+.formulaire[aria-busy] { cursor: progress; }
 .recapitulatif { display: grid; gap: 6px; margin: 0 0 18px; padding: 16px 18px; border-radius: var(--rayon); background: var(--sable-50); font-size: 0.95rem; }
 .recapitulatif dl { display: grid; gap: 6px; margin: 0; }
 .recapitulatif dl div { display: flex; flex-wrap: wrap; gap: 4px 10px; }

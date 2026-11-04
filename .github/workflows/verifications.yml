@@ -37,9 +37,8 @@ jobs:
         run: node scripts/verifier-site.mjs
       - name: Navigateur Chromium pour les tests
         run: npx playwright install --with-deps chromium
-      - name: Pages, accessibilité (axe), formulaire de devis, téléphone et ordinateur
-        run: npx playwright test
-        working-directory: apps/site-vitrine
+      - name: Pages, accessibilité (axe), formulaire de devis (WhatsApp et enregistrement), téléphone et ordinateur
+        run: npm run test:navigateur -w @dbs/site-vitrine
 
   documentation:
     name: Liens de la documentation

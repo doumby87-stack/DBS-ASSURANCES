@@ -25,6 +25,7 @@ Chaque information n'est écrite qu'**à un seul endroit**, dans `src/donnees/` 
 | Pour changer… | Fichier |
 | --- | --- |
 | Téléphone, WhatsApp, e-mail, adresse, horaires, RCCM, agrément, hébergeur | `src/donnees/agence.ts` |
+| Texte des cases d'accord du formulaire | `src/donnees/formulaire.ts` |
 | Une assurance : description, garanties, ce qu'il faut préciser, pièces à fournir | `src/donnees/offres.ts` |
 | Une question fréquente | `src/donnees/faq.ts` |
 | Le menu | `src/donnees/navigation.ts` |
@@ -50,7 +51,7 @@ npm run build -w @dbs/site-vitrine && node scripts/verifier-site.mjs   # liens, 
 npm run test:navigateur -w @dbs/site-vitrine                           # chaque page dans Chromium
 ```
 
-Le premier contrôle lit les pages construites. Le second les ouvre dans un vrai navigateur, sur ordinateur et sur téléphone, avec les en-têtes de sécurité : erreurs, accessibilité (WCAG 2.1 AA), débordement sur petit écran, menu mobile et parcours complet du devis. Au premier lancement : `npx playwright install chromium`.
+Le premier contrôle lit les pages construites. Le second construit deux versions du site (telle quelle, et reliée à une API fictive) et les ouvre dans un vrai navigateur, sur ordinateur et sur téléphone, avec les en-têtes de sécurité : erreurs, accessibilité (WCAG 2.1 AA), débordement sur petit écran, menu mobile, parcours complet du devis par WhatsApp et par enregistrement (carte grise, refus, coupure de connexion). Au premier lancement : `npx playwright install chromium`.
 
 ## À compléter avant la mise en ligne
 
@@ -58,6 +59,15 @@ Le premier contrôle lit les pages construites. Le second les ouvre dans un vrai
 2. **Horaires d'ouverture** : `src/donnees/agence.ts`, champ `horaires`.
 3. Vérifier que le **+225 07 49 36 07 02 est bien sur WhatsApp** : les boutons WhatsApp l'utilisent.
 4. Faire valider l'usage du **logo SanlamAllianz** par la compagnie, si votre mandat l'exige.
+
+## Activer l'enregistrement des demandes de devis (tâche 7)
+
+Par défaut, le formulaire prépare un message que le visiteur envoie lui-même sur WhatsApp ou par e-mail : rien n'est enregistré. Le formulaire peut aussi **enregistrer la demande** dans l'outil de l'agence, avec la carte grise et l'accord pour les rappels WhatsApp ([ADR 0009](../../docs/architecture/adr/0009-demandes-de-devis-du-site.md)). À faire **seulement après la déclaration à l'ARTCI** :
+
+1. Dans l'API, définir `URL_SITE_VITRINE` avec l'adresse du site (par exemple `https://www.votre-domaine.ci`).
+2. Dans Netlify (Site configuration > Environment variables), définir `URL_API` avec l'adresse de l'API (par exemple `https://gestion.votre-domaine.ci/api`), puis relancer la mise en ligne.
+
+La construction ajoute alors l'API aux en-têtes de sécurité (`connect-src`), affiche le champ de la carte grise et la case des rappels, et met à jour les textes du formulaire et des mentions légales. Les demandes arrivent dans l'écran « Demandes du site » du back-office. Pour revenir en arrière, il suffit de retirer `URL_API` et de relancer la mise en ligne.
 
 ## Mettre le site en ligne
 

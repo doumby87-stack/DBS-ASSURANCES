@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 // Vérifie le site vitrine construit (apps/site-vitrine/dist) avant publication. Aucune dépendance :
-//   npm run build -w @dbs/site-vitrine && node scripts/verifier-site.mjs
+//   npm run build -w @dbs/site-vitrine && node scripts/verifier-site.mjs [dossier construit]
 //
 // Contrôles, sur les fichiers réellement publiés :
 //  1. chaque lien interne (page, fichier, #ancre) mène à quelque chose qui existe ;
 //  2. chaque image a un texte alternatif (alt) et des dimensions (width/height) ;
 //  3. chaque lien qui ouvre un nouvel onglet porte rel="noopener" ;
 //  4. rien ne serait bloqué par la politique de sécurité du contenu (_headers) : ni script ou style inline,
-//     ni attribut style="…" ou onclick="…", ni ressource chargée depuis un autre site ;
+//     ni attribut style="…" ou onclick="…", ni ressource chargée depuis un autre site ; un formulaire relié
+//     à l'API (data-api, tâche 7) n'est accepté que si _headers autorise cette API (connect-src) ;
 //  5. chaque page a un titre, une description, une langue et un seul titre principal (h1) ;
 //  6. aucun fichier publié ne contient de secret évident (clé d'API, mot de passe, clé privée).
 
@@ -17,7 +18,7 @@ import { join, dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const RACINE_DEPOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const SITE = join(RACINE_DEPOT, "apps", "site-vitrine", "dist");
+const SITE = resolve(RACINE_DEPOT, process.argv[2] ?? join("apps", "site-vitrine", "dist"));
 
 if (!existsSync(join(SITE, "index.html"))) {
   console.error("✗ Site vitrine non construit. Lancez d'abord : npm run build -w @dbs/site-vitrine");
@@ -112,6 +113,12 @@ for (const page of pages) {
   if (/<style[\s>]/i.test(html)) signaler(page, `balise <style> inline bloquée par la CSP (style-src 'self') : utilisez src/styles/global.css`);
   if (/\sstyle\s*=\s*["']/i.test(html)) signaler(page, `attribut style="…" bloqué par la CSP : utilisez une classe de src/styles/global.css`);
   if (/<[^>]+\son[a-z]+\s*=\s*["']/i.test(html)) signaler(page, `gestionnaire d'événement inline (onclick=…) bloqué par la CSP : utilisez un script de src/scripts/`);
+  for (const m of html.matchAll(/\sdata-api="([^"]+)"/g)) {
+    const origine = new URL(m[1]).origin;
+    if (!new RegExp(`connect-src [^;]*${origine.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(;|\\s|$)`, "m").test(enTetes)) {
+      signaler(page, `le formulaire envoie à ${origine}, que _headers n'autorise pas (connect-src) : il serait bloqué en ligne`);
+    }
+  }
 
   // 5. Référencement et accessibilité de base
   if (!/<html[^>]*\slang="fr"/i.test(html)) signaler(page, `langue de la page absente (<html lang="fr">)`);

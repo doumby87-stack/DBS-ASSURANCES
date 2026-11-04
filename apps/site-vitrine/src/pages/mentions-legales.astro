@@ -1,6 +1,7 @@
 ---
 import EntetePage from "../composants/EntetePage.astro";
 import { AGENCE, LIEN_EMAIL, LIEN_TELEPHONE } from "../donnees/agence";
+import { ADRESSE_DEMANDES } from "../donnees/formulaire";
 import Base from "../mises-en-page/Base.astro";
 
 const { juridique } = AGENCE;
@@ -49,8 +50,18 @@ const { juridique } = AGENCE;
       <p>{AGENCE.nom} traite vos données personnelles conformément à la loi n° 2013-450 du 19 juin 2013 relative à la protection des données à caractère personnel.</p>
       <dl class="fiche">
         <dt>Responsable du traitement</dt><dd>{AGENCE.nom}, représentée par son Gérant.</dd>
-        <dt>Données concernées</dt><dd>Les informations que vous saisissez dans le formulaire de devis : nom ou raison sociale, téléphone, e-mail, commune et description de votre besoin.</dd>
-        <dt>Fonctionnement du formulaire</dt><dd>Le formulaire n'enregistre rien sur ce site. Il prépare un message que vous envoyez vous-même depuis WhatsApp ou votre messagerie ; ces services appliquent leurs propres conditions d'utilisation.</dd>
+        {ADRESSE_DEMANDES ? (
+          <>
+            <dt>Données concernées</dt><dd>Les informations que vous saisissez dans le formulaire de devis : nom ou raison sociale, téléphone, e-mail, commune, description de votre besoin et, si vous la joignez, votre carte grise. Pour limiter les abus, une empreinte de votre adresse IP est calculée ; l'adresse elle-même n'est pas conservée.</dd>
+            <dt>Fonctionnement du formulaire</dt><dd>Votre demande est enregistrée dans l'outil de gestion de l'agence, avec le texte des cases que vous avez cochées. Seuls les conseillers chargés des devis la consultent ; la carte grise est chiffrée et chaque consultation est tracée. Si vous choisissez d'envoyer votre demande par WhatsApp ou par e-mail, ces services appliquent leurs propres conditions d'utilisation.</dd>
+            <dt>Rappels sur WhatsApp</dt><dd>Uniquement si vous cochez la case correspondante. Vous pouvez retirer votre accord à tout moment en répondant STOP ou en nous écrivant.</dd>
+          </>
+        ) : (
+          <>
+            <dt>Données concernées</dt><dd>Les informations que vous saisissez dans le formulaire de devis : nom ou raison sociale, téléphone, e-mail, commune et description de votre besoin.</dd>
+            <dt>Fonctionnement du formulaire</dt><dd>Le formulaire n'enregistre rien sur ce site. Il prépare un message que vous envoyez vous-même depuis WhatsApp ou votre messagerie ; ces services appliquent leurs propres conditions d'utilisation.</dd>
+          </>
+        )}
         <dt>Finalités</dt><dd>Répondre à votre demande, établir un devis et, si vous souscrivez, gérer votre contrat et vos sinistres.</dd>
         <dt>Destinataires</dt><dd>{AGENCE.nom} et, pour l'étude et la gestion des contrats, {AGENCE.compagnie}.</dd>
         <dt>Durée de conservation</dt><dd>Le temps de traiter votre demande ; si vous devenez client, pendant la durée du contrat puis les délais légaux applicables.</dd>

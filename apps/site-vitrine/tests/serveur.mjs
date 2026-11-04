@@ -1,13 +1,13 @@
 // Sert le site construit (dist/) comme l'hébergeur : mêmes en-têtes de sécurité (dist/_headers),
 // pages en dossiers, page 404. Pour l'aperçu local et les tests du navigateur, sans dépendance.
-//   node tests/serveur.mjs [port]
+//   node tests/serveur.mjs [port] [dossier]   (dossier construit, dist par défaut)
 
 import { createServer } from "node:http";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const DIST = resolve(fileURLToPath(new URL("../dist", import.meta.url)));
+const DIST = resolve(fileURLToPath(new URL(`../${process.argv[3] ?? "dist"}/`, import.meta.url)));
 const PORT = Number(process.argv[2] ?? process.env.PORT ?? 4321);
 
 const TYPES = {
