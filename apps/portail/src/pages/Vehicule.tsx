@@ -29,16 +29,16 @@ export function Vehicule({ id }: { id: string }) {
   useEffect(() => {
     setDetail(null);
     api<Detail>(`/portail/vehicules/${id}`).then(setDetail).catch((e: unknown) => {
-      setErreur(e instanceof ErreurApi && e.statut === 404 ? "Ce véhicule ne fait pas partie de votre flotte." : messageErreur(e));
+      setErreur(e instanceof ErreurApi && e.statut === 404 ? "Ce véhicule ne fait pas partie de vos véhicules assurés." : messageErreur(e));
     });
   }, [id]);
 
-  if (!detail) return erreur ? <><Alerte>{erreur}</Alerte><p><Lien href="/">Retour à votre flotte</Lien></p></> : <Chargement />;
+  if (!detail) return erreur ? <><Alerte>{erreur}</Alerte><p><Lien href="/">Retour à l'accueil</Lien></p></> : <Chargement />;
   const { vehicule: v } = detail;
 
   return (
     <>
-      <p className="fil"><Lien href="/">Votre flotte</Lien></p>
+      <p className="fil"><Lien href="/">Accueil</Lien></p>
       <h1>{v.immatriculation}</h1>
       <dl className="fiche">
         <div><dt>Véhicule</dt><dd>{[v.marque, v.modele, v.genre].filter(Boolean).join(" · ") || "—"}</dd></div>
@@ -94,7 +94,10 @@ export function Vehicule({ id }: { id: string }) {
             ))}
           </ol>
         )}
-        <p className="note">Pour déclarer un sinistre ou en savoir plus sur son avancement, appelez l'agence : elle suit votre dossier avec la compagnie.</p>
+        <p className="actions">
+          <Lien href={`/sinistres/declarer?vehicule=${v.id}`} className="bouton bouton--principal">Déclarer un sinistre pour ce véhicule</Lien>
+          <Lien href="/sinistres" className="bouton">Suivre vos sinistres</Lien>
+        </p>
       </section>
     </>
   );

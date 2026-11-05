@@ -36,6 +36,8 @@ export default defineConfig({
             VERIFIER_MOTS_DE_PASSE_DIVULGUES: "false",
             // Codes de connexion simulés : rien ne part ; le test pose lui-même le code attendu
             RELANCES_SIMULATION: "true",
+            // Paiement en ligne simulé : la « page du prestataire » est celle du portail, rien n'est débité
+            PAIEMENT_PRESTATAIRE: "simulation",
             NIVEAU_JOURNAL: "warn",
           },
         },

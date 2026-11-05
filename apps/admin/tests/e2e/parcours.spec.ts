@@ -331,7 +331,19 @@ test("parcours du gérant, de la première connexion à la caisse et au reversem
   await expect(page.getByRole("row", { name: /^7001 FE 01 Renault Trucks/ })).toContainText("dernier le");
   await expect(page.getByLabel(/^Statut du sinistre de 7001 FE 01/)).toHaveValue("transmis_compagnie");
 
-  // Accès du transporteur à son portail, depuis sa fiche
+  // Liste des sinistres de l'agence, puis la fiche : référence de la compagnie, visible par le client
+  await page.getByRole("link", { name: "Sinistres", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Sinistres", exact: true })).toBeVisible();
+  const ligneSinistre = page.getByRole("row", { name: /Transports Flotte Express/ });
+  await expect(ligneSinistre).toContainText("Transmis à la compagnie");
+  await expect(ligneSinistre).toContainText("7001 FE 01");
+  await ligneSinistre.getByRole("link").first().click();
+  await expect(page.getByRole("heading", { name: /^Bris de glace du .* Transports Flotte Express$/ })).toBeVisible();
+  await page.getByLabel("Référence de la compagnie").fill("SAN-E2E-0001");
+  await page.getByRole("button", { name: "Enregistrer le suivi" }).click();
+  await expect(page.getByText(/Suivi enregistré/)).toBeVisible();
+
+  // Accès du transporteur à son espace client, depuis sa fiche
   await page.getByRole("link", { name: "Transports Flotte Express" }).first().click();
   const nouvelAcces = page.getByRole("form", { name: "Nouvel accès au portail" });
   await nouvelAcces.getByLabel("Nom et prénoms").fill("Awa Flotte");

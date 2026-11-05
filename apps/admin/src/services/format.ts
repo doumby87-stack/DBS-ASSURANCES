@@ -93,6 +93,25 @@ export const DOCUMENTS_VEHICULE: Record<string, string> = {
 
 const nombre = new Intl.NumberFormat("fr-FR");
 
+export const NATURES_SINISTRE: Record<string, string> = {
+  materiel: "Dommages matériels", corporel: "Dommages corporels", vol: "Vol", incendie: "Incendie",
+  bris_de_glace: "Bris de glace", degat_des_eaux: "Dégât des eaux", autre: "Autre",
+};
+
+export const STATUTS_SINISTRE: Record<string, string> = {
+  declare: "Déclaré", transmis_compagnie: "Transmis à la compagnie", expertise: "En expertise", offre_recue: "Offre reçue",
+  regle: "Réglé", refuse: "Refusé", classe_sans_suite: "Classé sans suite",
+};
+
+export const STATUTS_PAIEMENT_EN_LIGNE: Record<string, string> = {
+  initie: "Commencé", en_attente: "En attente du prestataire", accepte: "Encaissé", refuse: "Refusé",
+  abandonne: "Non abouti", a_regulariser: "À régulariser",
+};
+
+export const MOYENS_MOBILE_MONEY: Record<string, string> = {
+  WAVE: "Wave", ORANGE_MONEY: "Orange Money", MTN_MOMO: "MTN MoMo", MOOV_MONEY: "Moov Money",
+};
+
 export function montant(valeur: number | null | undefined): string {
   return valeur === null || valeur === undefined ? "—" : `${nombre.format(valeur)} F CFA`;
 }

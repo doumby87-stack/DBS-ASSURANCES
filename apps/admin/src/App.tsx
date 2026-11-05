@@ -13,6 +13,7 @@ import { Contrat } from "./pages/contrats/Contrat";
 import { Personnel } from "./pages/parametres/Personnel";
 import { Relances } from "./pages/relances/Relances";
 import { PageBordereau } from "./pages/reversements/Bordereau";
+import { FicheSinistre, Sinistres } from "./pages/sinistres/Sinistres";
 import { Reversements } from "./pages/reversements/Reversements";
 import { TableauDeBord } from "./pages/tableau-de-bord/TableauDeBord";
 import { Lien, useChemin } from "./routeur";
@@ -62,6 +63,9 @@ function Page() {
   if (bordereau) return <PageBordereau key={bordereau[1]} id={bordereau[1]!} />;
   if (chemin === "/commissions") return <Commissions />;
   if (chemin === "/relances") return <Relances />;
+  if (chemin === "/sinistres") return <Sinistres />;
+  const sinistre = /^\/sinistres\/([0-9a-f-]{36})$/.exec(chemin);
+  if (sinistre) return <FicheSinistre key={sinistre[1]} id={sinistre[1]!} />;
   if (chemin === "/demandes-site") return <DemandesSite />;
   const demande = /^\/demandes-site\/([0-9a-f-]{36})$/.exec(chemin);
   if (demande) return <DemandeSite key={demande[1]} id={demande[1]!} />;
@@ -94,6 +98,7 @@ function MiseEnPage({ children }: { children: ReactNode }) {
             <Lien href="/" aria-current={actif("/")}>Échéances</Lien>
             <Lien href="/clients" aria-current={actif("/clients")}>Clients</Lien>
             {peut("gerant", "charge_clientele", "commercial", "auditeur") && <Lien href="/demandes-site" aria-current={actif("/demandes-site")}>Demandes du site</Lien>}
+            {peut("gerant", "charge_clientele", "commercial", "auditeur") && <Lien href="/sinistres" aria-current={actif("/sinistres")}>Sinistres</Lien>}
             {peut("gerant", "charge_clientele", "commercial", "auditeur") && <Lien href="/relances" aria-current={actif("/relances")}>Relances</Lien>}
             {peut("gerant", "caissier", "charge_clientele", "auditeur") && <Lien href="/caisse" aria-current={actif("/caisse")}>Caisse</Lien>}
             {peut("gerant", "caissier", "auditeur") && <Lien href="/reversements" aria-current={actif("/reversements")}>Reversements</Lien>}

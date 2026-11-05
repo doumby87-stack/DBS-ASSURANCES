@@ -1,5 +1,6 @@
-// Tableau de bord de la flotte : les chiffres qui comptent, les attestations en lot, les contrats et leur
-// reste à payer, chaque véhicule avec ses échéances, son attestation et ses sinistres.
+// Accueil de l'espace client : les chiffres qui comptent, les attestations (en lot pour une flotte), les
+// contrats, leur reste à payer et le paiement en ligne, chaque véhicule avec ses échéances, son attestation et
+// ses sinistres. Une entreprise y voit sa flotte ; un particulier, ses contrats.
 
 import { useEffect, useState } from "react";
 import { api, messageErreur } from "../api";
@@ -17,6 +18,7 @@ export interface VehiculeFlotte {
   echeanceVignette: string | null;
   echeanceCarteTransport: string | null;
   ligneId: string | null;
+  contratId: string | null;
   numeroPolice: string | null;
   statutContrat: string | null;
   numeroAttestation: string | null;
@@ -27,10 +29,12 @@ export interface VehiculeFlotte {
 
 interface Flotte {
   entreprise: string;
+  typeClient: "particulier" | "professionnel" | "entreprise";
+  paiementEnLigne: boolean;
   vehicules: VehiculeFlotte[];
   contrats: {
     id: string; numeroPolice: string | null; branche: string; statut: string; dateEffet: string; dateEcheance: string;
-    primeDue: number; resteAPayer: number; vehicules: number;
+    primeDue: number; resteAPayer: number; vehicules: number; paiementEnCours: string | null;
   }[];
   resume: { vehicules: number; vehiculesAssures: number; documentsARenouveler: number; sinistresEnCours: number; resteAPayer: number };
 }
@@ -51,16 +55,43 @@ export function TableauDeBord() {
     ? flotte.vehicules.filter((v) => `${v.immatriculation}${v.marque ?? ""}${v.modele ?? ""}`.toUpperCase().replace(/[^A-Z0-9]/g, "").includes(filtre))
     : flotte.vehicules;
   const attestations = flotte.vehicules.filter((v) => v.attestationDisponible).length;
+  const particulier = flotte.typeClient === "particulier";
+  const payable = (k: Flotte["contrats"][number]) =>
+    flotte.paiementEnLigne && k.resteAPayer > 0 && (k.statut === "en_attente_paiement" || k.statut === "en_vigueur");
+  const aPayer = flotte.contrats.filter(payable);
 
   return (
     <>
-      <h1>Votre flotte</h1>
+      <h1>{particulier ? "Vos contrats" : "Votre flotte"}</h1>
       <div className="cartes">
         <Carte ton="bleu" nombre={`${resume.vehiculesAssures} / ${resume.vehicules}`} titre="Véhicules assurés" />
         <Carte ton={resume.documentsARenouveler > 0 ? "orange" : "vert"} nombre={resume.documentsARenouveler} titre="Documents à renouveler sous 30 jours" />
         <Carte ton={resume.sinistresEnCours > 0 ? "orange" : "vert"} nombre={resume.sinistresEnCours} titre="Sinistres en cours" />
         <Carte ton={resume.resteAPayer > 0 ? "rouge" : "vert"} nombre={montant(resume.resteAPayer)} titre="Reste à payer" />
       </div>
+
+      {aPayer.length > 0 && (
+        <section className="section section--a-payer" aria-labelledby="titre-a-payer">
+          <h2 id="titre-a-payer">À payer</h2>
+          <ul className="a-payer">
+            {aPayer.map((k) => (
+              <li key={k.id}>
+                <span>
+                  Contrat <strong>{k.numeroPolice ?? "N° à venir"}</strong> · {BRANCHES[k.branche] ?? k.branche} : <strong>{montant(k.resteAPayer)}</strong>
+                  {k.statut === "en_attente_paiement" && <span className="note"><br />Le contrat entre en vigueur une fois la prime payée.</span>}
+                </span>
+                {k.paiementEnCours ? (
+                  <Lien href={`/paiements/${k.paiementEnCours}`} className="bouton">Paiement en cours : voir</Lien>
+                ) : (
+                  <Lien href={`/payer/${k.id}`} className="bouton bouton--principal"
+                    aria-label={`Payer en ligne le contrat ${k.numeroPolice ?? ""}`}>Payer en ligne</Lien>
+                )}
+              </li>
+            ))}
+          </ul>
+          <p className="note">Wave, Orange Money, MTN MoMo ou Moov Money, depuis votre téléphone. Vous pouvez aussi payer à l'agence.</p>
+        </section>
+      )}
 
       <section className="section" aria-labelledby="titre-attestations">
         <h2 id="titre-attestations">Attestations d'assurance</h2>
@@ -73,8 +104,16 @@ export function TableauDeBord() {
           {attestations > 0 && (
             <a className="bouton bouton--principal" href="/api/portail/attestations.zip" download>Télécharger toutes les attestations (ZIP)</a>
           )}
-          <a className="bouton" href="/api/portail/flotte.csv" download>Exporter la liste des véhicules (Excel)</a>
+          {!particulier && <a className="bouton" href="/api/portail/flotte.csv" download>Exporter la liste des véhicules (Excel)</a>}
         </div>
+      </section>
+
+      <section className="section" aria-labelledby="titre-sinistre">
+        <div className="section__entete">
+          <h2 id="titre-sinistre">Un accident, un vol, un incendie ?</h2>
+          <Lien href="/sinistres/declarer" className="bouton bouton--principal">Déclarer un sinistre</Lien>
+        </div>
+        <p className="note">Déclarez-le en ligne, avec vos photos et le constat amiable : l'agence le reçoit aussitôt et le transmet à la compagnie.</p>
       </section>
 
       <section className="section" aria-labelledby="titre-contrats">
@@ -93,7 +132,7 @@ export function TableauDeBord() {
                     <td>du {dateCourte(k.dateEffet)}<br />au {dateCourte(k.dateEcheance)}</td>
                     <td>{k.vehicules}</td>
                     <td>{montant(k.primeDue)}</td>
-                    <td>{k.resteAPayer > 0 ? <strong>{montant(k.resteAPayer)}</strong> : k.resteAPayer < 0 ? `Trop-perçu ${montant(-k.resteAPayer)}` : "Payé"}</td>
+                    <td>{k.resteAPayer > 0 ? <strong>{montant(k.resteAPayer)}</strong> : k.resteAPayer < -4 ? `Trop-perçu ${montant(-k.resteAPayer)}` : "Payé"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -145,8 +184,8 @@ export function TableauDeBord() {
           </div>
         )}
         <p className="note">
-          Rappel gratuit : si vous l'avez accepté, l'agence vous prévient sur WhatsApp à J-30, à J-7 et à l'échéance de chaque document, en un seul
-          message pour toute la flotte.
+          Rappel gratuit : si vous l'avez accepté, l'agence vous prévient sur WhatsApp à J-30, à J-7 et à l'échéance de chaque document
+          {particulier ? "." : ", en un seul message pour toute la flotte."}
         </p>
       </section>
     </>

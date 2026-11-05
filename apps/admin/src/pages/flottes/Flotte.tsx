@@ -6,7 +6,9 @@ import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormE
 import { Alerte, Badge, Chargement, Champ, Section, Vide } from "../../composants/communs";
 import { Lien } from "../../routeur";
 import { api, ErreurApi, messageErreur } from "../../services/api";
-import { aujourdHui, BRANCHES, dateCourte, dateHeure, montant, STATUTS_CONTRAT } from "../../services/format";
+import {
+  aujourdHui, BRANCHES, dateCourte, dateHeure, montant, NATURES_SINISTRE, STATUTS_CONTRAT, STATUTS_SINISTRE,
+} from "../../services/format";
 import { useSession } from "../../session";
 
 interface Vehicule {
@@ -853,15 +855,6 @@ function DepotAttestations({ contrat, actifs, apres }: { contrat: Contrat; actif
     </details>
   );
 }
-
-const NATURES_SINISTRE: Record<string, string> = {
-  materiel: "Dommages matériels", corporel: "Dommages corporels", vol: "Vol", incendie: "Incendie",
-  bris_de_glace: "Bris de glace", degat_des_eaux: "Dégât des eaux", autre: "Autre",
-};
-const STATUTS_SINISTRE: Record<string, string> = {
-  declare: "Déclaré", transmis_compagnie: "Transmis à la compagnie", expertise: "En expertise", offre_recue: "Offre reçue",
-  regle: "Réglé", refuse: "Refusé", classe_sans_suite: "Classé sans suite",
-};
 
 /** Sinistres de la flotte : historique par véhicule, déclaration et suivi (le portail les montre à l'entreprise) */
 function SinistresFlotte({ vehicules, contrats, apres }: { vehicules: Vehicule[]; contrats: Contrat[]; apres: () => Promise<void> }) {

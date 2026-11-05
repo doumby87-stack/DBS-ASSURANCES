@@ -145,3 +145,16 @@ input, select, textarea {
 @media (max-width: 30rem) {
   .fiche div { grid-template-columns: 1fr; gap: 0.1rem; }
 }
+
+/* Paiement et sinistres */
+.case { display: flex; align-items: center; gap: 0.6rem; font-weight: 600; }
+.case input { min-height: 0; width: 1.25rem; height: 1.25rem; padding: 0; }
+input[type="file"] { padding: 0.45rem; }
+.liste-fichiers { margin: 0.25rem 0 0; padding-left: 1.2rem; display: grid; gap: 0.25rem; overflow-wrap: anywhere; }
+.texte-libre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
+.simulation { border: 2px dashed var(--orange); }
+.section__entete h1 { margin: 0; }
+.section--a-payer { border-left: 4px solid var(--orange); }
+.a-payer { list-style: none; margin: 0 0 0.75rem; padding: 0; display: grid; gap: 0.75rem; }
+.a-payer li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem; }
+.a-payer li > span { flex: 1 1 14rem; }

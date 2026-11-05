@@ -55,8 +55,8 @@ export function Connexion() {
     <main className="connexion">
       <div className="connexion__carte">
         <p className="connexion__marque">DBS-ASSURANCES</p>
-        <h1>Espace entreprise</h1>
-        <p className="note">Votre flotte, vos attestations, vos échéances et vos sinistres, au même endroit.</p>
+        <h1>Espace client</h1>
+        <p className="note">Vos contrats, vos attestations, vos paiements et vos sinistres, au même endroit.</p>
 
         {etape === "numero" ? (
           <form className="formulaire" aria-label="Recevoir un code de connexion" onSubmit={(e) => void demanderCode(e)}>
@@ -64,7 +64,7 @@ export function Connexion() {
               <span className="champ__libelle">Votre numéro WhatsApp</span>
               <input type="tel" name="telephone" inputMode="tel" autoComplete="tel" required value={telephone}
                 placeholder="07 00 00 00 00" onChange={(e) => setTelephone(e.target.value)} />
-              <span className="champ__aide">Celui que l'agence a enregistré pour votre accès.</span>
+              <span className="champ__aide">Celui que l'agence a enregistré à votre nom, ou pour l'accès de votre entreprise.</span>
             </label>
             <Alerte>{erreur}</Alerte>
             <button type="submit" className="bouton bouton--principal" disabled={envoi || telephone.trim().length < 8}>

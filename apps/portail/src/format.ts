@@ -51,5 +51,23 @@ export const STATUTS_SINISTRE: Record<string, string> = {
   regle: "Réglé", refuse: "Refusé", classe_sans_suite: "Classé sans suite",
 };
 
+export const STATUTS_PAIEMENT: Record<string, string> = {
+  initie: "En attente de confirmation", en_attente: "En attente de confirmation", accepte: "Paiement reçu",
+  refuse: "Refusé ou annulé", abandonne: "Non abouti", a_regulariser: "Reçu, vérifié par l'agence",
+};
+
+export const MOYENS_PAIEMENT: Record<string, string> = {
+  WAVE: "Wave", ORANGE_MONEY: "Orange Money", MTN_MOMO: "MTN MoMo", MOOV_MONEY: "Moov Money",
+};
+
+/** Montant payable en Mobile Money : arrondi au multiple de 5 supérieur (pas de pièce de 1 F). */
+export function arrondiPaiement(reste: number): number {
+  return Math.ceil(reste / 5) * 5;
+}
+
+export function taille(octets: number): string {
+  return octets < 1024 * 1024 ? `${Math.max(1, Math.round(octets / 1024))} Ko` : `${(octets / 1024 / 1024).toFixed(1).replace(".", ",")} Mo`;
+}
+
 export const TELEPHONE_AGENCE = "07 49 36 07 02";
 export const WHATSAPP_AGENCE = "https://wa.me/2250749360702";

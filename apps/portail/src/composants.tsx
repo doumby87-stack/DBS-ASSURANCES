@@ -1,6 +1,6 @@
 // Composants communs du portail.
 
-import type { ReactNode } from "react";
+import { cloneElement, useId, type ReactElement, type ReactNode } from "react";
 import { joursAvant, dateCourte } from "./format";
 
 export function Alerte({ type = "erreur", children }: { type?: "erreur" | "succes" | "info"; children: ReactNode }) {
@@ -10,6 +10,28 @@ export function Alerte({ type = "erreur", children }: { type?: "erreur" | "succe
 
 export function Badge({ ton, children }: { ton: "vert" | "orange" | "rouge" | "bleu" | "gris"; children: ReactNode }) {
   return <span className={`badge badge--${ton}`}>{children}</span>;
+}
+
+/** Libellé relié au champ par son id ; l'aide est annoncée comme description, pas comme partie du nom. */
+export function Champ({ libelle, aide, children }: {
+  libelle: string;
+  aide?: ReactNode;
+  children: ReactElement<{ id?: string; "aria-describedby"?: string }>;
+}) {
+  const id = useId();
+  const idAide = useId();
+  return (
+    <div className="champ">
+      <label className="champ__libelle" htmlFor={id}>{libelle}</label>
+      {cloneElement(children, { id, ...(aide ? { "aria-describedby": idAide } : {}) })}
+      {aide && <span id={idAide} className="champ__aide">{aide}</span>}
+    </div>
+  );
+}
+
+/** Une ligne d'une fiche (liste de définitions) : libellé, valeur. */
+export function Ligne({ titre, children }: { titre: string; children: ReactNode }) {
+  return <div><dt>{titre}</dt><dd>{children}</dd></div>;
 }
 
 export function Chargement() {
