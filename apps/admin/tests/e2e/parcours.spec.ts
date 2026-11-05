@@ -2,8 +2,8 @@
 // création d'un client et d'un contrat, encaissement et reçu, accord du client pour les rappels et relance
 // automatique (en simulation), relance et renouvellement depuis le tableau des échéances, clôture de caisse,
 // bordereau de reversement, demande de devis reçue du site, commissions, flotte d'un transporteur (import,
-// avenants d'incorporation et de retrait au prorata, annulation, attestation, sinistre, accès au portail),
-// création d'un compte.
+// avenants d'incorporation et de retrait au prorata, annulation, attestation, sinistre suivi depuis la page
+// Sinistres, accès à l'espace client), création d'un compte.
 // Aucune violation de la politique de sécurité du contenu n'est tolérée.
 
 import { expect, test, type Page } from "@playwright/test";

@@ -15,6 +15,7 @@ Chaque décision importante est écrite ici, avec son contexte et ses conséquen
 | [0009](0009-demandes-de-devis-du-site.md) | Demandes de devis du site enregistrées par l'API, carte grise chiffrée en base | Acceptée (mise en service après l'ARTCI) |
 | [0010](0010-flottes.md) | Flottes : import contrôlé, avenants au prorata calculés par la base, rappels groupés par client | Acceptée |
 | [0011](0011-portail-des-entreprises.md) | Portail des entreprises : connexion par code WhatsApp, isolement des entreprises par la base | Acceptée |
+| [0012](0012-espace-client-et-paiement-en-ligne.md) | Espace client : particuliers, paiement Mobile Money vérifié auprès du prestataire, sinistres déclarés en ligne | Acceptée (prestataire réel à choisir) |
 
 ## Modèle
 

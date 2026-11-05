@@ -10,10 +10,9 @@ L'objectif dépasse la vitrine : donner à l'agence un outil qui tient ses prome
 | --- | --- | --- |
 | Site vitrine | [`apps/site-vitrine`](apps/site-vitrine) | ✅ En place : neuf pages construites par Astro, testées dans le navigateur (accessibilité, sécurité) |
 | Base de données | [`database`](database) | ✅ Schéma sécurisé et testé (règles CIMA, contrôle d'accès, journal d'audit) |
-| API | [`apps/api`](apps/api) | 🟡 Connexion du personnel, comptes, clients, contrats, véhicules, devis, échanges, échéances, caisse, reversements, commissions, relances automatiques (WhatsApp, SMS), demandes du site (antivirus), flottes (import Excel, avenants au prorata), sinistres, portail des entreprises |
-| Back-office de l'agence | [`apps/admin`](apps/admin) | 🟡 Connexion, échéances, clients, fiche client, caisse et reçus, reversements, commissions, relances et consentements, demandes du site, flottes (attestations, sinistres), accès au portail, personnel |
-| Portail des entreprises | [`apps/portail`](apps/portail) | ✅ Connexion par code WhatsApp, flotte, attestations en lot, sinistres par véhicule, accès de l'équipe |
-| Espace client des particuliers | tâche 9 | ⏳ |
+| API | [`apps/api`](apps/api) | 🟡 Connexion du personnel, comptes, clients, contrats, véhicules, devis, échanges, échéances, caisse, reversements, commissions, relances automatiques (WhatsApp, SMS), demandes du site (antivirus), flottes (import Excel, avenants au prorata), sinistres, espace client, paiement en ligne (prestataire simulé, le réel à brancher) |
+| Back-office de l'agence | [`apps/admin`](apps/admin) | 🟡 Connexion, échéances, clients, fiche client, caisse et reçus, paiements en ligne, reversements, commissions, relances et consentements, demandes du site, flottes (attestations), sinistres (déclarations en ligne, photos), accès à l'espace client, personnel |
+| Espace client (entreprises et particuliers) | [`apps/portail`](apps/portail) | ✅ Connexion par code WhatsApp, contrats ou flotte, attestations (en lot), paiement de la prime par Mobile Money, déclaration des sinistres avec photos, accès de l'équipe |
 
 Le détail, tâche par tâche : [feuille de route](docs/feuille-de-route.md).
 

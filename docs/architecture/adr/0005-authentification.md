@@ -1,6 +1,6 @@
 # 0005 — Deuxième facteur pour le personnel, code à usage unique pour les clients
 
-- Statut : Acceptée. Personnel : en place depuis la tâche 3 ([API](../../../apps/api/README.md)). Clients : tâche 9.
+- Statut : Acceptée. Personnel : en place depuis la tâche 3 ([API](../../../apps/api/README.md)). Clients : en place dans l'espace client, par un code envoyé sur WhatsApp (tâches 10 et 9, [ADR 0011](0011-portail-des-entreprises.md), [ADR 0012](0012-espace-client-et-paiement-en-ligne.md)).
 - Date : 2026-11-03
 
 ## Contexte

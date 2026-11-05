@@ -23,6 +23,11 @@ erDiagram
   CLIENTS ||--o{ CONSENTEMENTS : "accepte ou refuse"
   CLIENTS ||--o{ GESTIONNAIRES_PORTAIL : "accède au portail par"
   CONTRATS_VEHICULES ||--o| ATTESTATIONS_VEHICULES : "attestée par"
+  CONTRATS ||--o{ PAIEMENTS_EN_LIGNE : "payé en ligne par"
+  PAIEMENTS_EN_LIGNE |o--o| ENCAISSEMENTS : "encaissé par"
+  GESTIONNAIRES_PORTAIL ||--o{ PAIEMENTS_EN_LIGNE : "commence"
+  GESTIONNAIRES_PORTAIL |o--o{ SINISTRES : "déclare en ligne"
+  SINISTRES ||--o{ PIECES_SINISTRES : "photos et documents"
   CLIENTS ||--o{ RELANCES : "reçoit"
   CONTRATS ||--o{ AVENANTS_FLOTTE : "modifié par"
   AVENANTS_FLOTTE ||--|{ AVENANTS_FLOTTE_LIGNES : "détaille"
@@ -84,6 +89,8 @@ erDiagram
     mode_paiement mode
     text reference_externe
     timestamptz encaisse_le
+    uuid encaisse_par "caissier ; vide pour un paiement en ligne (hors caisse)"
+    uuid paiement_en_ligne_id
   }
   REVERSEMENTS {
     uuid id
@@ -119,6 +126,9 @@ erDiagram
     date declare_le
     nature_sinistre nature
     statut_sinistre statut
+    text circonstances "récit du client, visible par lui"
+    text description "note interne de l'agence"
+    uuid declare_par_gestionnaire "déclaré en ligne"
   }
   DEVIS {
     uuid id
@@ -161,6 +171,20 @@ erDiagram
   ATTESTATIONS_VEHICULES {
     bytea contenu_chiffre "PDF chiffré (AES-256-GCM)"
     bytea empreinte "SHA-256 du PDF"
+    analyse_piece etat_analyse "jamais infectée"
+  }
+  PAIEMENTS_EN_LIGNE {
+    text reference "DBS-00000001, transmise au prestataire"
+    bigint montant "multiple de 5"
+    text prestataire
+    statut_paiement_en_ligne statut "initié, en attente, accepté, refusé, abandonné, à régulariser"
+    text moyen "Wave, Orange Money, MTN MoMo, Moov Money"
+    text motif "à régulariser : pourquoi, puis ce que l'agence a fait"
+  }
+  PIECES_SINISTRES {
+    text nom_fichier
+    text type_contenu "JPEG, PNG ou PDF"
+    bytea contenu_chiffre "AES-256-GCM, contexte propre à la pièce"
     analyse_piece etat_analyse "jamais infectée"
   }
   AVENANTS_FLOTTE_LIGNES {
@@ -219,15 +243,17 @@ erDiagram
 | `app.v_sinistres_suivi` | Délai de déclaration et, pour un sinistre corporel, date limite indicative de l'offre. |
 | `app.v_consentements` | Dernier choix de chaque client pour chaque canal de relance. |
 | `app.v_avenants_flotte` | Avenants de flotte avec leur règlement (les encaissements au-delà de la prime de départ règlent les avenants dans l'ordre) et leur annulation éventuelle. |
-
-Le schéma `portail` (tables `codes_connexion`, `sessions`, `evenements`) n'est accessible que par ses fonctions : codes de connexion (empreinte seule), sessions du portail et journal de ses connexions et téléchargements ([ADR 0011](adr/0011-portail-des-entreprises.md)).
 | `app.v_relances_dues` | Relances dues aujourd'hui (échéance à J-30, J-15, J-7 et le jour même, contrat expiré depuis moins de 7 jours, devis sans réponse depuis 3 jours, avancement d'un sinistre) qui ne sont pas encore planifiées. |
 
 Toutes les vues appliquent les droits de la personne qui les consulte (`security_invoker`).
 
+Le schéma `portail` (tables `codes_connexion`, `sessions`, `evenements`) n'est accessible que par ses fonctions : codes de connexion (empreinte seule), sessions du portail et journal de ses connexions et téléchargements ([ADR 0011](adr/0011-portail-des-entreprises.md)).
+
+Les paiements en ligne sont préparés et conclus par la base (`portail.preparer_paiement`, `app.conclure_paiement_en_ligne`) : l'encaissement d'un paiement accepté est enregistré sans caissier, hors caisse ; un paiement reçu mais impossible à encaisser reste « à régulariser » par le gérant. Les sinistres déclarés en ligne et leurs pièces passent par `portail.declarer_sinistre` et `portail.joindre_piece_sinistre` ; une pièce ne se modifie ni ne se supprime ([ADR 0012](adr/0012-espace-client-et-paiement-en-ligne.md)).
+
 ## À venir
 
-Documents des contrats et des sinistres (stockage de fichiers, tâche 11), identification des clients et réclamations (tâche 12), comptes des clients de l'espace en ligne (tâche 9).
+Documents des contrats (stockage de fichiers, tâche 11), identification des clients et réclamations (tâche 12).
 
 Les demandes du site n'entrent que par la fonction `app.enregistrer_demande_site`, appelée sans utilisateur connecté par la route publique du formulaire : elle limite les envois par adresse (5 par heure) et par jour (300), et range la carte grise chiffrée dans `app.pieces_demandes_site`, en ajout seul et hors du journal d'audit. Le verdict de l'antivirus ne s'enregistre que par `app.enregistrer_analyse_piece` ; la maintenance de l'API retrouve les pièces à analyser par `app.pieces_a_analyser` et supprime les demandes sans suite depuis 12 mois par `app.purger_demandes_site`, seule à pouvoir supprimer dans ces tables ([ADR 0009](adr/0009-demandes-de-devis-du-site.md)).
 

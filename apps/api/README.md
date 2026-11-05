@@ -21,7 +21,9 @@ npm run dev -w @dbs/api                  # rechargement automatique
 | `URL_BACK_OFFICE` | oui | Adresse du back-office ; seule origine autorisée à modifier des données. HTTPS en production. |
 | `ANTIVIRUS_ADRESSE` | en production, si `URL_SITE_VITRINE` ou `URL_PORTAIL` est défini | Démon ClamAV (`hôte:port`, port 3310 par défaut) qui analyse les cartes grises et les attestations. Sans lui, les pièces reçues restent « à analyser » et ne peuvent pas être téléchargées. |
 | `URL_SITE_VITRINE` | non | Adresse du site vitrine : ouvre la route publique des demandes de devis à ce seul site ([ADR 0009](../../docs/architecture/adr/0009-demandes-de-devis-du-site.md)). Sans elle, la route n'existe pas. HTTPS en production. **À renseigner après la déclaration à l'ARTCI.** |
-| `URL_PORTAIL` | non | Adresse du portail des entreprises : ouvre ses routes (`/portail/…`), qui n'acceptent que cette origine ([ADR 0011](../../docs/architecture/adr/0011-portail-des-entreprises.md)). Sans elle, les routes du portail n'existent pas. HTTPS en production, avec l'accès à WhatsApp (codes de connexion) et l'antivirus (attestations). |
+| `URL_PORTAIL` | non | Adresse de l'espace client (portail) : ouvre ses routes (`/portail/…`), qui n'acceptent que cette origine ([ADR 0011](../../docs/architecture/adr/0011-portail-des-entreprises.md)). Sans elle, les routes du portail n'existent pas. HTTPS en production, avec l'accès à WhatsApp (codes de connexion) et l'antivirus (attestations, pièces des sinistres). |
+| `PAIEMENT_PRESTATAIRE` | non | Prestataire du paiement en ligne des primes ([ADR 0012](../../docs/architecture/adr/0012-espace-client-et-paiement-en-ligne.md)). Seule valeur pour l'instant : `simulation` (rien n'est débité ; **refusé en production**). Sans elle, le paiement en ligne n'est pas proposé : le client paie à l'agence. |
+| `PAIEMENT_MONTANT_MAX` | non | Montant maximal d'un paiement en ligne, en F CFA : `2000000` par défaut (de 100 à 10 000 000). |
 | `HOST`, `PORT` | non | `127.0.0.1` et `3000` par défaut. |
 | `PROXYS_DE_CONFIANCE` | non | Nombre de proxys devant l'API (répartiteur, pare-feu applicatif), pour retrouver l'adresse IP réelle. `0` par défaut. |
 | `VERIFIER_MOTS_DE_PASSE_DIVULGUES` | non | `true` par défaut : refuse les mots de passe présents dans des fuites connues. |
@@ -64,20 +66,27 @@ Le formulaire du site envoie la demande à `POST /site/demandes-devis` (JSON, ca
 
 **Antivirus.** La carte grise est analysée par ClamAV à la réception (infectée : refusée) et à chaque téléchargement (jamais remise sans analyse réussie ; une menace découverte plus tard efface son contenu). Installer le démon à côté de l'API, joignable seulement par elle, par exemple avec l'image officielle `clamav/clamav` (port 3310, signatures mises à jour par `freshclam`), puis `ANTIVIRUS_ADRESSE=clamav:3310`. Pour les tests : `tests/antivirus/demarrer-clamd.sh` démarre un vrai ClamAV avec la seule signature de test EICAR, et `ANTIVIRUS_ADRESSE_TEST=127.0.0.1:3310 npm run test -w @dbs/api` l'utilise.
 
-**Maintenance** (toutes les heures, toujours active) : suppression des demandes sans suite depuis 12 mois (ou jamais traitées, reçues il y a plus de 12 mois) avec leur carte grise, et analyse des pièces reçues pendant une panne de l'antivirus.
+**Maintenance** (toutes les heures, toujours active) : expiration des contrats échus, résultat des paiements en ligne en attente depuis plus de 10 minutes demandé au prestataire (puis abandon de ceux restés sans réponse plus d'un jour), suppression des demandes sans suite depuis 12 mois (ou jamais traitées, reçues il y a plus de 12 mois) avec leur carte grise, et analyse des pièces reçues pendant une panne de l'antivirus.
 
-## Portail des entreprises
+## Espace client (portail)
 
-Avec `URL_PORTAIL`, l'API ouvre les routes du portail ([`apps/portail`](../portail/README.md), [ADR 0011](../../docs/architecture/adr/0011-portail-des-entreprises.md)), acceptées depuis cette seule origine. Leur session est séparée de celle du personnel : cookie `__Host-dbs_portail` et table `portail.sessions`, 30 minutes d'inactivité, 12 heures au plus. Chaque lecture passe par `transactionPortail`, sous le rôle de base `dbs_portail`, qui ne voit que l'entreprise de la personne connectée.
+Avec `URL_PORTAIL`, l'API ouvre les routes de l'espace client ([`apps/portail`](../portail/README.md), [ADR 0011](../../docs/architecture/adr/0011-portail-des-entreprises.md), [ADR 0012](../../docs/architecture/adr/0012-espace-client-et-paiement-en-ligne.md)), acceptées depuis cette seule origine. Leur session est séparée de celle du personnel : cookie `__Host-dbs_portail` et table `portail.sessions`, 30 minutes d'inactivité, 12 heures au plus. Chaque lecture passe par `transactionPortail`, sous le rôle de base `dbs_portail`, qui ne voit que le client de la personne connectée (son entreprise, ou elle-même pour un particulier).
 
 | Route | Rôle |
 | --- | --- |
 | `POST /portail/connexion/code` | Code de 6 chiffres envoyé sur WhatsApp (modèle `dbs_code_connexion`). Même réponse, et même délai, que le numéro ait un accès ou non ; demandes limitées par numéro et par adresse. |
-| `POST /portail/connexion`, `POST /portail/deconnexion`, `GET /portail/session` | Connexion par le code (5 essais), fin de session, personne connectée. |
-| `GET /portail/flotte` | Tableau de bord : véhicules (contrat en cours, attestation, échéances, sinistres), contrats et reste à payer, chiffres clés. |
+| `POST /portail/connexion`, `POST /portail/deconnexion`, `GET /portail/session` | Connexion par le code (5 essais), fin de session, personne connectée et type de client. Un particulier dont le numéro est celui de sa fiche, avec un contrat, a son accès créé à sa première demande de code. |
+| `GET /portail/flotte` | Accueil : véhicules (contrat en cours, attestation, échéances, sinistres), contrats, reste à payer et paiement en cours, chiffres clés, paiement en ligne proposé ou non. |
 | `GET /portail/vehicules/:id` | Périodes de couverture et historique des sinistres du véhicule. |
 | `GET /portail/attestations/:id`, `GET /portail/attestations.zip`, `GET /portail/flotte.csv` | Une attestation, toutes les attestations en cours (ZIP), la liste pour Excel ; consignés dans `portail.evenements`. |
-| `GET`, `POST /portail/gestionnaires`, `DELETE /portail/gestionnaires/:id` | Accès de l'équipe ; ajout et retrait réservés au titulaire (vérifié par la base). |
+| `GET`, `POST /portail/gestionnaires`, `DELETE /portail/gestionnaires/:id` | Accès de l'équipe ; ajout et retrait réservés au titulaire d'une entreprise (vérifié par la base). |
+| `POST /portail/paiements` | Avec `PAIEMENT_PRESTATAIRE` : prépare le paiement d'une prime (contrat, montant multiple de 5, limites vérifiées par la base), le transmet au prestataire et renvoie l'adresse de sa page de paiement. |
+| `GET /portail/paiements`, `GET /portail/paiements/:id` | Paiements en ligne du client ; le détail demande le résultat au prestataire tant qu'il est en attente (une fois toutes les 5 secondes au plus) et le fait enregistrer par la base. |
+| `POST /portail/paiements/:id/simulation` | Prestataire simulé seulement : paie ou refuse le paiement, comme le ferait le client chez le prestataire. |
+| `GET`, `POST /portail/sinistres`, `GET /portail/sinistres/:id` | Sinistres du client, déclaration en ligne (contrat, véhicule couvert ce jour-là, date, nature, lieu, récit), détail avec la liste des documents. |
+| `POST /portail/sinistres/:id/pieces` | Photo ou document (JPEG, PNG, PDF, 5 Mo au plus, type reconnu d'après le contenu), analysé par l'antivirus, chiffré ; 8 par sinistre, dans les 7 jours. |
+
+**Paiement en ligne.** Le résultat d'un paiement est toujours demandé au prestataire (`verifier`) : la page de retour et les notifications ne font que déclencher cette vérification. La base enregistre ensuite l'encaissement (`app.conclure_paiement_en_ligne`) : mode Mobile Money, sans caissier, hors caisse, une seule fois. `POST /paiements/notifications/:prestataire` reçoit les notifications du prestataire ; sa signature est contrôlée par le module du prestataire (le prestataire simulé n'en accepte aucune). Le prestataire réel s'ajoute dans `src/integrations/paiement/` en suivant sa documentation officielle.
 
 ## Installer le premier gérant
 
@@ -119,7 +128,11 @@ Le mot de passe provisoire s'affiche une seule fois. Ensuite, tous les comptes s
 | `POST /contrats/:id/avenants` | gérant, chargé | Avenant de mouvement sur un contrat en vigueur : incorporation (réintégration comprise) ou retrait d'un ou plusieurs véhicules à une même date, prime calculée par la base au prorata des jours restants. Sans `confirmer` : aperçu du calcul, rien n'est écrit ; avec : avenant enregistré. |
 | `POST /contrats/:id/avenants/:avenantId/annulation` | gérant, chargé | Avenant d'annulation (motif obligatoire) : défait exactement un avenant saisi par erreur, si aucun avenant postérieur, aucune attestation ni aucun sinistre ne s'est appuyé dessus. Même aperçu, puis `confirmer`. |
 | `POST /contrats/:id/sinistres`, `PATCH /sinistres/:id` | gérant, chargé | Déclaration d'un sinistre (véhicule couvert ce jour-là, vérifié par la base) et suivi de son statut et de la référence de la compagnie. |
-| `GET`, `POST /clients/:id/acces-portail`, `PATCH /acces-portail/:id` | lecture : gérant, chargé, commercial, auditeur ; le reste : gérant, chargé | Accès d'une entreprise (ou d'un professionnel) au portail : titulaire et collaborateurs, retrait et rétablissement. |
+| `GET /sinistres?tous=oui`, `GET /sinistres/:id` | gérant, chargé, commercial, auditeur | Sinistres en cours (ou tous), les déclarations à transmettre en premier ; fiche avec le récit du client, le déclarant et ses documents. |
+| `GET /sinistres/:id/pieces/:pieceId` | gérant, chargé, commercial | Photo ou document joint par le client, déchiffré ; téléchargement consigné. |
+| `GET /paiements-en-ligne?statut=` | gérant, caissier, chargé, auditeur | Paiements en ligne des clients, ceux « à régulariser » en premier, avec le motif. |
+| `POST /paiements-en-ligne/:id/regularisation` | gérant | Paiement reçu mais non encaissé : ce que l'agence a fait (remboursement, affectation). |
+| `GET`, `POST /clients/:id/acces-portail`, `PATCH /acces-portail/:id` | lecture : gérant, chargé, commercial, auditeur ; le reste : gérant, chargé | Accès d'un client à l'espace client : titulaire et collaborateurs pour une entreprise, un seul accès pour un particulier ; retrait et rétablissement. |
 | `POST /contrats/:id/vehicules/:vehiculeId/attestation`, `GET /attestations/:id` | dépôt : gérant, chargé ; lecture : gérant, chargé, commercial | Attestation PDF d'un véhicule couvert (contrat payé) : contenu vérifié, antivirus, chiffrement ; téléchargement consigné. |
 | `POST /clients/:id/devis`, `PATCH /devis/:id` | création : gérant, chargé, commercial, apporteur ; suivi : sans l'apporteur | Devis ; un refus exige son motif. |
 | `POST /contrats`, `PATCH /contrats/:id` | gérant, chargé | Contrats et prime nette ; « en vigueur » refusé tant que la prime n'est pas payée (Code CIMA, art. 13). |

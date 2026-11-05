@@ -24,7 +24,7 @@ Légende : ✅ terminé · 🔜 prochaine · ⏳ plus tard · 🧑‍💼 tâche
 - [ ] Demander à **SanlamAllianz** : ce que fournit son extranet, le format de ses états de production et de commissions, sa procédure de lutte contre le blanchiment pour les agents, et son accord sur l'usage du logo ; pour la caisse, le format des bordereaux, les taux de commission par branche et le paiement fractionné de la prime ; pour les flottes, les frais d'avenant éventuels, la ristourne minimale ou la retenue sur un retrait, et le format attendu pour la cotation en lot.
 - [ ] Demander à l'**ASACI** (ou à SanlamAllianz) l'accès à la plateforme des attestations digitales : émission et vérification par l'agence, et s'il existe un moyen de l'interroger depuis l'application (tâche 10).
 - [ ] Confirmer la **source réglementaire du plafond d'espèces** de 1 000 000 F CFA par police, appliqué par la base.
-- [ ] Ouvrir un **compte marchand** de paiement Mobile Money (par exemple CinetPay) au nom de la société, plutôt que d'utiliser un numéro personnel.
+- [ ] Ouvrir un **compte marchand** de paiement Mobile Money (agrégateur comme CinetPay ou PayDunya, ou contrat direct avec un opérateur) au nom de la société, plutôt que d'utiliser un numéro personnel, et transmettre sa documentation d'intégration (vérification d'un paiement, signature des notifications) pour brancher le paiement en ligne (tâche 9).
 - [ ] Faire vérifier l'entreprise et le compte **WhatsApp Business** de l'agence par Meta (sur un numéro dédié), puis soumettre les **six modèles de messages** (cinq relances et le code de connexion au portail) ([modèles](metier/modeles-de-messages.md)), et recueillir l'accord des clients existants (WhatsApp, SMS) au guichet ou par téléphone.
 - [ ] Choisir l'**opérateur SMS** des relances (agréé, nom d'expéditeur « DBS-ASSUR », accusés de réception, réponses « STOP ») ([ADR 0007](architecture/adr/0007-relances-whatsapp-et-sms.md)).
 - [ ] Compléter les **mentions légales** : n° d'agrément ou de carte professionnelle, hébergeur, horaires.
@@ -71,9 +71,20 @@ Revue d'ensemble après la tâche 8 : un contrat échu passe de lui-même à « 
 
 *À confirmer avec SanlamAllianz (tâche 2) :* frais d'avenant, ristourne minimale sur un retrait, format attendu pour la cotation en lot. *À faire valider par Meta :* le modèle `dbs_documents_vehicules` ([modèles de messages](metier/modeles-de-messages.md)).
 
-## 🔜 Tâche 9 — Espace client et paiement Mobile Money
+## ✅ Tâche 9 — Espace client et paiement Mobile Money
 
-Pour les particuliers : contrats et attestations, paiement par Wave, Orange Money, MTN MoMo ou Moov Money avec confirmation signée, déclaration des sinistres en ligne. La connexion par code, les sessions et le rôle restreint de la base viennent du portail des entreprises (tâche 10).
+Le portail devient l'**espace client**, pour les entreprises comme pour les particuliers ([ADR 0012](architecture/adr/0012-espace-client-et-paiement-en-ligne.md)) :
+
+- **particuliers** : leur espace s'ouvre à leur première demande de code, avec le numéro de leur fiche, dès qu'ils ont un contrat ; contrats, attestations, sinistres ;
+- **paiement de la prime en ligne** (Wave, Orange Money, MTN MoMo, Moov Money) sur la page du prestataire : le résultat est toujours vérifié auprès du prestataire, puis l'encaissement est enregistré par la base, sans caissier, et le contrat entre en vigueur une fois soldé ; un paiement reçu mais impossible à encaisser est « à régulariser » par le gérant ;
+- **déclaration des sinistres en ligne**, avec photos et constat amiable (analysés par l'antivirus, chiffrés) ; au back-office, une page **Sinistres** où les déclarations à traiter passent en premier ;
+- connexion par code, sessions et isolement par la base repris du portail des entreprises (tâche 10).
+
+*Avant la mise en service du paiement (tâche 2) :*
+- choisir le **prestataire** et ouvrir le compte marchand, puis ajouter son module dans `apps/api/src/integrations/paiement/` d'après sa documentation officielle (pour l'instant, seul le prestataire simulé existe : `PAIEMENT_PRESTATAIRE=simulation`, refusé en production) ;
+- rendre joignable depuis Internet l'adresse des notifications (`https://<espace client>/api/paiements/notifications/<prestataire>`) ;
+- rapprocher chaque jour le relevé du prestataire avec les paiements en ligne (Caisse) ;
+- compléter la déclaration à l'ARTCI (paiements, photos des sinistres).
 
 ## ✅ Tâche 10 — Portail des entreprises et transporteurs
 
