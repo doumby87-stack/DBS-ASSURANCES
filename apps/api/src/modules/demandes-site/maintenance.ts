@@ -1,5 +1,6 @@
 // Maintenance de l'agence, sans utilisateur connecté, toutes les heures :
 //   · expiration des contrats en vigueur dont l'échéance est passée (database/migrations/0011) ;
+//   · abandon des paiements en ligne restés sans réponse plus d'un jour (database/migrations/0013) ;
 //   · purge des demandes du site qui ne sont pas devenues un devis, 12 mois après leur classement sans suite
 //     (ou leur réception si personne ne les a traitées), avec leur carte grise ;
 //   · analyse des cartes grises reçues pendant que l'antivirus ne répondait pas.
@@ -13,6 +14,7 @@ import { dechiffrerPiece } from "./piece.js";
 
 export interface BilanMaintenance {
   contratsExpires: number;
+  paiementsAbandonnes: number;
   purgees: number;
   analysees: number;
   infectees: number;
@@ -31,6 +33,10 @@ export async function executerMaintenance(
     const { rows } = await client.query<{ nombre: number }>("SELECT app.expirer_contrats() AS nombre");
     return rows[0]?.nombre ?? 0;
   });
+  const paiementsAbandonnes = await transactionSysteme(pool, async (client) => {
+    const { rows } = await client.query<{ nombre: number }>("SELECT app.abandonner_paiements_en_ligne() AS nombre");
+    return rows[0]?.nombre ?? 0;
+  });
   const purgees = await transactionSysteme(pool, async (client) => {
     const { rows } = await client.query<{ nombre: number }>("SELECT app.purger_demandes_site() AS nombre");
     // Codes de connexion au portail de plus d'un jour et sessions expirées (database/migrations/0012)
@@ -38,7 +44,7 @@ export async function executerMaintenance(
     return rows[0]?.nombre ?? 0;
   });
 
-  const bilan: BilanMaintenance = { contratsExpires, purgees, analysees: 0, infectees: 0, enAttente: 0 };
+  const bilan: BilanMaintenance = { contratsExpires, paiementsAbandonnes, purgees, analysees: 0, infectees: 0, enAttente: 0 };
   if (!antivirus.configure) return bilan;
 
   const pieces = await transactionSysteme(pool, async (client) => {

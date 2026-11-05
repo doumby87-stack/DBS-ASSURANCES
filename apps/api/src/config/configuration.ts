@@ -50,6 +50,11 @@ export interface Configuration {
    * modifient des données. Sans elle, les routes du portail n'existent pas.
    */
   originePortail: string | null;
+  /**
+   * Paiement en ligne sur le portail (tâche 9) : prestataire choisi, et montant maximal d'une transaction.
+   * Sans prestataire, le paiement en ligne n'est pas proposé (le client paie à l'agence).
+   */
+  paiement: { prestataire: "simulation"; montantMax: number } | null;
   /** Démon ClamAV qui analyse les pièces jointes (hôte et port). Obligatoire en production si le site envoie des demandes. */
   antivirus: AdresseAntivirus | null;
   /** Nombre de proxys (répartiteur, pare-feu applicatif) devant l'API, pour retrouver l'adresse IP réelle. */
@@ -206,6 +211,17 @@ export function chargerConfiguration(env: NodeJS.ProcessEnv = process.env): Conf
   if (simulation && environnement === "production") {
     problemes.push("RELANCES_SIMULATION est interdit en production : aucun client ne serait relancé");
   }
+  let paiement: Configuration["paiement"] = null;
+  const prestataire = env.PAIEMENT_PRESTATAIRE?.trim();
+  if (prestataire) {
+    if (prestataire !== "simulation") {
+      problemes.push("PAIEMENT_PRESTATAIRE : seul « simulation » est disponible pour l'instant (le prestataire réel s'ajoutera avec le compte marchand)");
+    } else if (environnement === "production") {
+      problemes.push("PAIEMENT_PRESTATAIRE=simulation est interdit en production : aucun paiement ne serait réel");
+    } else {
+      paiement = { prestataire, montantMax: entier("PAIEMENT_MONTANT_MAX", 2_000_000, 100, 10_000_000) };
+    }
+  }
   if (originePortail && environnement === "production" && !whatsapp) {
     problemes.push("Le portail (URL_PORTAIL) envoie les codes de connexion sur WhatsApp : renseignez les variables WHATSAPP_*");
   }
@@ -231,6 +247,7 @@ export function chargerConfiguration(env: NodeJS.ProcessEnv = process.env): Conf
     origineBackOffice,
     origineSite,
     originePortail,
+    paiement,
     antivirus,
     proxysDeConfiance: entier("PROXYS_DE_CONFIANCE", 0, 0, 5),
     verifierMotsDePasseDivulgues: verification !== "false",

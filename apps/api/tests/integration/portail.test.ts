@@ -107,7 +107,7 @@ afterAll(async () => {
 });
 
 describe("accès au portail, côté agence", () => {
-  it("plusieurs accès par entreprise, un numéro par accès, réservé aux entreprises et aux professionnels", async () => {
+  it("plusieurs accès par entreprise, un numéro par accès ; un seul accès, le sien, pour un particulier", async () => {
     const { clientId } = await entrepriseAssuree("Transports Accès");
     const titulaire = await envoyer(ctx, {
       url: `/clients/${clientId}/acces-portail`, cookie: cookies.charge_clientele,
@@ -127,11 +127,17 @@ describe("accès au portail, côté agence", () => {
     })).statusCode).toBe(403);
 
     const particulier = (await envoyer(ctx, { url: "/clients", cookie: cookies.charge_clientele,
-      corps: { type: "particulier", nom: "Particulier Sans Portail", telephone: `05${unique()}` } })).json().client.id;
-    const refus = await envoyer(ctx, { url: `/clients/${particulier}/acces-portail`, cookie: cookies.charge_clientele,
-      corps: { nom: "Particulier", telephone: `07${unique()}`, role: "titulaire" } });
-    expect(refus.statusCode).toBe(422);
-    expect(refus.json().message).toContain("réservé aux entreprises");
+      corps: { type: "particulier", nom: "Particulier Portail", telephone: `05${unique()}` } })).json().client.id;
+    const collaborateur = await envoyer(ctx, { url: `/clients/${particulier}/acces-portail`, cookie: cookies.charge_clientele,
+      corps: { nom: "Particulier", telephone: `07${unique()}`, role: "gestionnaire" } });
+    expect(collaborateur.statusCode).toBe(422);
+    expect(collaborateur.json().message).toContain("un seul accès, le sien");
+    expect((await envoyer(ctx, { url: `/clients/${particulier}/acces-portail`, cookie: cookies.charge_clientele,
+      corps: { nom: "Particulier", telephone: `07${unique()}`, role: "titulaire" } })).statusCode).toBe(201);
+    const second = await envoyer(ctx, { url: `/clients/${particulier}/acces-portail`, cookie: cookies.charge_clientele,
+      corps: { nom: "Autre numéro", telephone: `07${unique()}`, role: "titulaire" } });
+    expect(second.statusCode).toBe(422);
+    expect(second.json().message).toContain("déjà un accès");
 
     const liste = await envoyer(ctx, { url: `/clients/${clientId}/acces-portail`, cookie: cookies.auditeur });
     expect(liste.json().acces).toEqual([expect.objectContaining({ nom: "Awa Titulaire", creePar: expect.any(String), derniereConnexionLe: null })]);
@@ -162,7 +168,7 @@ describe("connexion au portail par code", () => {
     expect(refus.json().code).toBe("code_invalide");
     const connexion = await portail("/portail/connexion", { corps: { telephone, code } });
     expect(connexion.statusCode).toBe(200);
-    expect(connexion.json().session).toEqual({ nom: "Koffi", role: "titulaire", entreprise: "Transports Connexion", telephone });
+    expect(connexion.json().session).toEqual({ nom: "Koffi", role: "titulaire", entreprise: "Transports Connexion", telephone, typeClient: "entreprise" });
     const cookie = connexion.cookies.find((c) => c.name === NOM_COOKIE_PORTAIL)!;
     expect(cookie).toMatchObject({ httpOnly: true, secure: true, sameSite: "Strict", path: "/" });
     expect((await portail("/portail/connexion", { corps: { telephone, code } })).statusCode).toBe(401);

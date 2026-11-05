@@ -68,7 +68,7 @@ export async function lireSolde(
 
 const COLONNES_ENCAISSEMENT = `e.id, e.numero_recu AS "numeroRecu", e.contrat_id AS "contratId", e.montant, e.mode,
   e.reference_externe AS "reference", e.motif, e.encaisse_le AS "encaisseLe", e.annule_encaissement_id AS "annuleEncaissementId",
-  e.reversement_id AS "reversementId", u.nom AS "encaissePar",
+  e.reversement_id AS "reversementId", coalesce(u.nom, 'Paiement en ligne') AS "encaissePar",
   EXISTS (SELECT 1 FROM app.encaissements x WHERE x.annule_encaissement_id = e.id) AS "contrePasse"`;
 
 export async function routesEncaissements(app: FastifyInstance, options: { pool: Pool; gardes: Gardes }): Promise<void> {
@@ -84,7 +84,7 @@ export async function routesEncaissements(app: FastifyInstance, options: { pool:
         const contrat = await lireSolde(client, requete.params.id);
         const { rows } = await client.query(
           `SELECT ${COLONNES_ENCAISSEMENT}
-           FROM app.encaissements e JOIN app.utilisateurs u ON u.id = e.encaisse_par
+           FROM app.encaissements e LEFT JOIN app.utilisateurs u ON u.id = e.encaisse_par
            WHERE e.contrat_id = $1 ORDER BY e.numero_recu`,
           [requete.params.id],
         );
@@ -142,7 +142,7 @@ export async function routesEncaissements(app: FastifyInstance, options: { pool:
         const id = rows[0]!.id;
         const apres = await lireSolde(client, contratId);
         const encaissement = await client.query(
-          `SELECT ${COLONNES_ENCAISSEMENT} FROM app.encaissements e JOIN app.utilisateurs u ON u.id = e.encaisse_par WHERE e.id = $1`,
+          `SELECT ${COLONNES_ENCAISSEMENT} FROM app.encaissements e LEFT JOIN app.utilisateurs u ON u.id = e.encaisse_par WHERE e.id = $1`,
           [id],
         );
         return { encaissement: encaissement.rows[0], contrat: apres };
@@ -183,7 +183,7 @@ export async function routesEncaissements(app: FastifyInstance, options: { pool:
           [origine.contratId, -origine.montant, origine.mode, requete.params.id, motif],
         );
         const encaissement = await client.query(
-          `SELECT ${COLONNES_ENCAISSEMENT} FROM app.encaissements e JOIN app.utilisateurs u ON u.id = e.encaisse_par WHERE e.id = $1`,
+          `SELECT ${COLONNES_ENCAISSEMENT} FROM app.encaissements e LEFT JOIN app.utilisateurs u ON u.id = e.encaisse_par WHERE e.id = $1`,
           [insertion.rows[0]!.id],
         );
         return { encaissement: encaissement.rows[0], contrat: await lireSolde(client, origine.contratId) };
@@ -200,7 +200,7 @@ export async function routesEncaissements(app: FastifyInstance, options: { pool:
       const recu = await transactionUtilisateur(pool, utilisateurDe(requete).id, async (client) => {
         const { rows } = await client.query<{ montant: number; primeTtc: number; avenantsADate: number; totalADate: number }>(
           `SELECT e.id, e.numero_recu AS "numeroRecu", e.montant, e.mode, e.reference_externe AS "reference", e.motif,
-                  e.encaisse_le AS "encaisseLe", u.nom AS "encaissePar",
+                  e.encaisse_le AS "encaisseLe", coalesce(u.nom, 'Paiement en ligne') AS "encaissePar",
                   c.nom AS "clientNom", c.telephone AS "clientTelephone",
                   k.id AS "contratId", k.numero_police AS "numeroPolice", k.branche, k.date_effet AS "dateEffet",
                   k.date_echeance AS "dateEcheance", k.prime_ttc AS "primeTtc",
@@ -212,7 +212,7 @@ export async function routesEncaissements(app: FastifyInstance, options: { pool:
                   o.numero_recu AS "annuleRecu",
                   (SELECT x.numero_recu FROM app.encaissements x WHERE x.annule_encaissement_id = e.id) AS "contrePasseParRecu"
            FROM app.encaissements e
-           JOIN app.utilisateurs u ON u.id = e.encaisse_par
+           LEFT JOIN app.utilisateurs u ON u.id = e.encaisse_par
            JOIN app.contrats k ON k.id = e.contrat_id
            JOIN app.clients c ON c.id = k.client_id
            LEFT JOIN app.encaissements o ON o.id = e.annule_encaissement_id
@@ -250,7 +250,7 @@ export async function routesEncaissements(app: FastifyInstance, options: { pool:
         const { rows } = await client.query<{ montant: number; mode: Mode }>(
           `SELECT ${COLONNES_ENCAISSEMENT}, c.nom AS "clientNom", c.id AS "clientId", k.numero_police AS "numeroPolice", k.branche
            FROM app.encaissements e
-           JOIN app.utilisateurs u ON u.id = e.encaisse_par
+           LEFT JOIN app.utilisateurs u ON u.id = e.encaisse_par
            JOIN app.contrats k ON k.id = e.contrat_id
            JOIN app.clients c ON c.id = k.client_id
            WHERE (e.encaisse_le AT TIME ZONE 'Africa/Abidjan')::date

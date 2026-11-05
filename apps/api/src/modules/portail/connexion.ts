@@ -27,7 +27,9 @@ export interface SessionPortail {
   nom: string;
   telephone: string;
   role: RoleGestionnaire;
+  /** Nom du client : l'entreprise, ou le particulier lui-même */
   entreprise: string;
+  typeClient: "particulier" | "professionnel" | "entreprise";
   expireLe: Date;
   empreinte: Buffer;
 }
@@ -75,7 +77,7 @@ export async function lireSessionPortail(pool: Pool, requete: FastifyRequest): P
   const { rows } = await transactionSysteme(pool, (client) =>
     client.query<{
       gestionnaire_id: string; client_id: string; nom: string; telephone: string; role: RoleGestionnaire;
-      entreprise: string; expire_le: Date;
+      entreprise: string; type_client: SessionPortail["typeClient"]; expire_le: Date;
     }>("SELECT * FROM portail.lire_session($1, $2)", [empreinte, INACTIVITE_PORTAIL]),
   );
   const ligne = rows[0];
@@ -87,6 +89,7 @@ export async function lireSessionPortail(pool: Pool, requete: FastifyRequest): P
     telephone: ligne.telephone,
     role: ligne.role,
     entreprise: ligne.entreprise,
+    typeClient: ligne.type_client,
     expireLe: ligne.expire_le,
     empreinte,
   };
