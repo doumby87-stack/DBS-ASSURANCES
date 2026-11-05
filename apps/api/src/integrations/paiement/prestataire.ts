@@ -68,6 +68,12 @@ export function creerPrestataireSimulation(): PrestataireSimulation {
   };
 }
 
+/** Prestataire d'après la configuration (PAIEMENT_PRESTATAIRE), ou null si le paiement en ligne n'est pas ouvert. */
+export function creerPrestataire(config: { prestataire: "simulation" } | null): PrestatairePaiement | null {
+  if (!config) return null;
+  return creerPrestataireSimulation();
+}
+
 export function estSimulation(prestataire: PrestatairePaiement): prestataire is PrestataireSimulation {
   return prestataire.nom === "simulation" && "simuler" in prestataire;
 }

@@ -17,7 +17,7 @@ import { routesNotificationsWhatsApp } from "./integrations/whatsapp/notificatio
 import { routesCaisse } from "./modules/encaissements/caisse.js";
 import { routesEncaissements } from "./modules/encaissements/routes.js";
 import { routesFlottes } from "./modules/flottes/routes.js";
-import { creerPrestataireSimulation, type PrestatairePaiement } from "./integrations/paiement/prestataire.js";
+import { creerPrestataire, type PrestatairePaiement } from "./integrations/paiement/prestataire.js";
 import { routesNotificationsPaiement, routesPaiementsEnLigne } from "./modules/paiements/routes.js";
 import { routesPaiementsPortail } from "./modules/paiements/routes-portail.js";
 import { creerEnvoiCodes, type EnvoiCodes } from "./modules/portail/connexion.js";
@@ -48,8 +48,8 @@ export interface DependancesApplication {
   antivirus?: Antivirus;
   /** Envoi des codes de connexion au portail (remplaçable dans les tests) ; sinon, d'après la configuration. */
   envoiCodes?: EnvoiCodes;
-  /** Prestataire de paiement en ligne (remplaçable dans les tests) ; sinon, d'après la configuration. */
-  prestatairePaiement?: PrestatairePaiement;
+  /** Prestataire de paiement en ligne (le même que celui de la maintenance) ; sinon, d'après la configuration. */
+  prestatairePaiement?: PrestatairePaiement | null;
   journal?: boolean;
 }
 
@@ -131,7 +131,7 @@ export async function construireApplication(dependances: DependancesApplication)
   // adresse est configurée, et le paiement en ligne seulement si un prestataire l'est aussi
   await app.register(routesPortailAgence, { pool, gardes, cleChiffrement: config.cleChiffrement, antivirus });
   await app.register(routesPaiementsEnLigne, { pool, gardes });
-  const prestataire = config.paiement ? (dependances.prestatairePaiement ?? creerPrestataireSimulation()) : null;
+  const prestataire = config.paiement ? (dependances.prestatairePaiement ?? creerPrestataire(config.paiement)) : null;
   if (config.originePortail) {
     await app.register(routesPortail, {
       pool,

@@ -160,6 +160,13 @@ export function DeclarerSinistre() {
   const [erreur, setErreur] = useState("");
   const [envoi, setEnvoi] = useState(false);
 
+  /** Choix du contrat ; s'il ne couvre qu'un véhicule, c'est lui (le client peut en choisir aucun). */
+  function choisirContrat(id: string, vehicules: Choix["vehicules"]) {
+    setContratId(id);
+    const duContrat = vehicules.filter((v) => v.contratId === id);
+    setVehiculeId(duContrat.length === 1 ? duContrat[0]!.id : "");
+  }
+
   useEffect(() => {
     api<Choix>("/portail/flotte")
       .then((r) => {
@@ -169,16 +176,12 @@ export function DeclarerSinistre() {
         if (vehicule?.contratId) {
           setContratId(vehicule.contratId);
           setVehiculeId(vehicule.id);
-        } else if (contrats.length === 1) setContratId(contrats[0]!.id);
+        } else if (contrats.length === 1) choisirContrat(contrats[0]!.id, r.vehicules);
       })
       .catch((e: unknown) => setErreur(messageErreur(e)));
   }, [prerempli]);
 
   const vehiculesDuContrat = choix?.vehicules.filter((v) => v.contratId === contratId) ?? [];
-  useEffect(() => {
-    // Un seul véhicule sur le contrat : c'est lui
-    if (vehiculesDuContrat.length === 1 && !vehiculeId) setVehiculeId(vehiculesDuContrat[0]!.id);
-  }, [vehiculesDuContrat, vehiculeId]);
 
   async function declarer(evenement: FormEvent) {
     evenement.preventDefault();
@@ -217,7 +220,7 @@ export function DeclarerSinistre() {
       </p>
       <form className="formulaire section" aria-label="Déclaration de sinistre" onSubmit={(e) => void declarer(e)}>
         <Champ libelle="Contrat concerné">
-          <select value={contratId} required onChange={(e) => { setContratId(e.target.value); setVehiculeId(""); }}>
+          <select value={contratId} required onChange={(e) => choisirContrat(e.target.value, choix.vehicules)}>
             <option value="">Choisissez…</option>
             {choix.contrats.map((k) => (
               <option key={k.id} value={k.id}>{k.numeroPolice ?? "N° à venir"} · {BRANCHES[k.branche] ?? k.branche}</option>

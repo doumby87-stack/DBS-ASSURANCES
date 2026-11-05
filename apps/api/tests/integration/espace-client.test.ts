@@ -246,6 +246,27 @@ describe("paiement d'une prime en ligne", () => {
   });
 });
 
+describe("paiement confirmé sans retour du client", () => {
+  it("la maintenance demande le résultat au prestataire et encaisse le paiement, avant tout abandon", async () => {
+    const fanta = await particulierAssure("Fanta Sans Retour", 30_000);
+    const paiement = await payerEnLigne(fanta.cookie, fanta.contratId, 30_000);
+    // Payé chez le prestataire ; le client ferme son navigateur, la notification se perd
+    prestataire.simuler(paiement.reference, true, 30_000, "MOOV_MONEY");
+    const statut = async () => (await ctx.base.query<{ statut: string }>("SELECT statut FROM app.paiements_en_ligne WHERE id = $1", [paiement.id])).rows[0]!.statut;
+
+    // Commencé il y a moins de 10 minutes : la maintenance le laisse au client
+    await executerMaintenance(ctx.pool, ctx.antivirus, ctx.cleChiffrement, undefined, prestataire);
+    expect(await statut()).toBe("en_attente");
+
+    await ctx.base.query("UPDATE app.paiements_en_ligne SET cree_le = now() - interval '20 minutes' WHERE id = $1", [paiement.id]);
+    const bilan = await executerMaintenance(ctx.pool, ctx.antivirus, ctx.cleChiffrement, undefined, prestataire);
+    expect(bilan.paiementsConclus).toBeGreaterThanOrEqual(1);
+    expect(await statut()).toBe("accepte");
+    const lu = await portail(`/portail/paiements/${paiement.id}`, { cookie: fanta.cookie });
+    expect(lu.json().paiement).toMatchObject({ statut: "accepte", moyen: "MOOV_MONEY", statutContrat: "en_vigueur", resteAPayer: 0 });
+  });
+});
+
 describe("déclaration d'un sinistre en ligne", () => {
   it("déclaration, photos analysées et chiffrées, suivi par l'agence", async () => {
     const awa = await particulierAssure("Koné Awa Sinistre");

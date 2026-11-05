@@ -40,8 +40,14 @@ export async function routesNotificationsPaiement(
         const statut = await verifierEtConclure(pool, prestataire, notification.reference);
         requete.log.info({ reference: notification.reference, statut }, "notification de paiement traitée");
       } catch (erreur) {
-        // Référence inconnue ou résultat illisible : le prestataire n'a pas à réessayer indéfiniment
-        requete.log.warn({ err: erreur, reference: notification.reference }, "notification de paiement sans suite");
+        // Référence inconnue de l'agence : inutile que le prestataire réessaie. Autre échec (prestataire ou base
+        // injoignable) : 503, pour qu'il renvoie la notification ; la maintenance vérifie aussi de son côté.
+        if ((erreur as { code?: unknown }).code === "P0002") {
+          requete.log.warn({ reference: notification.reference }, "notification de paiement pour une référence inconnue");
+        } else {
+          requete.log.error({ err: erreur, reference: notification.reference }, "notification de paiement non traitée");
+          throw new ErreurApi(503, "indisponible", "Réessayez plus tard.");
+        }
       }
       return reponse.status(200).send({ recu: true });
     },

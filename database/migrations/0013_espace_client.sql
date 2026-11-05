@@ -371,7 +371,23 @@ $$;
 REVOKE ALL ON FUNCTION app.conclure_paiement_en_ligne(text, text, bigint, text, text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app.conclure_paiement_en_ligne(text, text, bigint, text, text) TO dbs_api;
 
--- Un paiement resté sans réponse plus d'un jour est abandonné (maintenance horaire de l'API)
+-- Paiements en attente depuis plus de 10 minutes, à vérifier auprès du prestataire par la maintenance horaire :
+-- si le client ne revient pas sur la page de retour et qu'une notification se perd, l'argent reçu est quand même
+-- encaissé, avant tout abandon. Rend seulement les références, les plus anciennes d'abord.
+CREATE FUNCTION app.paiements_en_ligne_a_verifier(p_limite integer) RETURNS TABLE (reference text)
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = pg_catalog
+AS $$
+  SELECT p.reference FROM app.paiements_en_ligne p
+  WHERE p.statut IN ('initie', 'en_attente') AND p.cree_le < now() - interval '10 minutes'
+  ORDER BY p.cree_le
+  LIMIT least(greatest(p_limite, 1), 200)
+$$;
+REVOKE ALL ON FUNCTION app.paiements_en_ligne_a_verifier(integer) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION app.paiements_en_ligne_a_verifier(integer) TO dbs_api;
+
+-- Un paiement resté sans réponse plus d'un jour est abandonné (maintenance horaire de l'API, après la vérification
+-- ci-dessus). Un résultat qui arrive ensuite (notification) est encore enregistré : « abandonné » n'est pas définitif.
 CREATE FUNCTION app.abandonner_paiements_en_ligne() RETURNS integer
 LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = pg_catalog

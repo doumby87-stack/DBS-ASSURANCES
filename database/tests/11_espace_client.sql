@@ -199,10 +199,19 @@ SET LOCAL ROLE dbs_portail;
 SELECT set_config('app.gestionnaire_id', :'acces_awa', true);
 SELECT id AS paiement_6 FROM portail.preparer_paiement('30000000-0000-4000-8000-000000001101', 10000, 'simulation') \gset
 COMMIT;
+SELECT reference AS reference_6 FROM app.paiements_en_ligne WHERE id = :'paiement_6' \gset
+BEGIN;
+SET LOCAL ROLE dbs_api;
+SELECT tests.verifier(NOT EXISTS (SELECT 1 FROM app.paiements_en_ligne_a_verifier(50) WHERE reference = :'reference_6'),
+                      'paiement commencé à l''instant : pas encore à vérifier');
+COMMIT;
 UPDATE app.paiements_en_ligne SET cree_le = now() - interval '25 hours' WHERE id = :'paiement_6';
 BEGIN;
 SET LOCAL ROLE dbs_api;
+SELECT tests.verifier((SELECT array_agg(reference) FROM app.paiements_en_ligne_a_verifier(50)) = ARRAY[:'reference_6'],
+                      'sans utilisateur, la maintenance retrouve le paiement en attente à vérifier auprès du prestataire (référence seule)');
 SELECT tests.verifier(app.abandonner_paiements_en_ligne() = 1, 'paiement sans réponse depuis un jour : abandonné par la maintenance');
+SELECT tests.verifier(NOT EXISTS (SELECT 1 FROM app.paiements_en_ligne_a_verifier(50)), 'un paiement abandonné n''est plus à vérifier');
 COMMIT;
 
 -- Lecture : le portail voit ses paiements, pas ceux d'un autre ; le caissier les voit tous
