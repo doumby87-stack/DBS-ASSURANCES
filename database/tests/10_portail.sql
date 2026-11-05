@@ -42,8 +42,9 @@ SELECT tests.doit_echouer($q$INSERT INTO app.sinistres (contrat_id, vehicule_id,
 SELECT tests.doit_echouer($q$INSERT INTO app.sinistres (contrat_id, vehicule_id, survenu_le, nature)
   VALUES ('30000000-0000-4000-8000-000000001001', '40000000-0000-4000-8000-000000001001', current_date - 40, 'vol')$q$,
   'n''était pas couvert par ce contrat');
+-- Un particulier a un seul accès, le sien (0013) : pas de collaborateur
 SELECT tests.doit_echouer($q$INSERT INTO app.gestionnaires_portail (client_id, nom, telephone)
-  VALUES ('20000000-0000-4000-8000-000000001003', 'Gamma', '+2250716000009')$q$, 'réservé aux entreprises');
+  VALUES ('20000000-0000-4000-8000-000000001003', 'Gamma', '+2250716000009')$q$, 'un seul accès, le sien');
 SELECT tests.doit_echouer($q$INSERT INTO app.gestionnaires_portail (client_id, nom, telephone)
   VALUES ('20000000-0000-4000-8000-000000001002', 'Doublon', '+2250716000001')$q$, 'gestionnaires_portail_telephone_unique');
 SELECT tests.doit_echouer($q$INSERT INTO app.gestionnaires_portail (client_id, nom, telephone)
