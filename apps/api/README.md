@@ -84,6 +84,7 @@ Avec `URL_PORTAIL`, l'API ouvre les routes de l'espace client ([`apps/portail`](
 | `GET /portail/paiements`, `GET /portail/paiements/:id` | Paiements en ligne du client ; le détail demande le résultat au prestataire tant qu'il est en attente (une fois toutes les 5 secondes au plus) et le fait enregistrer par la base. |
 | `POST /portail/paiements/:id/simulation` | Prestataire simulé seulement : paie ou refuse le paiement, comme le ferait le client chez le prestataire. |
 | `GET`, `POST /portail/sinistres`, `GET /portail/sinistres/:id` | Sinistres du client, déclaration en ligne (contrat, véhicule couvert ce jour-là, date, nature, lieu, récit), détail avec la liste des documents. |
+| `GET`, `POST /portail/reclamations` | Réclamations du client et réponses de l'agence ; dépôt (cinq par jour au plus). |
 | `POST /portail/sinistres/:id/pieces` | Photo ou document (JPEG, PNG, PDF, 5 Mo au plus, type reconnu d'après le contenu), analysé par l'antivirus, chiffré ; 8 par sinistre, dans les 7 jours. |
 
 **Paiement en ligne.** Le résultat d'un paiement est toujours demandé au prestataire (`verifier`) : la page de retour et les notifications ne font que déclencher cette vérification. La base enregistre ensuite l'encaissement (`app.conclure_paiement_en_ligne`) : mode Mobile Money, sans caissier, hors caisse, une seule fois. `POST /paiements/notifications/:prestataire` reçoit les notifications du prestataire ; sa signature est contrôlée par le module du prestataire (le prestataire simulé n'en accepte aucune). Le prestataire réel s'ajoute dans `src/integrations/paiement/` en suivant sa documentation officielle.
@@ -130,6 +131,20 @@ Le mot de passe provisoire s'affiche une seule fois. Ensuite, tous les comptes s
 | `POST /contrats/:id/sinistres`, `PATCH /sinistres/:id` | gérant, chargé | Déclaration d'un sinistre (véhicule couvert ce jour-là, vérifié par la base) et suivi de son statut et de la référence de la compagnie. |
 | `GET /sinistres?tous=oui`, `GET /sinistres/:id` | gérant, chargé, commercial, auditeur | Sinistres en cours (ou tous), les déclarations à transmettre en premier ; fiche avec le récit du client, le déclarant et ses documents. |
 | `GET /sinistres/:id/pieces/:pieceId` | gérant, chargé, commercial | Photo ou document joint par le client, déchiffré ; téléchargement consigné. |
+| `GET /clients/:id/identification` | tous (contenu : gérant, chargé, auditeur) | État de la fiche d'identification (complète, à compléter avec ce qui manque, à revoir) ; son contenu, sans le n° de pièce en entier. |
+| `PUT /clients/:id/identification`, `POST /clients/:id/identification/verification` | gérant, chargé | Fiche (n° de pièce chiffré avant la base, remplacé seulement s'il est fourni) ; original vu, au nom de la personne connectée. |
+| `POST /clients/:id/identification/numero` | gérant, chargé | N° de pièce en entier, déchiffré ; consigné au journal de sécurité. |
+| `POST /clients/:id/dirigeants`, `DELETE /clients/:id/dirigeants/:personneId` | gérant, chargé | Dirigeants et bénéficiaires effectifs d'une entreprise ; retrait daté, jamais d'effacement. |
+| `POST /clients/:id/justificatifs`, `GET /clients/:id/justificatifs/:justificatifId` | gérant, chargé | Justificatif (JPEG, PNG, PDF, 5 Mo) : contenu vérifié, antivirus, chiffrement ; téléchargement consigné. |
+| `GET /identifications/a-completer` | gérant, chargé, auditeur | Clients en relation dont la fiche est absente, incomplète ou à revoir, risque élevé d'abord. |
+| `GET /clients/:id/donnees.json` | gérant | Droit d'accès : toutes les données du client en un fichier, sans contenu chiffré ; consigné. |
+| `GET /alertes?toutes=oui`, `POST /alertes/traitements` | gérant | Alertes de lutte contre le blanchiment (à traiter, ou toutes) ; décision motivée, une fois. |
+| `GET`, `POST /formations` | lecture : chacun les siennes, gérant et auditeur tout ; enregistrement : gérant | Formations du personnel, à refaire chaque année. |
+| `GET /reclamations?toutes=oui&clientId=`, `GET /reclamations/:id`, `POST /reclamations` | lecture : gérant, chargé, auditeur (caissier et commercial : celles qu'ils enregistrent) ; enregistrement : gérant, chargé, caissier, commercial | Registre des réclamations, retards signalés ; échéances en jours ouvrés fixées par la base. |
+| `POST /reclamations/:id/traitement` | gérant, chargé | Une étape : accusé de réception, réponse et issue, recours, clôture. |
+| `GET /reclamations.csv` | gérant, auditeur | Registre complet pour la compagnie et la Direction des Assurances ; export consigné. |
+| `GET`, `POST /factures-fne`, `POST /factures-fne/:id/annulation` | lecture : gérant, auditeur ; le reste : gérant | Factures FNE de l'agence (une par mois de commissions) ; annulation motivée. |
+| `GET /statistiques?annee=` | gérant, auditeur | L'année en chiffres : production et encaissements par mois, branches, modes, portefeuille, renouvellements, sinistres, réclamations, demandes du site, production par personne. |
 | `GET /paiements-en-ligne?statut=` | gérant, caissier, chargé, auditeur | Paiements en ligne des clients, ceux « à régulariser » en premier, avec le motif. |
 | `POST /paiements-en-ligne/:id/regularisation` | gérant | Paiement reçu mais non encaissé : ce que l'agence a fait (remboursement, affectation). |
 | `GET`, `POST /clients/:id/acces-portail`, `PATCH /acces-portail/:id` | lecture : gérant, chargé, commercial, auditeur ; le reste : gérant, chargé | Accès d'un client à l'espace client : titulaire et collaborateurs pour une entreprise, un seul accès pour un particulier ; retrait et rétablissement. |

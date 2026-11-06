@@ -130,6 +130,20 @@ describe("fiche d'identification", () => {
     expect(telecharge.rawPayload.equals(pdf("CNI de Fanta"))).toBe(true);
     expect(telecharge.headers["content-disposition"]).toBe('attachment; filename="cni-recto-verso.pdf"');
 
+    // Droit d'accès : toutes ses données en un fichier, sans aucun contenu chiffré ; export consigné, gérant seulement
+    const exportDonnees = await envoyer(ctx, { url: `/clients/${fanta.id}/donnees.json`, cookie: cookies.gerant });
+    expect(exportDonnees.statusCode).toBe(200);
+    expect(exportDonnees.headers["content-disposition"]).toBe('attachment; filename="donnees-diallo-fanta-conformite.json"');
+    const donnees = exportDonnees.json();
+    expect(donnees.client).toMatchObject({ nom: "Diallo Fanta Conformité", telephone: fanta.telephone });
+    expect(donnees.identification[0]).toMatchObject({ numero_piece_fin: "4567", nationalite: "Ivoirienne" });
+    expect(donnees.identification[0]).not.toHaveProperty("numero_piece_chiffre");
+    expect(donnees.justificatifs[0]).toMatchObject({ nom_fichier: "cni recto-verso.pdf" });
+    expect(donnees.justificatifs[0]).not.toHaveProperty("contenu_chiffre");
+    expect((await ctx.base.query("SELECT 1 FROM securite.evenements WHERE type = 'export_donnees' AND objet = $1",
+      ["Données personnelles de Diallo Fanta Conformité"])).rowCount).toBe(1);
+    expect((await envoyer(ctx, { url: `/clients/${fanta.id}/donnees.json`, cookie: cookies.charge_clientele })).statusCode).toBe(403);
+
     // Changer la date de naissance fait tomber la vérification ; le numéro, omis, est conservé
     const modifiee = await envoyer(ctx, { methode: "PUT", url: `/clients/${fanta.id}/identification`, cookie: cookies.charge_clientele,
       corps: { ...fiche, numeroPiece: undefined, dateNaissance: "1988-03-15" } });

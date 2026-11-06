@@ -28,6 +28,7 @@ import { routesRelances } from "./modules/relances/routes.js";
 import { routesReversements } from "./modules/reversements/routes.js";
 import { routesSinistres } from "./modules/sinistres/routes.js";
 import { routesSinistresPortail } from "./modules/sinistres/routes-portail.js";
+import { routesExportDonnees } from "./modules/clients/export-donnees.js";
 import { routesIdentification } from "./modules/conformite/identification.js";
 import { routesRegistres } from "./modules/conformite/registres.js";
 import { routesReclamations, routesReclamationsPortail } from "./modules/reclamations/routes.js";
@@ -161,6 +162,7 @@ export async function construireApplication(dependances: DependancesApplication)
   await app.register(routesRegistres, { pool, gardes });
   await app.register(routesReclamations, { pool, gardes });
   await app.register(routesStatistiques, { pool, gardes });
+  await app.register(routesExportDonnees, { pool, gardes });
   await app.register(routesRelances, {
     pool,
     gardes,
