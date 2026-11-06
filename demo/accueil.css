@@ -1,0 +1,39 @@
+:root {
+  --encre: #0f1b3d;
+  --texte: #2b344d;
+  --doux: #5d6680;
+  --bleu: #203888;
+  --or: #e5b53a;
+  --fond: #f5f6fa;
+  --ligne: #dde1ec;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--texte);
+  line-height: 1.5;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--fond); }
+.entete { padding: 32px max(16px, calc((100% - 1040px) / 2)); background: var(--encre); color: #dfe5f5; }
+.entete h1 { margin: 6px 0 8px; color: #fff; font-size: clamp(1.6rem, 4vw, 2.3rem); line-height: 1.15; }
+.entete p { margin: 0; max-width: 46em; }
+.entete__marque { font-weight: 800; letter-spacing: 0.04em; color: #fff; }
+.entete__marque span { color: var(--or); }
+main { max-width: 1040px; margin: 0 auto; padding: 8px 16px 48px; }
+section { margin-top: 32px; }
+h2 { color: var(--encre); font-size: 1.35rem; margin: 0 0 12px; }
+h3 { color: var(--encre); margin: 0; font-size: 1.1rem; }
+.cartes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; padding: 0; margin: 0; list-style: none; }
+.carte { display: flex; flex-direction: column; gap: 10px; padding: 20px; border: 1px solid var(--ligne); border-radius: 14px; background: #fff; }
+.carte p { margin: 0; color: var(--doux); flex: 1; }
+.bouton { display: inline-block; padding: 10px 16px; border-radius: 999px; background: var(--bleu); color: #fff; font-weight: 700; text-align: center; text-decoration: none; }
+.bouton:hover, .bouton:focus-visible { background: #172a6b; outline: 3px solid var(--or); outline-offset: 2px; }
+.tableau-defilant { overflow-x: auto; border: 1px solid var(--ligne); border-radius: 12px; background: #fff; }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--ligne); vertical-align: top; }
+th { color: var(--doux); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.04em; }
+tr:last-child td { border-bottom: 0; }
+.code { font: 700 1.35rem/1.2 ui-monospace, "Cascadia Mono", Menlo, monospace; letter-spacing: 0.12em; color: var(--bleu); white-space: nowrap; }
+.a-copier { font-family: ui-monospace, "Cascadia Mono", Menlo, monospace; user-select: all; }
+td.a-copier { white-space: nowrap; }
+code { padding: 2px 6px; border-radius: 6px; background: #e9ecf5; color: var(--encre); }
+.note { color: var(--doux); }
+.essais { display: grid; gap: 8px; padding-left: 1.3em; }

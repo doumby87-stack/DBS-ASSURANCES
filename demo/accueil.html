@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Démonstration DBS-ASSURANCES</title>
+  <link rel="stylesheet" href="/accueil.css" />
+  <script type="module" src="/accueil.js"></script>
+</head>
+<body>
+  <header class="entete">
+    <p class="entete__marque">DBS-ASSURANCES <span>Démonstration</span></p>
+    <h1>Tout le projet, sur votre ordinateur</h1>
+    <p>Données inventées. Rien ne sort d'ici : les messages WhatsApp, les SMS et les paiements Mobile Money sont simulés.</p>
+  </header>
+
+  <main>
+    <section aria-labelledby="titre-espaces">
+      <h2 id="titre-espaces">1. Ouvrir un espace</h2>
+      <ul class="cartes">
+        <li class="carte">
+          <h3>Site vitrine</h3>
+          <p>Ce que voient les visiteurs : offres, devis, rendez-vous, rappel d'échéance, appel d'offres.</p>
+          <a class="bouton" href="{{SITE}}" target="_blank" rel="noopener">Ouvrir le site</a>
+        </li>
+        <li class="carte">
+          <h3>Gestion (back-office)</h3>
+          <p>L'outil du personnel de l'agence : clients, contrats, caisse, demandes, rendez-vous, sinistres…</p>
+          <a class="bouton" href="{{GESTION}}" target="_blank" rel="noopener">Ouvrir la gestion</a>
+        </li>
+        <li class="carte">
+          <h3>Espace client</h3>
+          <p>L'espace des clients : contrats, attestations, paiement de la prime, sinistres, réclamations.</p>
+          <a class="bouton" href="{{ESPACE_CLIENT}}" target="_blank" rel="noopener">Ouvrir l'espace client</a>
+        </li>
+      </ul>
+    </section>
+
+    <section aria-labelledby="titre-personnel">
+      <h2 id="titre-personnel">2. Se connecter à la gestion</h2>
+      <p>Choisissez un compte. Mot de passe (le même pour tous) : <code class="a-copier">{{MOT_DE_PASSE}}</code></p>
+      <p>Puis le <strong>code à 6 chiffres</strong> : en vrai, il s'affiche dans l'application d'authentification du téléphone ; ici, il est juste en dessous. Il change toutes les 30 secondes <span class="note">(encore <span data-reste>…</span> s)</span>, et chaque code ne sert qu'une fois.</p>
+      <div class="tableau-defilant">
+        <table>
+          <thead><tr><th>Rôle</th><th>Nom</th><th>E-mail (identifiant)</th><th>Code</th></tr></thead>
+          <tbody data-personnel><tr><td colspan="4">Chargement…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section aria-labelledby="titre-clients">
+      <h2 id="titre-clients">3. Se connecter à l'espace client</h2>
+      <p>Saisissez un de ces numéros dans l'espace client, puis cliquez sur « Recevoir mon code ». Le code, qui partirait sur WhatsApp, apparaît ici (valable 10 minutes).</p>
+      <div class="tableau-defilant">
+        <table>
+          <thead><tr><th>Client</th><th>Numéro à saisir</th><th>Dernier code reçu</th></tr></thead>
+          <tbody data-clients><tr><td colspan="3">Chargement…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section aria-labelledby="titre-idees">
+      <h2 id="titre-idees">4. Quelques essais</h2>
+      <ol class="essais">
+        <li><strong>Une demande du site</strong> : sur le site, prenez un rendez-vous ou demandez un devis. Dans la gestion (gérante), elle apparaît dans « Rendez-vous » ou « Demandes du site ».</li>
+        <li><strong>Payer une prime en ligne</strong> : dans l'espace client, connectez-vous comme Koné Mariam, puis payez une partie de sa prime. Le paiement est simulé ; dans la gestion, il apparaît sur son contrat et dans « Caisse », rubrique « Paiements en ligne des clients ».</li>
+        <li><strong>La flotte d'un transporteur</strong> : dans l'espace client, connectez-vous comme Awa Kouassi : camions, documents à renouveler, attestation à télécharger.</li>
+        <li><strong>Les droits de chacun</strong> : connectez-vous comme caissière, puis comme auditrice : chacun ne voit que ce que son rôle permet.</li>
+        <li><strong>Un encaissement au guichet</strong> : comme caissière, cherchez la cliente Koné Mariam, ouvrez son contrat automobile et encaissez sa prime en espèces ; un reçu numéroté s'ouvre.</li>
+      </ol>
+    </section>
+
+    <section aria-labelledby="titre-arret">
+      <h2 id="titre-arret">5. Arrêter, recommencer</h2>
+      <p>Pour arrêter : double-cliquez sur <code>arreter</code> dans le dossier <code>demo</code> du projet. Les données sont gardées pour la prochaine fois.</p>
+      <p>Pour repartir de zéro : double-cliquez sur <code>reinitialiser</code>. Tout est effacé et les données d'exemple reviennent.</p>
+    </section>
+  </main>
+</body>
+</html>
