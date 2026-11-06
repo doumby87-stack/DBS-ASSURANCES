@@ -10,6 +10,7 @@ import {
   telephone, TYPES_CLIENT, TYPES_RELANCE,
 } from "../../services/format";
 import { useSession } from "../../session";
+import { LectureAutomatique, type ResultatLecture } from "../../composants/LectureAutomatique";
 import { ReclamationsClient } from "../reclamations/Reclamations";
 import { AccesPortail } from "./AccesPortail";
 import { Identification } from "./Identification";
@@ -331,27 +332,54 @@ function NouveauContrat({ clientId, apres }: { clientId: string; apres: () => Pr
 }
 
 function NouveauVehicule({ clientId, apres }: { clientId: string; apres: () => Promise<void> }) {
-  const vide = { immatriculation: "", marque: "", modele: "", genre: "", echeanceVisiteTechnique: "", echeanceVignette: "", echeanceCarteTransport: "" };
+  const vide = {
+    immatriculation: "", marque: "", modele: "", genre: "", numeroChassis: "", puissanceFiscale: "",
+    echeanceVisiteTechnique: "", echeanceVignette: "", echeanceCarteTransport: "",
+  };
   const [v, setV] = useState(vide);
+  // Champs pré-remplis par la lecture de la carte grise : surlignés jusqu'à leur vérification
+  const [lus, setLus] = useState<Set<string>>(new Set());
   const { erreur, envoi, envoyer } = useEnvoi(apres);
-  const modifier = (nom: keyof typeof vide) => (e: { target: { value: string } }) => setV({ ...v, [nom]: e.target.value });
+  const modifier = (nom: keyof typeof vide) => (e: { target: { value: string } }) => {
+    setV({ ...v, [nom]: e.target.value });
+    setLus((l) => new Set([...l].filter((c) => c !== nom)));
+  };
+  const lu = (nom: string) => (lus.has(nom) ? "saisie-lue" : undefined);
+  function reporter({ champs }: ResultatLecture) {
+    const valeurs: Partial<typeof vide> = {};
+    for (const cle of ["immatriculation", "marque", "modele", "genre", "numeroChassis"] as const) {
+      if (typeof champs[cle] === "string") valeurs[cle] = champs[cle];
+    }
+    if (typeof champs.puissanceFiscale === "number") valeurs.puissanceFiscale = String(champs.puissanceFiscale);
+    setV((avant) => ({ ...avant, ...valeurs }));
+    setLus(new Set(Object.keys(valeurs)));
+  }
   async function soumettre(evenement: FormEvent) {
     evenement.preventDefault();
-    const corps = Object.fromEntries(Object.entries(v).filter(([, valeur]) => valeur.trim() !== ""));
-    if (await envoyer(() => api(`/clients/${clientId}/vehicules`, { corps }))) setV(vide);
+    const corps: Record<string, string | number> = Object.fromEntries(Object.entries(v).filter(([, valeur]) => valeur.trim() !== ""));
+    if (typeof corps.puissanceFiscale === "string") corps.puissanceFiscale = Number(corps.puissanceFiscale);
+    if (await envoyer(() => api(`/clients/${clientId}/vehicules`, { corps }))) {
+      setV(vide);
+      setLus(new Set());
+    }
   }
   return (
+    <>
+    <LectureAutomatique document="carte_grise" libelleReport="Pré-remplir le véhicule avec ces valeurs" onLu={reporter} />
     <form className="formulaire formulaire--grille" onSubmit={soumettre}>
-      <Champ libelle="Immatriculation"><input required minLength={3} maxLength={20} value={v.immatriculation} onChange={modifier("immatriculation")} /></Champ>
-      <Champ libelle="Marque"><input maxLength={40} value={v.marque} onChange={modifier("marque")} /></Champ>
-      <Champ libelle="Modèle"><input maxLength={40} value={v.modele} onChange={modifier("modele")} /></Champ>
-      <Champ libelle="Genre" aide="Voiture, tracteur, semi-remorque, moto…"><input maxLength={60} value={v.genre} onChange={modifier("genre")} /></Champ>
+      <Champ libelle="Immatriculation"><input className={lu("immatriculation")} required minLength={3} maxLength={20} value={v.immatriculation} onChange={modifier("immatriculation")} /></Champ>
+      <Champ libelle="Marque"><input className={lu("marque")} maxLength={40} value={v.marque} onChange={modifier("marque")} /></Champ>
+      <Champ libelle="Modèle"><input className={lu("modele")} maxLength={40} value={v.modele} onChange={modifier("modele")} /></Champ>
+      <Champ libelle="Genre" aide="Voiture, tracteur, semi-remorque, moto…"><input className={lu("genre")} maxLength={60} value={v.genre} onChange={modifier("genre")} /></Champ>
+      <Champ libelle="N° de châssis (VIN)"><input className={lu("numeroChassis")} maxLength={30} value={v.numeroChassis} onChange={modifier("numeroChassis")} /></Champ>
+      <Champ libelle="Puissance fiscale (CV)"><input className={lu("puissanceFiscale")} type="number" min={1} max={99} step={1} value={v.puissanceFiscale} onChange={modifier("puissanceFiscale")} /></Champ>
       <Champ libelle="Visite technique jusqu'au"><input type="date" value={v.echeanceVisiteTechnique} onChange={modifier("echeanceVisiteTechnique")} /></Champ>
       <Champ libelle="Vignette jusqu'au"><input type="date" value={v.echeanceVignette} onChange={modifier("echeanceVignette")} /></Champ>
       <Champ libelle="Carte de transport jusqu'au"><input type="date" value={v.echeanceCarteTransport} onChange={modifier("echeanceCarteTransport")} /></Champ>
       <div className="formulaire__actions"><button className="bouton bouton--principal" disabled={envoi}>Ajouter le véhicule</button></div>
       <Alerte>{erreur}</Alerte>
     </form>
+    </>
   );
 }
 

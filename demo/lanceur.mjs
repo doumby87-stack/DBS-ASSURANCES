@@ -5,7 +5,8 @@
 //   · page d'accueil (http://localhost:8080) : liens, comptes de démonstration, codes de connexion en direct.
 //
 // Rien ne sort de l'ordinateur : les codes de l'espace client s'affichent sur la page d'accueil au lieu de partir
-// sur WhatsApp, le paiement Mobile Money est simulé, les relances aussi, et un antivirus de démonstration remplace
+// sur WhatsApp, le paiement Mobile Money est simulé, les relances et la lecture automatique des documents aussi
+// (valeurs d'exemple), et un antivirus de démonstration remplace
 // ClamAV (il refuse seulement le fichier de test EICAR). Les clés et mots de passe ci-dessous sont publics : ils ne
 // servent qu'à cette démonstration et ne doivent jamais être utilisés ailleurs.
 //
@@ -278,6 +279,7 @@ async function demarrerApi() {
     URL_SITE_VITRINE: ADRESSES.site,
     ANTIVIRUS_ADRESSE: "127.0.0.1:3311",
     PAIEMENT_PRESTATAIRE: "simulation",
+    LECTURE_PRESTATAIRE: "simulation",
     RELANCES_SIMULATION: "true",
     VERIFIER_MOTS_DE_PASSE_DIVULGUES: "false",
     HOST: "0.0.0.0",

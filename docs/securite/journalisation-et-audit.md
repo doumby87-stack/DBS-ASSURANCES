@@ -20,7 +20,7 @@ Deux journaux distincts, aux usages différents.
 
 **Données personnelles des prospects** : une table peut demander que certaines colonnes ne soient pas recopiées dans le journal. Les demandes reçues par le site l'utilisent (nom, téléphone, e-mail, commune, besoin, empreinte de l'adresse IP) : elles sont supprimées 12 mois après leur classement sans suite, et le journal, conservé bien plus longtemps, ne doit pas les garder à leur place. Il garde qui a reçu, traité ou purgé quelle demande, et quand ([ADR 0009](../architecture/adr/0009-demandes-de-devis-du-site.md)).
 
-Les événements de sécurité sont aussi enregistrés dans la base, dans `securite.evenements`, en ajout seul : connexions et échecs, blocages, comptes, deuxième facteur, exports de données, téléchargements des cartes grises jointes aux demandes du site.
+Les événements de sécurité sont aussi enregistrés dans la base, dans `securite.evenements`, en ajout seul : connexions et échecs, blocages, comptes, deuxième facteur, exports de données, téléchargements des cartes grises jointes aux demandes du site, lectures automatiques de documents (qui, quel document de quel client ; jamais les valeurs lues).
 
 ## 2. Journal technique (de l'API)
 
@@ -30,7 +30,8 @@ Les événements de sécurité sont aussi enregistrés dans la base, dans `secur
 - création, désactivation, changement de rôle d'un compte ;
 - activation ou réinitialisation d'un deuxième facteur ;
 - exports de données (bordereaux exportés pour Excel : qui, quand, lequel, depuis quelle adresse) ;
-- notifications de paiement rejetées (signature invalide, doublon).
+- notifications de paiement rejetées (signature invalide, doublon) ;
+- lectures automatiques de documents : document, issue (lu, refusé, illisible, indisponible) et durée, sans les valeurs lues.
 
 **Ce qu'il ne contient jamais** : mots de passe, codes de connexion, jetons, numéros de pièce d'identité, contenu des messages clients, données médicales.
 

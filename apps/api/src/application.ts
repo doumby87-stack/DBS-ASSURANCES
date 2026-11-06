@@ -32,6 +32,8 @@ import { routesExportDonnees } from "./modules/clients/export-donnees.js";
 import { routesIdentification } from "./modules/conformite/identification.js";
 import { routesRegistres } from "./modules/conformite/registres.js";
 import { routesReclamations, routesReclamationsPortail } from "./modules/reclamations/routes.js";
+import { creerLecteur, type LecteurDocuments } from "./integrations/lecture/lecteur.js";
+import { routesLecture } from "./modules/lecture/routes.js";
 import { routesRendezVous } from "./modules/rendez-vous/routes.js";
 import { routesStatistiques } from "./modules/statistiques/routes.js";
 import { routesUtilisateurs } from "./modules/utilisateurs/routes.js";
@@ -56,6 +58,8 @@ export interface DependancesApplication {
   envoiCodes?: EnvoiCodes;
   /** Prestataire de paiement en ligne (le même que celui de la maintenance) ; sinon, d'après la configuration. */
   prestatairePaiement?: PrestatairePaiement | null;
+  /** Lecteur de documents (tâche 14) ; sinon, d'après la configuration. */
+  lecteur?: LecteurDocuments | null;
   journal?: boolean;
 }
 
@@ -164,6 +168,10 @@ export async function construireApplication(dependances: DependancesApplication)
   await app.register(routesReclamations, { pool, gardes });
   await app.register(routesStatistiques, { pool, gardes });
   await app.register(routesRendezVous, { pool, gardes });
+  await app.register(routesLecture, {
+    pool, gardes, cleChiffrement: config.cleChiffrement, antivirus,
+    lecteur: dependances.lecteur !== undefined ? dependances.lecteur : creerLecteur(config.lecture),
+  });
   await app.register(routesExportDonnees, { pool, gardes });
   await app.register(routesRelances, {
     pool,

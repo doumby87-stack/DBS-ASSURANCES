@@ -297,3 +297,14 @@ details.avenant[open] > summary { margin-bottom: 0.75rem; }
 .choix-personnes { border: 1px solid var(--ligne); border-radius: var(--rayon); padding: 0.75rem 1rem; display: grid; gap: 0.4rem;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin: 0; }
 .choix-personnes legend { font-weight: 650; padding: 0 0.25rem; }
+
+/* Lecture automatique des documents (tâche 14) */
+.lecture { margin: 0 0 1.25rem; padding: 0.9rem 1rem; border: 1px dashed var(--bleu); border-radius: 8px; background: #f5f8ff; }
+.lecture__titre { margin: 0 0 0.25rem; }
+.lecture__resultat { margin-top: 0.75rem; }
+.lecture__resultat h4 { margin: 0.75rem 0 0.25rem; }
+.lecture__controles { list-style: none; margin: 0.5rem 0; padding: 0; display: grid; gap: 0.35rem; }
+.controle { padding: 0.4rem 0.6rem; border-radius: 6px; border-left: 4px solid; }
+.controle--ok { border-color: #1a7f43; background: #e8f5ec; }
+.controle--attention { border-color: #e08a00; background: #fff4e0; }
+.saisie-lue { background: #fff8e1; border-color: #e5b53a; box-shadow: 0 0 0 2px #f7e2a3; }

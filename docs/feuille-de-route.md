@@ -130,6 +130,14 @@ Hébergement, sauvegardes testées, surveillance, test d'intrusion par un presta
 
 *Reste à faire :* l'**estimation indicative**, dès que SanlamAllianz aura fourni sa grille et son accord écrit pour afficher un prix. *À faire par l'agence :* confirmer le délai de 10 jours ouvrés conseillé pour un dossier d'appel d'offres et les jours d'ouverture.
 
-## ⏳ Tâche 14 — Assistance par lecture automatique
+## ✅ Tâche 14 — Assistance par lecture automatique
 
-Lecture de la carte grise, de la pièce d'identité et du constat amiable pour pré-remplir les fiches, toujours validée par une personne.
+([ADR 0015](architecture/adr/0015-lecture-automatique.md))
+
+- **carte grise** : sur la fiche d'un client, « Ajouter un véhicule » se pré-remplit (immatriculation, marque, modèle, genre, énergie, puissance fiscale, places, châssis, première mise en circulation) ; aussi pour lire la carte grise jointe à une demande du site ;
+- **pièce d'identité** : la fiche d'identification se pré-remplit depuis le justificatif enregistré ; pour un passeport ou une carte à zone lisible par machine, ses chiffres de contrôle confirment ou contredisent le numéro et les dates ;
+- **constat amiable** : un résumé (date, lieu, véhicules, cases cochées, blessés) s'ajoute à la note interne du sinistre ;
+- **rien n'est enregistré sans la personne** : les champs pré-remplis sont surlignés jusqu'à l'enregistrement ; contrôles affichés (pièce expirée, numéro de châssis, dates) ; antivirus avant toute lecture ; 30 lectures par heure et par personne ; chaque lecture consignée, sans les valeurs ;
+- en démonstration et dans les tests, un lecteur simulé donne des valeurs d'exemple.
+
+*À faire par l'agence :* obtenir l'autorisation de l'ARTCI pour le transfert des images chez Anthropic (hors de Côte d'Ivoire), accepter les conditions commerciales d'Anthropic et son avenant de protection des données, créer la clé de l'API et choisir le modèle (`LECTURE_*`), prévoir le budget, et rappeler au personnel de toujours vérifier avec le document.
