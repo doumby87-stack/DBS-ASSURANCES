@@ -83,6 +83,32 @@ describe("Configuration des relances", () => {
   });
 });
 
+describe("Configuration de la lecture automatique", () => {
+  it("désactivée par défaut ; avec Anthropic, la clé et le modèle sont obligatoires, sans jamais afficher la clé", () => {
+    expect(chargerConfiguration(valide).lecture).toBeNull();
+    expect(chargerConfiguration({ ...valide, LECTURE_PRESTATAIRE: "anthropic", LECTURE_CLE_API: "cle-tres-secrete", LECTURE_MODELE: "modele-de-test" }).lecture)
+      .toEqual({ prestataire: "anthropic", cleApi: "cle-tres-secrete", modele: "modele-de-test" });
+    try {
+      chargerConfiguration({ ...valide, LECTURE_PRESTATAIRE: "anthropic", LECTURE_CLE_API: "cle-tres-secrete" });
+      expect.unreachable();
+    } catch (erreur) {
+      expect((erreur as Error).message).toContain("LECTURE_MODELE est obligatoire");
+      expect((erreur as Error).message).not.toContain("cle-tres-secrete");
+    }
+    expect(() => chargerConfiguration({ ...valide, LECTURE_PRESTATAIRE: "anthropic", LECTURE_MODELE: "modele-de-test" })).toThrow("LECTURE_CLE_API est obligatoire");
+    expect(() => chargerConfiguration({ ...valide, LECTURE_PRESTATAIRE: "anthropic", LECTURE_CLE_API: "x", LECTURE_MODELE: "modèle avec espaces" })).toThrow("LECTURE_MODELE");
+    expect(() => chargerConfiguration({ ...valide, LECTURE_PRESTATAIRE: "autre" })).toThrow("LECTURE_PRESTATAIRE");
+  });
+
+  it("simulation interdite en production ; antivirus obligatoire en production", () => {
+    expect(chargerConfiguration({ ...valide, LECTURE_PRESTATAIRE: "simulation" }).lecture).toEqual({ prestataire: "simulation" });
+    expect(() => chargerConfiguration({ ...valide, NODE_ENV: "production", LECTURE_PRESTATAIRE: "simulation", ANTIVIRUS_ADRESSE: "clamav:3310" }))
+      .toThrow("interdit en production");
+    expect(() => chargerConfiguration({ ...valide, NODE_ENV: "production", LECTURE_PRESTATAIRE: "anthropic", LECTURE_CLE_API: "x", LECTURE_MODELE: "modele-de-test" }))
+      .toThrow("ANTIVIRUS_ADRESSE est obligatoire en production avec la lecture automatique");
+  });
+});
+
 describe("Erreurs renvoyées au navigateur", () => {
   it("transmet le message d'une règle métier de la base, pas celui d'une contrainte technique", () => {
     const regle = traduireErreur({ code: "23514", severity: "ERROR", message: "Plafond des espèces dépassé : …" });
