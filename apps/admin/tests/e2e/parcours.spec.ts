@@ -195,6 +195,45 @@ test("parcours du gérant, de la première connexion à la caisse et au reversem
   await expect(page.getByText("demande reçue par le site")).toBeVisible();
   await expect(page.locator(".consentements li", { hasText: "WhatsApp" })).toContainText(/Accepté.*Case « rappels WhatsApp » cochée sur le site/);
 
+  // --- Outils du site (tâche 13) : appel d'offres à traiter, rappel d'échéance qui attend son heure, rendez-vous à confirmer
+  const site = (chemin: string, data: object) =>
+    page.request.post(`http://127.0.0.1:3100${chemin}`, { headers: { Origin: "http://localhost:4321" }, data });
+  const accordSite = "J'accepte que DBS-ASSURANCES utilise ces informations pour répondre à ma demande.";
+  expect((await site("/site/appels-offres", {
+    profil: "entreprise", nom: "BTP Lagunes SARL", telephone: "07 21 22 23 24", dateLimite: dans(30), accordTraitement: accordSite,
+    marche: { typeMarche: "travaux", maitreOuvrage: "Mairie de Cocody", objet: "Construction d'un marché couvert" }, garanties: ["trc", "decennale"],
+  })).status()).toBe(201);
+  expect((await site("/site/rappels-echeance", {
+    assurance: "habitation", profil: "particulier", nom: "Koffi Yao", telephone: "07 31 32 33 34", echeance: dans(100), accordTraitement: accordSite,
+  })).status()).toBe(201);
+  let jourRdv = 3;
+  while ([0, 6].includes(new Date(`${dans(jourRdv)}T12:00:00Z`).getUTCDay()) || ["01-01", "05-01", "08-07", "08-15", "11-01", "11-15", "12-25"].includes(dans(jourRdv).slice(5))) jourRdv += 1;
+  expect((await site("/site/rendez-vous", {
+    motif: "devis", mode: "agence", profil: "particulier", nom: "Aïcha Bamba", telephone: "07 41 42 43 44", jour: dans(jourRdv), creneau: "matin",
+    accordTraitement: accordSite,
+  })).status()).toBe(201);
+  const navigation = page.getByRole("navigation", { name: "Navigation principale" });
+  await navigation.getByRole("link", { name: "Demandes du site" }).click();
+  await expect(page.getByRole("button", { name: "À traiter (1)" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Rappels à venir (1)" })).toBeVisible();
+  await expect(page.getByRole("row", { name: /BTP Lagunes/ })).toContainText("Mairie de Cocody : Construction d'un marché couvert");
+  await page.getByRole("row", { name: /BTP Lagunes/ }).getByRole("link").click();
+  await expect(page.getByRole("heading", { name: /^Appel d'offres n° \d+$/ })).toBeVisible();
+  await expect(page.getByText("Responsabilité civile décennale")).toBeVisible();
+  await navigation.getByRole("link", { name: "Demandes du site" }).click();
+  await page.getByRole("button", { name: "Rappels à venir (1)" }).click();
+  await expect(page.getByRole("row", { name: /Koffi Yao/ })).toContainText("à rappeler dès le");
+
+  await navigation.getByRole("link", { name: "Rendez-vous" }).click();
+  await expect(page.getByRole("heading", { name: "Demandes à confirmer (1)" })).toBeVisible();
+  const confirmationRdv = page.getByRole("form", { name: /^Confirmer le rendez-vous n° \d+$/ });
+  await expect(confirmationRdv.getByLabel("Jour")).toHaveValue(dans(jourRdv));
+  await confirmationRdv.getByRole("button", { name: "Confirmer" }).click();
+  await expect(page.getByText(/Rendez-vous n° \d+ confirmé : prévenez Aïcha Bamba\./)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Demandes à confirmer (0)" })).toBeVisible();
+  await expect(page.locator(".carte-rdv", { hasText: "Aïcha Bamba" })).toContainText("09:00 · 30 min avec");
+  await expect(page.getByRole("link", { name: "Envoyer la confirmation sur WhatsApp" })).toHaveAttribute("href", /^https:\/\/wa\.me\/2250741424344\?text=/);
+
   // --- Commissions : taux de la branche automobile
   await page.getByRole("link", { name: "Commissions", exact: true }).click();
   await page.getByLabel("Taux (%)").fill("12,5");
@@ -363,7 +402,6 @@ test("parcours du gérant, de la première connexion à la caisse et au reversem
   await expect(page.getByRole("row", { name: /Awa Flotte/ })).toContainText("Jamais");
 
   // --- Conformité (tâche 12) : identification d'un client, avec sa pièce et l'original vu
-  const navigation = page.getByRole("navigation", { name: "Navigation principale" });
   await navigation.getByRole("link", { name: "Clients", exact: true }).click();
   await page.getByLabel("Rechercher un client").fill("Kouamé");
   await page.getByRole("link", { name: "Transports Kouamé & Fils" }).click();

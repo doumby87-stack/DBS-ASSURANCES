@@ -16,6 +16,7 @@ import { PageBordereau } from "./pages/reversements/Bordereau";
 import { FicheSinistre, Sinistres } from "./pages/sinistres/Sinistres";
 import { Conformite } from "./pages/conformite/Conformite";
 import { FicheReclamation, Reclamations } from "./pages/reclamations/Reclamations";
+import { RendezVousPage } from "./pages/rendez-vous/RendezVous";
 import { Statistiques } from "./pages/statistiques/Statistiques";
 import { Reversements } from "./pages/reversements/Reversements";
 import { TableauDeBord } from "./pages/tableau-de-bord/TableauDeBord";
@@ -74,6 +75,7 @@ function Page() {
   if (reclamation) return <FicheReclamation key={reclamation[1]} id={reclamation[1]!} />;
   if (chemin === "/conformite") return <Conformite />;
   if (chemin === "/statistiques") return <Statistiques />;
+  if (chemin === "/rendez-vous") return <RendezVousPage />;
   if (chemin === "/demandes-site") return <DemandesSite />;
   const demande = /^\/demandes-site\/([0-9a-f-]{36})$/.exec(chemin);
   if (demande) return <DemandeSite key={demande[1]} id={demande[1]!} />;
@@ -106,6 +108,7 @@ function MiseEnPage({ children }: { children: ReactNode }) {
             <Lien href="/" aria-current={actif("/")}>Échéances</Lien>
             <Lien href="/clients" aria-current={actif("/clients")}>Clients</Lien>
             {peut("gerant", "charge_clientele", "commercial", "auditeur") && <Lien href="/demandes-site" aria-current={actif("/demandes-site")}>Demandes du site</Lien>}
+            {peut("gerant", "charge_clientele", "commercial", "auditeur") && <Lien href="/rendez-vous" aria-current={actif("/rendez-vous")}>Rendez-vous</Lien>}
             {peut("gerant", "charge_clientele", "commercial", "auditeur") && <Lien href="/sinistres" aria-current={actif("/sinistres")}>Sinistres</Lien>}
             {peut("gerant", "charge_clientele", "commercial", "auditeur") && <Lien href="/relances" aria-current={actif("/relances")}>Relances</Lien>}
             {peut("gerant", "caissier", "charge_clientele", "auditeur") && <Lien href="/caisse" aria-current={actif("/caisse")}>Caisse</Lien>}

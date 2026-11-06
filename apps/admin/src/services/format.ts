@@ -180,3 +180,46 @@ export function moisEnLettres(mois: string): string {
   const [annee, numero] = mois.split("-").map(Number);
   return new Date(Date.UTC(annee!, numero! - 1, 1)).toLocaleDateString("fr-FR", { month: "long", year: "numeric", timeZone: "UTC" });
 }
+
+// ---------- Outils du site (tâche 13) ----------
+export const NATURES_DEMANDE_SITE: Record<string, string> = {
+  devis: "Devis", rappel_echeance: "Rappel d'échéance", appel_offres: "Appel d'offres",
+};
+export const GARANTIES_APPEL_OFFRES: Record<string, string> = {
+  trc: "Tous risques chantier",
+  decennale: "Responsabilité civile décennale",
+  rc_pro: "Responsabilité civile professionnelle ou d'exploitation",
+  flotte: "Véhicules et engins affectés au marché",
+  engins: "Bris de machines et engins",
+  transport: "Transport des fournitures ou marchandises",
+  personnel: "Individuelle accident du personnel",
+  a_determiner: "À déterminer d'après le cahier des charges",
+};
+export const TYPES_MARCHE: Record<string, string> = {
+  travaux: "Travaux", fournitures: "Fournitures", services: "Services", prestations_intellectuelles: "Prestations intellectuelles",
+};
+export const MOTIFS_RENDEZ_VOUS: Record<string, string> = {
+  devis: "Devis", renouvellement: "Renouvellement", sinistre: "Sinistre", appel_offres: "Appel d'offres", flotte: "Flotte", autre: "Autre",
+};
+export const MODES_RENDEZ_VOUS: Record<string, string> = {
+  agence: "À l'agence", telephone: "Au téléphone", chez_le_client: "Sur place, chez le client",
+};
+export const CRENEAUX: Record<string, string> = { matin: "le matin", apres_midi: "l'après-midi" };
+
+/** Nombre de jours entre aujourd'hui et une date « AAAA-MM-JJ » (négatif si elle est passée) */
+export function ecartEnJours(iso: string): number {
+  const [annee, mois, jour] = iso.slice(0, 10).split("-").map(Number);
+  const cible = Date.UTC(annee!, mois! - 1, jour!);
+  const [a, m, j] = aujourdHui().split("-").map(Number);
+  return Math.round((cible - Date.UTC(a!, m! - 1, j!)) / 86_400_000);
+}
+
+/** Heure d'Abidjan d'un instant : « 09:30 » */
+export function heure(iso: string): string {
+  return new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Africa/Abidjan" });
+}
+
+/** Jour d'Abidjan d'un instant : « 2026-11-10 » */
+export function jourAbidjan(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-CA", { timeZone: "Africa/Abidjan" });
+}

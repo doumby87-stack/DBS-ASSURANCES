@@ -120,6 +120,13 @@ export function FicheClient({ id }: { id: string }) {
         <div><dt>Commune</dt><dd>{client.commune ?? "—"}</dd></div>
         {client.rccm && <div><dt>RCCM</dt><dd>{client.rccm}</dd></div>}
       </dl>
+      {peut("gerant", "charge_clientele", "commercial") && (
+        <p>
+          <Lien href={`/rendez-vous?${new URLSearchParams({ client: client.id, nom: client.nom, telephone: client.telephone }).toString()}`}>
+            Fixer un rendez-vous
+          </Lien>
+        </p>
+      )}
       {peut("gerant") && (
         <p className="note">
           Demande d'accès à ses données (droit d'accès) : <a href={`/api/clients/${client.id}/donnees.json`} download>exporter toutes ses données</a>
