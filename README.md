@@ -4,6 +4,10 @@ Site et outils de gestion de **DBS-ASSURANCES**, Agent Général SanlamAllianz C
 
 L'objectif dépasse la vitrine : donner à l'agence un outil qui tient ses promesses aux clients (échéances surveillées, attestations en lot, sinistres suivis) et qui sécurise la caisse et les reversements à la compagnie.
 
+## Essayer le projet sur votre ordinateur
+
+Pas besoin d'être informaticien : installez Docker Desktop, puis double-cliquez sur `demo/demarrer`. Le site, la gestion et l'espace client s'ouvrent avec des données d'exemple. Le guide pas à pas est [DEMARRER.md](DEMARRER.md).
+
 ## Où en est le projet
 
 | Brique | Dossier | Statut |
