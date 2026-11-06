@@ -1,0 +1,120 @@
+---
+// Prise de rendez-vous (tâche 13) : le visiteur choisit le motif, le lieu, un jour ouvré et une demi-journée ;
+// l'agence lui confirme l'heure par téléphone ou WhatsApp.
+import EntetePage from "../composants/EntetePage.astro";
+import EnvoiOutil from "../composants/EnvoiOutil.astro";
+import Icone from "../composants/Icone.astro";
+import { AGENCE, LIEN_TELEPHONE, lienWhatsApp } from "../donnees/agence";
+import { ACCORD_TRAITEMENT } from "../donnees/formulaire";
+import { ADRESSE_RENDEZ_VOUS, FETES_FIXES, HORIZON_RENDEZ_VOUS_JOURS, MODES_RENDEZ_VOUS, MOTIFS_RENDEZ_VOUS } from "../donnees/outils";
+import Base from "../mises-en-page/Base.astro";
+
+const enregistre = ADRESSE_RENDEZ_VOUS !== null;
+const reglages = {
+  whatsapp: AGENCE.whatsapp, email: AGENCE.email, telephoneAgence: AGENCE.telephone.affichage, fetes: FETES_FIXES,
+  avanceRappel: 0, horizonRendezVous: HORIZON_RENDEZ_VOUS_JOURS, delaiDossier: 0, garanties: [], dossier: [],
+};
+---
+<Base
+  titre="Prendre rendez-vous avec un conseiller"
+  description="Rendez-vous avec un conseiller DBS-ASSURANCES, à l'agence de Yopougon, par téléphone ou dans vos locaux : choisissez le jour, nous confirmons l'heure."
+>
+  <noscript slot="tete"><link rel="stylesheet" href="/styles/sans-js.css" /></noscript>
+  <EntetePage surtitre="Rendez-vous" titre="Parlons-en de vive voix." page="Rendez-vous">
+    <p>Un devis à expliquer, un renouvellement, un sinistre, une flotte ? Choisissez le jour qui vous arrange : un conseiller vous confirme l'heure par téléphone ou WhatsApp.</p>
+  </EntetePage>
+
+  <section class="section">
+    <div class="conteneur devis">
+      <form class="formulaire" id="formulaire-rendez-vous" data-outil="rendez-vous" novalidate data-reglages={JSON.stringify(reglages)} data-api={ADRESSE_RENDEZ_VOUS ?? undefined}>
+        <noscript>
+          <div class="sans-js">
+            <h2 class="h3">Ce formulaire a besoin de JavaScript</h2>
+            <p>Sans lui, appelez-nous ou écrivez-nous sur WhatsApp pour fixer un rendez-vous.</p>
+            <div class="sans-js__actions">
+              <a class="bouton bouton--principal" href={LIEN_TELEPHONE}>Appeler le {AGENCE.telephone.affichage}</a>
+              <a class="bouton bouton--whatsapp" href={lienWhatsApp("Bonjour DBS-ASSURANCES, je souhaite un rendez-vous.")}>Écrire sur WhatsApp</a>
+            </div>
+          </div>
+        </noscript>
+        <div data-contenu>
+          <h2 class="sous-titre-formulaire">Votre rendez-vous</h2>
+          <div class="champ">
+            <label for="champ-motif">C'est pour *</label>
+            <select class="saisie" id="champ-motif" name="motif">
+              {MOTIFS_RENDEZ_VOUS.map((m) => <option value={m.id}>{m.titre}</option>)}
+            </select>
+          </div>
+          <fieldset class="champ groupe">
+            <legend class="champ__libelle">Où ?</legend>
+            <ul class="choix choix--profil" role="list">
+              {MODES_RENDEZ_VOUS.map((m, i) => (
+                <li><label><input type="radio" name="mode" value={m.id} checked={i === 0} aria-describedby="erreur-mode" /><Icone nom={m.icone} />{m.titre}</label></li>
+              ))}
+            </ul>
+            <p class="champ__aide">La visite dans vos locaux ou sur votre chantier est proposée aux professionnels et aux entreprises.</p>
+            <p class="champ__erreur" id="erreur-mode"></p>
+          </fieldset>
+          <div class="grille-2">
+            <div class="champ">
+              <label for="champ-jour">Jour souhaité *</label>
+              <input class="saisie" id="champ-jour" name="jour" type="date" required aria-describedby="aide-jour erreur-jour" />
+              <p class="champ__aide" id="aide-jour">Du lundi au vendredi, dans les deux prochains mois.</p>
+              <p class="champ__erreur" id="erreur-jour"></p>
+            </div>
+            <fieldset class="champ groupe groupe--serre">
+              <legend class="champ__libelle">Moment *</legend>
+              <ul class="choix choix--deux" role="list">
+                <li><label><input type="radio" name="creneau" value="matin" checked />Le matin</label></li>
+                <li><label><input type="radio" name="creneau" value="apres_midi" />L'après-midi</label></li>
+              </ul>
+            </fieldset>
+          </div>
+          <div class="champ">
+            <label for="champ-message">Quelques mots sur votre besoin <span class="champ__facultatif">(facultatif)</span></label>
+            <textarea class="saisie" id="champ-message" name="message" rows="3" maxlength="1000"></textarea>
+          </div>
+
+          <h2 class="sous-titre-formulaire">Vos coordonnées</h2>
+          <EnvoiOutil
+            profils={[
+              { id: "particulier", titre: "Un particulier", icone: "personne" },
+              { id: "professionnel", titre: "Un professionnel", icone: "boutique" },
+              { id: "entreprise", titre: "Une entreprise", icone: "immeuble" },
+            ]}
+            accord={ACCORD_TRAITEMENT}
+            enregistre={enregistre}
+            libelleEnvoi="Demander ce rendez-vous"
+          />
+        </div>
+        {enregistre && (
+          <div class="confirmation" data-confirmation tabindex="-1" hidden>
+            <span class="confirmation__icone"><Icone nom="cocheRonde" /></span>
+            <h2 class="h3" data-confirmation-titre>Demande de rendez-vous reçue</h2>
+            <p>Un conseiller vous confirme l'heure par téléphone ou WhatsApp, au numéro indiqué.</p>
+            <p>Un empêchement ? Écrivez-nous en rappelant le numéro de votre demande.</p>
+            <a class="bouton bouton--whatsapp" data-confirmation-whatsapp href={lienWhatsApp()} target="_blank" rel="noopener noreferrer"><Icone nom="whatsapp" />Écrire à l'agence</a>
+          </div>
+        )}
+        <p class="etat-envoi" role="status" aria-live="polite" tabindex="-1" data-statut-envoi></p>
+      </form>
+
+      <aside class="aside-devis" aria-label="L'agence">
+        <div class="carte">
+          <h2 class="h3">L'agence</h2>
+          <p>{AGENCE.adresse.rue}, {AGENCE.adresse.commune}, {AGENCE.adresse.ville}.</p>
+          <a class="bouton bouton--contour" href={AGENCE.carte} target="_blank" rel="noopener noreferrer"><Icone nom="repere" />Voir sur la carte</a>
+        </div>
+        <div class="carte">
+          <h2 class="h3">Un sinistre urgent ?</h2>
+          <p>N'attendez pas le rendez-vous : appelez-nous, ou suivez les bons réflexes.</p>
+          <a class="bouton bouton--contour" href="/sinistre/"><Icone nom="alerte" />Que faire après un sinistre</a>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <script>
+    import "../scripts/outils";
+  </script>
+</Base>

@@ -621,6 +621,20 @@ fieldset.groupe > legend { margin-bottom: 10px; padding: 0; }
 .choix label:has(input:focus-visible) { outline: 3px solid var(--or-500); outline-offset: 2px; }
 .choix--profil { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 @media (max-width: 560px) { .choix--profil { grid-template-columns: minmax(0, 1fr); } }
+/* Outils du site (tâche 13) : deux choix côte à côte, cases à cocher en cartes, dossier calculé */
+.choix--deux { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 560px) { .choix--deux { grid-template-columns: minmax(0, 1fr); } }
+.cases { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.cases .case { margin: 0; padding: 12px 14px; border: 1.5px solid var(--ligne); border-radius: var(--rayon); }
+.cases .case:has(input:checked) { border-color: var(--bleu-700); background: var(--bleu-50); }
+.cases .case:has(input:focus-visible) { outline: 3px solid var(--or-500); outline-offset: 2px; }
+.cases small { display: block; color: var(--doux); font-size: 0.86rem; }
+.dossier { margin: 0 0 22px; padding: 16px 18px; border-left: 4px solid var(--or-500); border-radius: var(--rayon); background: var(--sable-50); }
+.dossier[hidden] { display: none; }
+.dossier p { margin: 0 0 8px; }
+.sous-titre-formulaire { margin: 28px 0 14px; color: var(--encre); font-size: 1.2rem; font-weight: 800; }
+.sous-titre-formulaire:first-child { margin-top: 0; }
+fieldset.groupe--serre { margin-top: 0; }
 .champ { display: flex; flex-direction: column; gap: 7px; min-width: 0; margin: 0 0 18px; }
 .champ > label, .champ > .champ__libelle { color: var(--encre); font-size: 0.95rem; font-weight: 700; }
 .champ__facultatif { color: var(--doux); font-weight: 500; }

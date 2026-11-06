@@ -1,0 +1,144 @@
+---
+// Assistant « appel d'offres » (tâche 13) : l'entreprise décrit le marché et coche les assurances exigées ;
+// l'assistant lui dit quoi préparer et pour quand, puis transmet la demande à l'agence.
+import EntetePage from "../composants/EntetePage.astro";
+import EnvoiOutil from "../composants/EnvoiOutil.astro";
+import Icone from "../composants/Icone.astro";
+import { AGENCE, LIEN_TELEPHONE, lienWhatsApp } from "../donnees/agence";
+import { ACCORD_TRAITEMENT } from "../donnees/formulaire";
+import {
+  ADRESSE_APPELS_OFFRES, DELAI_DOSSIER_APPEL_OFFRES, DOSSIER_APPEL_OFFRES, FETES_FIXES, GARANTIES_APPEL_OFFRES, TYPES_MARCHE,
+} from "../donnees/outils";
+import Base from "../mises-en-page/Base.astro";
+
+const enregistre = ADRESSE_APPELS_OFFRES !== null;
+const reglages = {
+  whatsapp: AGENCE.whatsapp, email: AGENCE.email, telephoneAgence: AGENCE.telephone.affichage, fetes: FETES_FIXES,
+  avanceRappel: 0, horizonRendezVous: 0, delaiDossier: DELAI_DOSSIER_APPEL_OFFRES,
+  garanties: GARANTIES_APPEL_OFFRES.map((g) => ({ id: g.id, titre: g.titre, aPreparer: [...g.aPreparer] })), dossier: DOSSIER_APPEL_OFFRES,
+};
+---
+<Base
+  titre="Assistant appel d'offres : les assurances exigées"
+  description="Vous répondez à un appel d'offres ? Indiquez le marché et les assurances demandées : DBS-ASSURANCES vous dit quoi préparer et pour quand, et obtient la proposition et l'attestation SanlamAllianz."
+>
+  <noscript slot="tete"><link rel="stylesheet" href="/styles/sans-js.css" /></noscript>
+  <EntetePage surtitre="Entreprises" titre="Votre appel d'offres exige des assurances ?" page="Appel d'offres">
+    <p>Tous risques chantier, décennale, responsabilité civile, véhicules : décrivez le marché, cochez ce que demande le cahier des charges. L'assistant vous dit quoi préparer et pour quand ; l'agence s'occupe de la proposition SanlamAllianz et de l'attestation.</p>
+  </EntetePage>
+
+  <section class="section">
+    <div class="conteneur devis">
+      <form class="formulaire" id="formulaire-appel-offres" data-outil="appel-offres" novalidate data-reglages={JSON.stringify(reglages)} data-api={ADRESSE_APPELS_OFFRES ?? undefined}>
+        <noscript>
+          <div class="sans-js">
+            <h2 class="h3">Cet assistant a besoin de JavaScript</h2>
+            <p>Sans lui, envoyez-nous le cahier des charges sur WhatsApp ou par e-mail, avec la date limite de dépôt.</p>
+            <div class="sans-js__actions">
+              <a class="bouton bouton--principal" href={LIEN_TELEPHONE}>Appeler le {AGENCE.telephone.affichage}</a>
+              <a class="bouton bouton--whatsapp" href={lienWhatsApp("Bonjour DBS-ASSURANCES, je réponds à un appel d'offres qui exige des assurances.")}>Écrire sur WhatsApp</a>
+            </div>
+          </div>
+        </noscript>
+        <div data-contenu>
+          <h2 class="sous-titre-formulaire">1. Le marché</h2>
+          <div class="champ">
+            <label for="champ-type-marche">Type de marché *</label>
+            <select class="saisie" id="champ-type-marche" name="typeMarche">
+              {TYPES_MARCHE.map((t) => <option value={t.id}>{t.titre}</option>)}
+            </select>
+          </div>
+          <div class="grille-2">
+            <div class="champ">
+              <label for="champ-maitre-ouvrage">Qui lance l'appel d'offres ? *</label>
+              <input class="saisie" id="champ-maitre-ouvrage" name="maitreOuvrage" type="text" maxlength="160" placeholder="Ministère, mairie, société…" required aria-describedby="erreur-maitreOuvrage" />
+              <p class="champ__erreur" id="erreur-maitreOuvrage"></p>
+            </div>
+            <div class="champ">
+              <label for="champ-date-limite">Date limite de dépôt *</label>
+              <input class="saisie" id="champ-date-limite" name="dateLimite" type="date" required aria-describedby="erreur-dateLimite" />
+              <p class="champ__erreur" id="erreur-dateLimite"></p>
+            </div>
+          </div>
+          <div class="champ">
+            <label for="champ-objet">Objet du marché *</label>
+            <input class="saisie" id="champ-objet" name="objet" type="text" maxlength="300" placeholder="Construction d'un centre de santé, fourniture de matériel…" required aria-describedby="erreur-objet" />
+            <p class="champ__erreur" id="erreur-objet"></p>
+          </div>
+          <div class="grille-2">
+            <div class="champ">
+              <label for="champ-montant">Montant estimé, en F CFA <span class="champ__facultatif">(facultatif)</span></label>
+              <input class="saisie" id="champ-montant" name="montant" type="text" inputmode="numeric" maxlength="20" aria-describedby="erreur-montant" />
+              <p class="champ__erreur" id="erreur-montant"></p>
+            </div>
+            <div class="champ">
+              <label for="champ-duree">Durée, en mois <span class="champ__facultatif">(facultatif)</span></label>
+              <input class="saisie" id="champ-duree" name="dureeMois" type="number" min="1" max="120" step="1" inputmode="numeric" />
+            </div>
+          </div>
+          <div class="champ">
+            <label for="champ-lieu">Lieu d'exécution <span class="champ__facultatif">(facultatif)</span></label>
+            <input class="saisie" id="champ-lieu" name="lieu" type="text" maxlength="120" placeholder="Bouaké, Yamoussoukro…" />
+          </div>
+
+          <fieldset class="champ groupe">
+            <legend class="sous-titre-formulaire">2. Les assurances demandées</legend>
+            <p class="champ__aide">Cochez celles qu'exige le cahier des charges (clause « assurances »).</p>
+            <ul class="cases" role="list">
+              {GARANTIES_APPEL_OFFRES.map((g) => (
+                <li><label class="case"><input type="checkbox" name="garanties" value={g.id} aria-describedby="erreur-garanties" /><span>{g.titre}<small>{g.aide}</small></span></label></li>
+              ))}
+            </ul>
+            <p class="champ__erreur" id="erreur-garanties"></p>
+          </fieldset>
+
+          <h2 class="sous-titre-formulaire">3. Votre dossier</h2>
+          <div class="dossier" data-dossier aria-live="polite" hidden></div>
+          <div class="champ">
+            <label for="champ-besoin">Précisions <span class="champ__facultatif">(facultatif)</span></label>
+            <textarea class="saisie" id="champ-besoin" name="besoin" rows="4" maxlength="1500" placeholder="Montants de garantie demandés, lot concerné, groupement…"></textarea>
+          </div>
+          <EnvoiOutil
+            profils={[
+              { id: "entreprise", titre: "Une entreprise", icone: "immeuble" },
+              { id: "professionnel", titre: "Un professionnel indépendant", icone: "boutique" },
+            ]}
+            accord={ACCORD_TRAITEMENT}
+            enregistre={enregistre}
+            libelleEnvoi="Envoyer à l'agence"
+          />
+        </div>
+        {enregistre && (
+          <div class="confirmation" data-confirmation tabindex="-1" hidden>
+            <span class="confirmation__icone"><Icone nom="cocheRonde" /></span>
+            <h2 class="h3" data-confirmation-titre>Demande enregistrée</h2>
+            <p>Un conseiller vous rappelle pour recevoir le cahier des charges et les pièces à préparer.</p>
+            <p>Vous pouvez déjà nous l'envoyer sur WhatsApp, en rappelant le numéro de votre demande.</p>
+            <a class="bouton bouton--whatsapp" data-confirmation-whatsapp href={lienWhatsApp()} target="_blank" rel="noopener noreferrer"><Icone nom="whatsapp" />Envoyer le cahier des charges</a>
+          </div>
+        )}
+        <p class="etat-envoi" role="status" aria-live="polite" tabindex="-1" data-statut-envoi></p>
+      </form>
+
+      <aside class="aside-devis" aria-label="Ce que fait l'agence">
+        <div class="carte">
+          <h2 class="h3">Ce que fait l'agence</h2>
+          <ol class="liste-losanges">
+            <li>Elle lit la clause « assurances » du cahier des charges et vous dit exactement quoi souscrire.</li>
+            <li>Elle transmet le questionnaire SanlamAllianz et suit l'étude de votre dossier.</li>
+            <li>Elle vous remet la proposition, puis l'attestation à joindre à votre offre.</li>
+          </ol>
+        </div>
+        <div class="carte">
+          <h2 class="h3">Date limite proche ?</h2>
+          <p>Appelez-nous tout de suite : nous vous disons ce qui est encore possible.</p>
+          <a class="bouton bouton--contour" href={LIEN_TELEPHONE}><Icone nom="telephone" />{AGENCE.telephone.affichage}</a>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <script>
+    import "../scripts/outils";
+  </script>
+</Base>

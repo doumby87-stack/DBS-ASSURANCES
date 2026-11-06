@@ -1,0 +1,82 @@
+---
+// Fin commune des formulaires des outils (rappel d'échéance, appel d'offres, rendez-vous) : profil, coordonnées,
+// accords, champ piège, boutons d'envoi (enregistrement par l'agence, WhatsApp, e-mail) et notes.
+import { ACCORD_WHATSAPP } from "../donnees/formulaire";
+import Icone from "./Icone.astro";
+import type { NomIcone } from "../donnees/icones";
+
+interface Props {
+  profils: { id: string; titre: string; icone: NomIcone }[];
+  /** Texte de la case d'accord, enregistré tel quel avec la demande */
+  accord: string;
+  /** L'API est connue : la demande est enregistrée par l'agence */
+  enregistre: boolean;
+  libelleEnvoi: string;
+}
+const { profils, accord, enregistre, libelleEnvoi } = Astro.props;
+---
+<fieldset class="champ groupe">
+  <legend class="champ__libelle">Vous êtes</legend>
+  <ul class={`choix choix--profil${profils.length === 2 ? " choix--deux" : ""}`} role="list">
+    {profils.map((p, i) => (
+      <li><label><input type="radio" name="profil" value={p.id} checked={i === 0} /><Icone nom={p.icone} />{p.titre}</label></li>
+    ))}
+  </ul>
+</fieldset>
+<div class="grille-2">
+  <div class="champ">
+    <label for="champ-nom">Nom et prénoms ou raison sociale *</label>
+    <input class="saisie" id="champ-nom" name="nom" type="text" maxlength="160" autocomplete="name" required aria-describedby="erreur-nom" />
+    <p class="champ__erreur" id="erreur-nom"></p>
+  </div>
+  <div class="champ">
+    <label for="champ-telephone">Téléphone *</label>
+    <input class="saisie" id="champ-telephone" name="telephone" type="tel" inputmode="tel" maxlength="25" autocomplete="tel" placeholder="07 00 00 00 00" required aria-describedby="erreur-telephone" />
+    <p class="champ__erreur" id="erreur-telephone"></p>
+  </div>
+</div>
+<div class="champ">
+  <label for="champ-email">E-mail <span class="champ__facultatif">(facultatif)</span></label>
+  <input class="saisie" id="champ-email" name="email" type="email" maxlength="254" autocomplete="email" aria-describedby="erreur-email" />
+  <p class="champ__erreur" id="erreur-email"></p>
+</div>
+<label class="case">
+  <input type="checkbox" name="consentement" required aria-describedby="erreur-consentement" />
+  <span><span data-texte-accord>{accord}</span> <a href="/mentions-legales/#donnees">En savoir plus</a></span>
+</label>
+<p class="champ__erreur" id="erreur-consentement"></p>
+{enregistre && (
+  <label class="case">
+    <input type="checkbox" name="rappelsWhatsApp" />
+    <span data-texte-accord>{ACCORD_WHATSAPP}</span>
+  </label>
+)}
+{enregistre && (
+  <div class="champ-piege" aria-hidden="true">
+    <label for="champ-site-web">Ne remplissez pas ce champ</label>
+    <input id="champ-site-web" name="siteWeb" type="text" tabindex="-1" autocomplete="off" />
+  </div>
+)}
+<div class="formulaire__actions">
+  {enregistre ? (
+    <button class="bouton bouton--principal bouton--grand" type="submit" name="canal" value="site"><Icone nom="envoi" />{libelleEnvoi}</button>
+  ) : (
+    <button class="bouton bouton--whatsapp bouton--grand" type="submit" name="canal" value="whatsapp"><Icone nom="whatsapp" />Envoyer sur WhatsApp</button>
+  )}
+</div>
+<p class="formulaire__note">
+  {enregistre ? <Icone nom="whatsapp" /> : <Icone nom="courriel" />}
+  {enregistre ? (
+    <span>Vous préférez écrire vous-même ? <button class="lien-bouton" type="submit" name="canal" value="whatsapp">Envoyer plutôt sur WhatsApp</button> ou <button class="lien-bouton" type="submit" name="canal" value="email">par e-mail</button></span>
+  ) : (
+    <span>Vous préférez l'e-mail ? <button class="lien-bouton" type="submit" name="canal" value="email">Envoyer par e-mail</button></span>
+  )}
+</p>
+<p class="formulaire__note">
+  <Icone nom="cadenas" />
+  {enregistre ? (
+    <span>Votre demande est enregistrée par l'agence, uniquement pour y répondre, puis supprimée au bout d'un an si elle n'a pas de suite. <a href="/mentions-legales/#donnees">Vos données</a></span>
+  ) : (
+    <span>Rien n'est enregistré sur ce site : votre demande nous parvient uniquement quand vous l'envoyez depuis WhatsApp ou votre messagerie.</span>
+  )}
+</p>
