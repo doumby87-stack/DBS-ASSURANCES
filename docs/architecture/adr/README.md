@@ -17,6 +17,7 @@ Chaque décision importante est écrite ici, avec son contexte et ses conséquen
 | [0011](0011-portail-des-entreprises.md) | Portail des entreprises : connexion par code WhatsApp, isolement des entreprises par la base | Acceptée |
 | [0012](0012-espace-client-et-paiement-en-ligne.md) | Espace client : particuliers, paiement Mobile Money vérifié auprès du prestataire, sinistres déclarés en ligne | Acceptée (prestataire réel à choisir) |
 | [0013](0013-conformite-et-pilotage.md) | Conformité et pilotage : identification des clients, alertes, réclamations, FNE, statistiques | Acceptée (seuils et délais à confirmer) |
+| [0014](0014-outils-du-site.md) | Outils du site : rappel d'échéance gratuit, assistant « appel d'offres », prise de rendez-vous | Acceptée (estimation en attente de SanlamAllianz) |
 
 ## Modèle
 

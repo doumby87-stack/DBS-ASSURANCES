@@ -119,9 +119,16 @@ Hébergement, sauvegardes testées, surveillance, test d'intrusion par un presta
 
 *À faire par l'agence (tâche 2) :* obtenir la procédure LBC/FT de SanlamAllianz (seuils, pièces, circuit de déclaration) et confirmer la durée de conservation ; valider les délais des réclamations ; faire confirmer par le comptable l'obligation FNE ; enregistrer les formations du personnel ; compléter progressivement la fiche des clients existants (page Conformité).
 
-## ⏳ Tâche 13 — Outils d'attraction sur le site
+## ✅ Tâche 13 — Outils d'attraction sur le site
 
-Rappel d'échéance gratuit, estimation indicative (après validation de SanlamAllianz), assistant « appel d'offres », prise de rendez-vous.
+([ADR 0014](architecture/adr/0014-outils-du-site.md))
+
+- **rappel d'échéance gratuit** : le visiteur donne l'échéance de son contrat actuel, chez n'importe quel assureur ; la demande arrive à l'agence un mois avant. Il peut aussi ajouter le rappel à son agenda ;
+- **assistant « appel d'offres »** : le marché et les assurances exigées ; l'assistant dit quoi préparer et pour quand, et l'agence voit les appels d'offres par date limite ;
+- **prise de rendez-vous** : un jour ouvré et une demi-journée demandés sur le site ; agenda au back-office (confirmation de l'heure, chevauchements refusés, message WhatsApp de confirmation, venu ou non), rendez-vous fixés au guichet ou depuis la fiche d'un client ;
+- sans l'API, chaque outil prépare un message WhatsApp ou e-mail ; avec elle, mêmes protections et même purge à 12 mois que les demandes de devis.
+
+*Reste à faire :* l'**estimation indicative**, dès que SanlamAllianz aura fourni sa grille et son accord écrit pour afficher un prix. *À faire par l'agence :* confirmer le délai de 10 jours ouvrés conseillé pour un dossier d'appel d'offres et les jours d'ouverture.
 
 ## ⏳ Tâche 14 — Assistance par lecture automatique
 

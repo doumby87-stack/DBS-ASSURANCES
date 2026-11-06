@@ -16,6 +16,9 @@ Les pages sont écrites avec [Astro](https://astro.build) puis **construites** e
 | `/agence/` | Rôle d'Agent Général, identité, coordonnées, « vérifier que c'est bien nous », réclamations | `src/pages/agence.astro` |
 | `/questions-frequentes/` | Questions fréquentes | `src/pages/questions-frequentes.astro` |
 | `/devis/` | Formulaire de devis en trois étapes | `src/pages/devis.astro` |
+| `/rendez-vous/` | Demande de rendez-vous : motif, lieu, jour ouvré et demi-journée ; l'agence confirme l'heure | `src/pages/rendez-vous.astro` |
+| `/rappel-echeance/` | Rappel gratuit un mois avant l'échéance de l'assurance actuelle, ou rappel ajouté à son agenda | `src/pages/rappel-echeance.astro` |
+| `/appel-offres/` | Assistant « appel d'offres » : marché, assurances exigées, pièces à préparer et date d'envoi du dossier | `src/pages/appel-offres.astro` |
 | `/mentions-legales/` | Mentions légales et données personnelles | `src/pages/mentions-legales.astro` |
 
 ## Modifier une information
@@ -26,6 +29,7 @@ Chaque information n'est écrite qu'**à un seul endroit**, dans `src/donnees/` 
 | --- | --- |
 | Téléphone, WhatsApp, e-mail, adresse, horaires, RCCM, agrément, hébergeur | `src/donnees/agence.ts` |
 | Texte des cases d'accord du formulaire | `src/donnees/formulaire.ts` |
+| Outils (rappel, appel d'offres, rendez-vous) : assurances proposées, garanties et pièces à préparer, délai du dossier d'appel d'offres, motifs, jours fériés | `src/donnees/outils.ts` |
 | Une assurance : description, garanties, ce qu'il faut préciser, pièces à fournir | `src/donnees/offres.ts` |
 | Une question fréquente | `src/donnees/faq.ts` |
 | Le menu | `src/donnees/navigation.ts` |
@@ -67,7 +71,7 @@ Par défaut, le formulaire prépare un message que le visiteur envoie lui-même 
 1. Dans l'API, définir `URL_SITE_VITRINE` avec l'adresse du site (par exemple `https://www.votre-domaine.ci`).
 2. Dans Netlify (Site configuration > Environment variables), définir `URL_API` avec l'adresse de l'API (par exemple `https://gestion.votre-domaine.ci/api`), puis relancer la mise en ligne.
 
-La construction ajoute alors l'API aux en-têtes de sécurité (`connect-src`), affiche le champ de la carte grise et la case des rappels, et met à jour les textes du formulaire et des mentions légales. Les demandes arrivent dans l'écran « Demandes du site » du back-office. Pour revenir en arrière, il suffit de retirer `URL_API` et de relancer la mise en ligne.
+La construction ajoute alors l'API aux en-têtes de sécurité (`connect-src`), affiche le champ de la carte grise et la case des rappels, et met à jour les textes du formulaire et des mentions légales. Les outils (rappel d'échéance, appel d'offres, rendez-vous) enregistrent alors eux aussi leurs demandes ([ADR 0014](../../docs/architecture/adr/0014-outils-du-site.md)) : les rappels et appels d'offres arrivent dans « Demandes du site », les rendez-vous dans « Rendez-vous ». Les demandes arrivent dans l'écran « Demandes du site » du back-office. Pour revenir en arrière, il suffit de retirer `URL_API` et de relancer la mise en ligne.
 
 ## Mettre le site en ligne
 

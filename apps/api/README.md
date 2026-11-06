@@ -64,9 +64,11 @@ En développement : `RELANCES_SIMULATION=true` enregistre les relances sans rien
 
 Le formulaire du site envoie la demande à `POST /site/demandes-devis` (JSON, carte grise en base64), si le site est construit avec l'adresse de l'API (`URL_API`) et l'API configurée avec celle du site (`URL_SITE_VITRINE`). Contrôles : origine du site, champ piège pour les robots, 5 demandes par heure et par adresse et 300 par jour (appliqués par la base, l'adresse IP n'étant gardée que sous forme d'empreinte), carte grise JPEG, PNG ou PDF de 5 Mo au plus reconnue d'après son contenu, puis chiffrée. La demande reçoit un numéro, communiqué au visiteur ; elle se traite au back-office, écran « Demandes du site » ([ADR 0009](../../docs/architecture/adr/0009-demandes-de-devis-du-site.md)).
 
+**Outils du site** (tâche 13, [ADR 0014](../../docs/architecture/adr/0014-outils-du-site.md)) : `POST /site/rappels-echeance` (assurance et échéance ; réponse avec le jour où l'agence rappellera), `POST /site/appels-offres` (marché, garanties exigées, date limite ; professionnels et entreprises), `POST /site/rendez-vous` (motif, lieu, jour ouvré, demi-journée). Mêmes contrôles que la demande de devis, avec des limites communes à toutes ces routes ; les règles de dates sont celles de la base, dont le message revient au visiteur.
+
 **Antivirus.** La carte grise est analysée par ClamAV à la réception (infectée : refusée) et à chaque téléchargement (jamais remise sans analyse réussie ; une menace découverte plus tard efface son contenu). Installer le démon à côté de l'API, joignable seulement par elle, par exemple avec l'image officielle `clamav/clamav` (port 3310, signatures mises à jour par `freshclam`), puis `ANTIVIRUS_ADRESSE=clamav:3310`. Pour les tests : `tests/antivirus/demarrer-clamd.sh` démarre un vrai ClamAV avec la seule signature de test EICAR, et `ANTIVIRUS_ADRESSE_TEST=127.0.0.1:3310 npm run test -w @dbs/api` l'utilise.
 
-**Maintenance** (toutes les heures, toujours active) : expiration des contrats échus, résultat des paiements en ligne en attente depuis plus de 10 minutes demandé au prestataire (puis abandon de ceux restés sans réponse plus d'un jour), suppression des demandes sans suite depuis 12 mois (ou jamais traitées, reçues il y a plus de 12 mois) avec leur carte grise, et analyse des pièces reçues pendant une panne de l'antivirus.
+**Maintenance** (toutes les heures, toujours active) : expiration des contrats échus, résultat des paiements en ligne en attente depuis plus de 10 minutes demandé au prestataire (puis abandon de ceux restés sans réponse plus d'un jour), suppression des demandes sans suite depuis 12 mois (ou jamais traitées, reçues il y a plus de 12 mois ; 12 mois après l'échéance pour un rappel) avec leur carte grise, des rendez-vous de prospects 12 mois après leur clôture, et analyse des pièces reçues pendant une panne de l'antivirus.
 
 ## Espace client (portail)
 
@@ -174,11 +176,14 @@ Le mot de passe provisoire s'affiche une seule fois. Ensuite, tous les comptes s
 | `POST /relances/cycle` | gérant | Lance un cycle sans attendre les 15 minutes : planification, puis envoi aux heures prévues. |
 | `POST /relances/:id/annulation` | gérant, chargé | Annule une relance pas encore envoyée. |
 | `POST /site/demandes-devis` | public, **origine du site exigée** | Demande de devis du formulaire du site, avec la carte grise éventuelle ; renvoie son numéro. N'existe que si `URL_SITE_VITRINE` est défini. |
-| `GET /demandes-site?statut=` | gérant, chargé, commercial, auditeur | Demandes reçues par le site (à traiter par défaut, converties ou sans suite) et nombre de demandes à traiter. |
+| `GET /demandes-site?statut=` | gérant, chargé, commercial, auditeur | Demandes reçues par le site : à traiter par défaut (appels d'offres d'abord, par date limite), `a_venir` (rappels d'échéance pas encore à traiter), converties ou sans suite ; nombres à traiter et à venir. |
 | `GET /demandes-site/:id` | gérant, chargé, commercial, auditeur | Détail, carte grise jointe (type et taille ; invisible pour l'auditeur), clients qui ont déjà ce numéro. |
 | `GET /demandes-site/:id/piece` | gérant, chargé, commercial | Carte grise déchiffrée et analysée de nouveau par l'antivirus, en pièce jointe ; chaque téléchargement est consigné au journal de sécurité. 409 `piece_infectee` si une menace est trouvée, 503 `analyse_en_attente` si elle n'a encore jamais pu être analysée. |
 | `POST /demandes-site/:id/conversion` | gérant, chargé, commercial | Client (nouveau, ou existant avec `clientId`) et devis d'origine « site » ; accord WhatsApp noté sur la fiche si le visiteur l'a donné. Même numéro qu'un client existant : 409 `doublon_possible`, sauf `confirmerNouveauClient`. |
 | `POST /demandes-site/:id/sans-suite` | gérant, chargé, commercial | Classe la demande, motif obligatoire. |
+| `GET /rendez-vous` | gérant, chargé, commercial, auditeur | Agenda : demandes du site à confirmer, rendez-vous à venir, à clôturer, clos depuis 30 jours, personnes qui peuvent recevoir. |
+| `POST /rendez-vous` | gérant, chargé, commercial | Rendez-vous fixé par l'agence (jour et heure d'Abidjan, durée, avec qui), pour un client (`clientId`) ou un prospect ; chevauchement refusé. |
+| `POST /rendez-vous/:id/traitement` | gérant, chargé, commercial | `confirmer` (ou déplacer), `honore`, `manque`, `annuler` (motif), `rattacher` à une fiche client. |
 | `GET /webhooks/whatsapp` | public (jeton de vérification) | Activation des notifications par Meta. |
 | `POST /webhooks/whatsapp` | public, **signature de Meta exigée** | Accusés de remise et de lecture, « STOP » des clients. |
 
@@ -228,7 +233,7 @@ npm run verifier-types -w @dbs/api
 | `src/config/` | Lecture et validation des variables d'environnement. |
 | `src/securite/` | Connexion, deuxième facteur, sessions, limitation des tentatives, protections HTTP. |
 | `src/base-de-donnees/` | Connexions à PostgreSQL et transactions qui déclarent l'utilisateur. |
-| `src/modules/` | Un dossier par domaine métier : `utilisateurs`, `clients`, `contrats` (et échéances), `vehicules`, `devis`, `encaissements` (et caisse), `reversements`, `commissions`, `relances` (planificateur, textes, consentements), `demandes-site`, `flottes` (import, export, avenants) en place ; les autres viendront avec leurs tâches. |
+| `src/modules/` | Un dossier par domaine métier : `utilisateurs`, `clients`, `contrats` (et échéances), `vehicules`, `devis`, `encaissements` (et caisse), `reversements`, `commissions`, `relances` (planificateur, textes, consentements), `demandes-site` (et outils du site), `rendez-vous`, `flottes` (import, export, avenants) en place ; les autres viendront avec leurs tâches. |
 | `src/integrations/` | Services extérieurs : WhatsApp (API Cloud de Meta) en place ; SMS : interface prête, opérateur à choisir ; paiement, FNE, fichiers : à venir. |
 | `src/commun/` | Erreurs, formats, montant en lettres, CSV, identité de l'agence imprimée sur les reçus. |
 | `src/outils/` | Outils d'installation (`premier-acces`). |

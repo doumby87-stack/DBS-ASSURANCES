@@ -44,6 +44,8 @@ erDiagram
   DEMANDES_SITE |o--o| DEVIS : "devient"
   DEMANDES_SITE }o--o| CLIENTS : "rattachée à"
   DEMANDES_SITE ||--o| PIECES_DEMANDES_SITE : "carte grise jointe"
+  RENDEZ_VOUS }o--o| CLIENTS : "rattaché à"
+  RENDEZ_VOUS }o--o| UTILISATEURS : "avec"
   CONTRATS |o--o{ RELANCES : "échéance"
   DEVIS |o--o{ RELANCES : "sans réponse"
   SINISTRES |o--o{ RELANCES : "avancement"
@@ -241,6 +243,25 @@ erDiagram
     bytea empreinte_ip "HMAC, illisible par l'application"
     statut_demande_site statut "nouvelle, convertie, sans suite"
     text motif "obligatoire si sans suite"
+    nature_demande_site nature "devis, rappel d'échéance, appel d'offres"
+    date echeance_actuelle "rappel : échéance du contrat actuel"
+    date date_limite_offre "appel d'offres : date limite de dépôt"
+    jsonb appel_offres "marché et garanties exigées, hors journal d'audit"
+    date a_traiter_le "un mois avant l'échéance pour un rappel"
+  }
+  RENDEZ_VOUS {
+    uuid id
+    bigint numero "communiqué au visiteur"
+    text origine "site ou agence"
+    motif_rendez_vous motif
+    mode_rendez_vous mode "agence, téléphone, chez le client"
+    date souhaite_le "demande du site : jour ouvré"
+    creneau creneau_souhaite "matin ou après-midi"
+    timestamptz debut "fixé par l'agence, heure d'Abidjan"
+    integer duree_minutes
+    uuid avec "personne de l'agence"
+    statut_rendez_vous statut "demande, confirmé, honoré, manqué, annulé"
+    text motif_annulation
   }
   PIECES_DEMANDES_SITE {
     uuid id "entre dans le contexte du chiffrement"
@@ -285,6 +306,8 @@ Le schéma `portail` (tables `codes_connexion`, `sessions`, `evenements`) n'est 
 L'état d'une fiche d'identification (`app.etat_identification`) se lit sans aucune donnée d'identité ; la vérification de l'original passe par `app.verifier_identification`. Les alertes de lutte contre le blanchiment (`app.v_alertes`) ne sont lisibles que par le gérant ; les réclamations se traitent par `app.traiter_reclamation`, qui date et signe chaque étape ; les échéances se calculent en jours ouvrés (`app.ajouter_jours_ouvres`) ([ADR 0013](adr/0013-conformite-et-pilotage.md)).
 
 Les paiements en ligne sont préparés et conclus par la base (`portail.preparer_paiement`, `app.conclure_paiement_en_ligne`) : l'encaissement d'un paiement accepté est enregistré sans caissier, hors caisse ; un paiement reçu mais impossible à encaisser reste « à régulariser » par le gérant. Les sinistres déclarés en ligne et leurs pièces passent par `portail.declarer_sinistre` et `portail.joindre_piece_sinistre` ; une pièce ne se modifie ni ne se supprime ([ADR 0012](adr/0012-espace-client-et-paiement-en-ligne.md)).
+
+Les rappels d'échéance et les appels d'offres sont des demandes du site d'une autre nature, enregistrées par `app.enregistrer_rappel_echeance` et `app.enregistrer_appel_offres`. Les demandes de rendez-vous passent par `app.demander_rendez_vous`. Toutes partagent les limites de `app.controler_limites_site`. L'agenda avance par `app.fixer_rendez_vous` et `app.traiter_rendez_vous`, qui refusent les chevauchements et datent chaque étape ; `app.purger_rendez_vous` supprime les rendez-vous de prospects 12 mois après leur clôture ([ADR 0014](adr/0014-outils-du-site.md)).
 
 ## À venir
 
