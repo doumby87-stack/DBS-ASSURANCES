@@ -2,7 +2,7 @@
 //   · un transporteur sur son espace : connexion par code, tableau de bord de la flotte, attestation et
 //     attestations en lot, historique des sinistres d'un véhicule, accès de l'équipe, téléphone, déconnexion ;
 //   · une particulière : son espace s'ouvre à sa première demande de code, elle paie sa prime en deux fois
-//     (paiement simulé), puis déclare un sinistre avec une photo.
+//     (paiement simulé), déclare un sinistre avec une photo, puis adresse une réclamation à l'agence.
 // Aucune violation de la politique de sécurité du contenu n'est tolérée, et les données d'un autre client
 // n'apparaissent jamais.
 
@@ -207,6 +207,16 @@ test("parcours d'une particulière : paiement de sa prime en ligne et déclarati
   await expect(page.getByText(/retroviseur\.png/)).toBeVisible();
   await page.getByRole("link", { name: "Vos sinistres" }).click();
   await expect(page.getByRole("row", { name: /Dommages matériels/ })).toContainText("2024 KM 01");
+
+  // --- Réclamation adressée à l'agence, suivie dans l'espace
+  await page.getByRole("link", { name: "Réclamations", exact: true }).click();
+  const reclamation = page.getByRole("form", { name: "Nouvelle réclamation" });
+  await reclamation.getByLabel("Elle concerne").selectOption("attestation");
+  await reclamation.getByLabel("Votre réclamation").fill("Mon attestation n'est pas encore disponible dans mon espace.");
+  await reclamation.getByRole("button", { name: "Envoyer la réclamation" }).click();
+  await expect(page.getByText(/^Réclamation REC-\d{4}-\d{4} reçue/)).toBeVisible();
+  await expect(page.getByRole("region", { name: "Vos réclamations" })).toContainText("Une attestation");
+  await expect(page.getByRole("region", { name: "Vos réclamations" })).toContainText("Reçue");
 
   // --- Sur téléphone : rien ne déborde
   await page.setViewportSize({ width: 360, height: 780 });

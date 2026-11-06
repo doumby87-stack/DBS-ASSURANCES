@@ -7,6 +7,7 @@ L'espace des clients de l'agence : entreprises et transporteurs, professionnels,
 - ses véhicules et les échéances de leurs documents (la flotte, pour une entreprise) ;
 - ses attestations, à télécharger une à une ou toutes ensemble ;
 - ses sinistres, qu'il peut **déclarer en ligne** avec photos et constat amiable, et leur suivi ;
+- ses réclamations, et la réponse de l'agence ;
 - pour une entreprise, les accès de son équipe.
 
 Il ne contient aucune donnée : il affiche ce que l'[API](../api/README.md) et la base lui laissent voir, c'est-à-dire le client de la personne connectée, et rien d'autre.
@@ -33,6 +34,7 @@ Vite transmet les appels `/api/…` à l'API (variable `API_URL` si l'API n'est 
 | Payer (`/payer/:contrat`) | Reste à payer, montant (tout ou partie, arrondi au multiple de 5), puis départ vers la page du prestataire. Le code secret Mobile Money ne se saisit jamais ici. |
 | Paiement (`/paiements/:id`) et Paiements (`/paiements`) | Retour du prestataire : le résultat s'affiche dès que l'agence l'a vérifié auprès du prestataire (la page se met à jour seule) ; historique des paiements en ligne. |
 | Sinistres (`/sinistres`, `/sinistres/declarer`, `/sinistres/:id`) | Liste et suivi (statut, référence de la compagnie) ; déclaration (contrat, véhicule, date, nature, blessés, lieu, récit) avec photos et documents ; ajout de documents dans les 7 jours. |
+| Réclamations (`/reclamations`) | Dépôt d'une réclamation (objet, contrat, récit) ; suivi et réponse de l'agence. Engagements rappelés : accusé de réception sous 2 jours ouvrés, réponse sous 10, recours possibles. |
 | Accès de l'équipe (`/collaborateurs`) | Entreprise seulement : personnes qui ont un accès et leur dernière connexion ; le titulaire ajoute ou retire ses collaborateurs. |
 
 ## Sécurité

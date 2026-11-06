@@ -14,6 +14,9 @@ import { Personnel } from "./pages/parametres/Personnel";
 import { Relances } from "./pages/relances/Relances";
 import { PageBordereau } from "./pages/reversements/Bordereau";
 import { FicheSinistre, Sinistres } from "./pages/sinistres/Sinistres";
+import { Conformite } from "./pages/conformite/Conformite";
+import { FicheReclamation, Reclamations } from "./pages/reclamations/Reclamations";
+import { Statistiques } from "./pages/statistiques/Statistiques";
 import { Reversements } from "./pages/reversements/Reversements";
 import { TableauDeBord } from "./pages/tableau-de-bord/TableauDeBord";
 import { Lien, useChemin } from "./routeur";
@@ -66,6 +69,11 @@ function Page() {
   if (chemin === "/sinistres") return <Sinistres />;
   const sinistre = /^\/sinistres\/([0-9a-f-]{36})$/.exec(chemin);
   if (sinistre) return <FicheSinistre key={sinistre[1]} id={sinistre[1]!} />;
+  if (chemin === "/reclamations") return <Reclamations />;
+  const reclamation = /^\/reclamations\/([0-9a-f-]{36})$/.exec(chemin);
+  if (reclamation) return <FicheReclamation key={reclamation[1]} id={reclamation[1]!} />;
+  if (chemin === "/conformite") return <Conformite />;
+  if (chemin === "/statistiques") return <Statistiques />;
   if (chemin === "/demandes-site") return <DemandesSite />;
   const demande = /^\/demandes-site\/([0-9a-f-]{36})$/.exec(chemin);
   if (demande) return <DemandeSite key={demande[1]} id={demande[1]!} />;
@@ -103,6 +111,9 @@ function MiseEnPage({ children }: { children: ReactNode }) {
             {peut("gerant", "caissier", "charge_clientele", "auditeur") && <Lien href="/caisse" aria-current={actif("/caisse")}>Caisse</Lien>}
             {peut("gerant", "caissier", "auditeur") && <Lien href="/reversements" aria-current={actif("/reversements")}>Reversements</Lien>}
             {peut("gerant", "auditeur") && <Lien href="/commissions" aria-current={actif("/commissions")}>Commissions</Lien>}
+            {peut("gerant", "charge_clientele", "caissier", "commercial", "auditeur") && <Lien href="/reclamations" aria-current={actif("/reclamations")}>Réclamations</Lien>}
+            {peut("gerant", "charge_clientele", "caissier", "commercial", "auditeur") && <Lien href="/conformite" aria-current={actif("/conformite")}>Conformité</Lien>}
+            {peut("gerant", "auditeur") && <Lien href="/statistiques" aria-current={actif("/statistiques")}>Statistiques</Lien>}
             {peut("gerant") && <Lien href="/personnel" aria-current={actif("/personnel")}>Personnel</Lien>}
           </nav>
           <div className="entete__compte">

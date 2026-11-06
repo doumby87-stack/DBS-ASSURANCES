@@ -34,7 +34,7 @@ export function quandSessionPerdue(rappel: () => void): void {
   surSessionPerdue = rappel;
 }
 
-export async function api<T>(chemin: string, options: { methode?: "GET" | "POST" | "PATCH" | "DELETE"; corps?: unknown } = {}): Promise<T> {
+export async function api<T>(chemin: string, options: { methode?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"; corps?: unknown } = {}): Promise<T> {
   const reponse = await fetch(`/api${chemin}`, {
     method: options.methode ?? (options.corps === undefined ? "GET" : "POST"),
     credentials: "same-origin",

@@ -1,5 +1,6 @@
 // Commissions : rapprochement mensuel entre la commission attendue (calculée sur les primes encaissées)
-// et le relevé envoyé par SanlamAllianz ; taux par branche ; contrats dont la prime nette manque.
+// et le relevé envoyé par SanlamAllianz ; facture FNE de l'agence pour chaque mois ; taux par branche ;
+// contrats dont la prime nette manque.
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Alerte, Badge, Champ, Chargement, Section, Vide } from "../../composants/communs";
@@ -25,6 +26,22 @@ interface Mois {
   montantDeclare: number | null;
   reference: string | null;
   ecart: number | null;
+  numeroFne: string | null;
+  montantFne: number | null;
+}
+
+interface FactureFne {
+  id: string;
+  numeroFne: string;
+  emiseLe: string;
+  objet: "commissions" | "frais" | "autre";
+  mois: string | null;
+  destinataire: string;
+  montantTtc: number;
+  commentaire: string | null;
+  saisiePar: string;
+  annuleeLe: string | null;
+  motifAnnulation: string | null;
 }
 
 interface ContratIncomplet {
@@ -75,7 +92,7 @@ export function Commissions() {
         {donnees.rapprochement.length === 0 ? <Vide>Aucun encaissement ni relevé pour l'instant.</Vide> : (
           <div className="tableau-defilant">
             <table className="tableau">
-              <thead><tr><th>Mois</th><th>Primes encaissées</th><th>Commission attendue</th><th>Relevé de la compagnie</th><th>Écart</th></tr></thead>
+              <thead><tr><th>Mois</th><th>Primes encaissées</th><th>Commission attendue</th><th>Relevé de la compagnie</th><th>Écart</th><th>Facture FNE</th></tr></thead>
               <tbody>
                 {donnees.rapprochement.map((m) => (
                   <tr key={m.mois}>
@@ -91,6 +108,10 @@ export function Commissions() {
                         : m.ecart === 0 ? <Badge ton="vert">Aucun</Badge>
                           : <Badge ton={m.ecart < 0 ? "rouge" : "bleu"}>{montant(m.ecart)}</Badge>}
                     </td>
+                    <td>
+                      {m.numeroFne ? <>{m.numeroFne}<br /><small>{montant(m.montantFne)}</small></>
+                        : m.montantDeclare !== null ? <Badge ton="orange">À émettre</Badge> : <span className="note">—</span>}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -99,6 +120,8 @@ export function Commissions() {
         )}
         <p className="note">Un écart négatif : la compagnie a versé moins que prévu. À réclamer avec le détail des polices.</p>
       </Section>
+
+      <FacturesFne gerant={gerant} apres={charger} />
 
       <Section titre="Taux de commission" actions={gerant && <SaisieTaux apres={charger} />}>
         {donnees.taux.length === 0 ? <Vide>Aucun taux saisi : indiquez ceux de votre traité avec SanlamAllianz.</Vide> : (
@@ -191,5 +214,139 @@ function SaisieTaux({ apres }: { apres: () => Promise<void> }) {
       <button className="bouton">Ajouter le taux</button>
       <Alerte>{erreur}</Alerte>
     </form>
+  );
+}
+
+/** Factures FNE de l'agence : émises sur la plateforme de la DGI, leur numéro est saisi ici (docs/conformite/facturation-fne.md). */
+function FacturesFne({ gerant, apres }: { gerant: boolean; apres: () => Promise<void> }) {
+  const [factures, setFactures] = useState<FactureFne[] | null>(null);
+  const [erreur, setErreur] = useState("");
+  const [message, setMessage] = useState("");
+  const [saisie, setSaisie] = useState({
+    numeroFne: "", emiseLe: aujourdHui(), objet: "commissions" as FactureFne["objet"], mois: aujourdHui().slice(0, 7),
+    destinataire: "SanlamAllianz Côte d'Ivoire", montantTtc: "", commentaire: "",
+  });
+  const [annulation, setAnnulation] = useState<{ id: string; motif: string } | null>(null);
+
+  const charger = useCallback(async () => {
+    try {
+      setFactures((await api<{ factures: FactureFne[] }>("/factures-fne")).factures);
+    } catch (e) {
+      setErreur(messageErreur(e));
+    }
+  }, []);
+  useEffect(() => {
+    void charger();
+  }, [charger]);
+
+  async function enregistrer(evenement: FormEvent) {
+    evenement.preventDefault();
+    setErreur("");
+    setMessage("");
+    try {
+      await api("/factures-fne", {
+        corps: {
+          numeroFne: saisie.numeroFne.trim(), emiseLe: saisie.emiseLe, objet: saisie.objet, destinataire: saisie.destinataire,
+          montantTtc: Number(saisie.montantTtc), ...(saisie.objet === "commissions" ? { mois: saisie.mois } : {}),
+          ...(saisie.commentaire.trim() ? { commentaire: saisie.commentaire.trim() } : {}),
+        },
+      });
+      setMessage(`Facture ${saisie.numeroFne.trim()} enregistrée.`);
+      setSaisie({ ...saisie, numeroFne: "", montantTtc: "", commentaire: "" });
+      await Promise.all([charger(), apres()]);
+    } catch (e) {
+      setErreur(messageErreur(e));
+    }
+  }
+
+  async function annuler(evenement: FormEvent) {
+    evenement.preventDefault();
+    if (!annulation) return;
+    setErreur("");
+    try {
+      await api(`/factures-fne/${annulation.id}/annulation`, { corps: { motif: annulation.motif } });
+      setAnnulation(null);
+      setMessage("Facture annulée. Saisissez la facture corrigée si besoin.");
+      await Promise.all([charger(), apres()]);
+    } catch (e) {
+      setErreur(messageErreur(e));
+    }
+  }
+
+  return (
+    <Section titre="Factures FNE de l'agence">
+      <p className="note">
+        Émettez la facture sur la plateforme FNE de la DGI, puis notez ici son numéro : une facture par mois de commissions. Une facture
+        erronée s'annule (avoir FNE), avec son motif ; elle ne se modifie pas.
+      </p>
+      <Alerte>{erreur}</Alerte>
+      <Alerte type="succes">{message}</Alerte>
+      {!factures ? <Chargement /> : factures.length === 0 ? <Vide>Aucune facture FNE saisie.</Vide> : (
+        <div className="tableau-defilant">
+          <table className="tableau">
+            <thead><tr><th>N° FNE</th><th>Émise le</th><th>Objet</th><th>Destinataire</th><th className="nombre">Montant TTC</th><th>État</th></tr></thead>
+            <tbody>
+              {factures.map((f) => (
+                <tr key={f.id}>
+                  <td>{f.numeroFne}<br /><small>saisie par {f.saisiePar}</small></td>
+                  <td>{dateCourte(f.emiseLe)}</td>
+                  <td>{f.objet === "commissions" && f.mois ? `Commissions de ${moisEnLettres(f.mois)}` : f.objet === "frais" ? "Frais" : "Autre"}{f.commentaire && <><br /><small>{f.commentaire}</small></>}</td>
+                  <td>{f.destinataire}</td>
+                  <td className="nombre">{montant(f.montantTtc)}</td>
+                  <td>
+                    {f.annuleeLe ? <><Badge ton="gris">Annulée</Badge><br /><small>{f.motifAnnulation}</small></> : <Badge ton="vert">Valide</Badge>}
+                    {gerant && !f.annuleeLe && (annulation?.id === f.id ? (
+                      <form className="formulaire" aria-label={`Annuler la facture ${f.numeroFne}`} onSubmit={(e) => void annuler(e)}>
+                        <Champ libelle="Motif de l'annulation">
+                          <input required minLength={5} maxLength={300} value={annulation.motif} onChange={(e) => setAnnulation({ id: f.id, motif: e.target.value })} />
+                        </Champ>
+                        <div className="formulaire__actions">
+                          <button className="bouton bouton--petit bouton--danger">Annuler la facture</button>
+                          <button type="button" className="bouton bouton--petit" onClick={() => setAnnulation(null)}>Fermer</button>
+                        </div>
+                      </form>
+                    ) : (
+                      <><br /><button type="button" className="bouton bouton--petit" onClick={() => setAnnulation({ id: f.id, motif: "" })}>Annuler…</button></>
+                    ))}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {gerant && (
+        <form className="formulaire formulaire--grille" aria-label="Nouvelle facture FNE" onSubmit={(e) => void enregistrer(e)}>
+          <Champ libelle="N° de la facture FNE">
+            <input required pattern="[A-Za-z0-9][A-Za-z0-9/._-]{2,59}" value={saisie.numeroFne} onChange={(e) => setSaisie({ ...saisie, numeroFne: e.target.value })} />
+          </Champ>
+          <Champ libelle="Émise le">
+            <input type="date" required max={aujourdHui()} value={saisie.emiseLe} onChange={(e) => setSaisie({ ...saisie, emiseLe: e.target.value })} />
+          </Champ>
+          <Champ libelle="Objet">
+            <select value={saisie.objet} onChange={(e) => setSaisie({ ...saisie, objet: e.target.value as FactureFne["objet"] })}>
+              <option value="commissions">Commissions du mois</option>
+              <option value="frais">Frais</option>
+              <option value="autre">Autre</option>
+            </select>
+          </Champ>
+          {saisie.objet === "commissions" && (
+            <Champ libelle="Mois des commissions">
+              <input type="month" required max={aujourdHui().slice(0, 7)} value={saisie.mois} onChange={(e) => setSaisie({ ...saisie, mois: e.target.value })} />
+            </Champ>
+          )}
+          <Champ libelle="Destinataire">
+            <input required minLength={2} maxLength={160} value={saisie.destinataire} onChange={(e) => setSaisie({ ...saisie, destinataire: e.target.value })} />
+          </Champ>
+          <Champ libelle="Montant TTC (F CFA)">
+            <input type="number" required min={1} step={1} inputMode="numeric" value={saisie.montantTtc} onChange={(e) => setSaisie({ ...saisie, montantTtc: e.target.value })} />
+          </Champ>
+          <Champ libelle="Commentaire (facultatif)">
+            <input maxLength={500} value={saisie.commentaire} onChange={(e) => setSaisie({ ...saisie, commentaire: e.target.value })} />
+          </Champ>
+          <button className="bouton bouton--principal">Enregistrer la facture</button>
+        </form>
+      )}
+    </Section>
   );
 }

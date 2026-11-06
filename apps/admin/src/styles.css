@@ -272,3 +272,18 @@ a.bouton--principal { color: var(--blanc); }
 .visuellement-cache { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 details.avenant > summary { cursor: pointer; font-weight: 700; color: var(--encre); }
 details.avenant[open] > summary { margin-bottom: 0.75rem; }
+
+/* Statistiques : graphique en SVG (couleurs par classes, aucun style en ligne) */
+.graphique { margin: 0 0 1rem; }
+.graphique svg { width: 100%; max-width: 680px; height: auto; display: block; }
+.graphique__primes { fill: var(--bleu); }
+.graphique__encaisse { fill: var(--vert); }
+.graphique__axe { stroke: var(--ligne); stroke-width: 1; }
+.graphique__libelle { font-size: 11px; fill: var(--gris); }
+.graphique figcaption { font-size: 0.875rem; color: var(--gris); }
+.legende::before { content: ""; display: inline-block; width: 0.75rem; height: 0.75rem; margin-right: 0.3rem; vertical-align: -1px; border-radius: 2px; }
+.legende--primes::before { background: var(--bleu); }
+.legende--encaisse::before { background: var(--vert); }
+.choix-personnes { border: 1px solid var(--ligne); border-radius: var(--rayon); padding: 0.75rem 1rem; display: grid; gap: 0.4rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin: 0; }
+.choix-personnes legend { font-weight: 650; padding: 0 0.25rem; }

@@ -3,7 +3,8 @@
 // automatique (en simulation), relance et renouvellement depuis le tableau des échéances, clôture de caisse,
 // bordereau de reversement, demande de devis reçue du site, commissions, flotte d'un transporteur (import,
 // avenants d'incorporation et de retrait au prorata, annulation, attestation, sinistre suivi depuis la page
-// Sinistres, accès à l'espace client), création d'un compte.
+// Sinistres, accès à l'espace client), facture FNE, identification d'un client, réclamation traitée, conformité et
+// statistiques, création d'un compte.
 // Aucune violation de la politique de sécurité du contenu n'est tolérée.
 
 import { expect, test, type Page } from "@playwright/test";
@@ -200,6 +201,14 @@ test("parcours du gérant, de la première connexion à la caisse et au reversem
   await page.getByRole("button", { name: "Ajouter le taux" }).click();
   await expect(page.getByRole("row", { name: /Automobile/ })).toContainText("12,50 %");
 
+  // --- Facture FNE des commissions du mois (tâche 12)
+  const factureFne = page.getByRole("form", { name: "Nouvelle facture FNE" });
+  await factureFne.getByLabel("N° de la facture FNE").fill("FNE-E2E-0001");
+  await factureFne.getByLabel("Montant TTC (F CFA)").fill("23125");
+  await factureFne.getByRole("button", { name: "Enregistrer la facture" }).click();
+  await expect(page.getByText("Facture FNE-E2E-0001 enregistrée.")).toBeVisible();
+  await expect(page.getByRole("row", { name: /^FNE-E2E-0001/ })).toContainText("Valide");
+
   // --- Flotte d'un transporteur (tâche 8) : import contrôlé, échéances, export, contrat, avenants au prorata
   const jj = (jours: number) => dans(jours).split("-").reverse().join("/");
   await page.getByRole("link", { name: "Clients", exact: true }).click();
@@ -352,6 +361,60 @@ test("parcours du gérant, de la première connexion à la caisse et au reversem
   await expect(page.getByText(/Accès créé pour Awa Flotte/)).toBeVisible();
   await expect(page.getByRole("row", { name: /Awa Flotte/ })).toContainText("Titulaire");
   await expect(page.getByRole("row", { name: /Awa Flotte/ })).toContainText("Jamais");
+
+  // --- Conformité (tâche 12) : identification d'un client, avec sa pièce et l'original vu
+  const navigation = page.getByRole("navigation", { name: "Navigation principale" });
+  await navigation.getByRole("link", { name: "Clients", exact: true }).click();
+  await page.getByLabel("Rechercher un client").fill("Kouamé");
+  await page.getByRole("link", { name: "Transports Kouamé & Fils" }).click();
+  const identification = page.locator("section", { has: page.getByRole("heading", { name: /^Identification/ }) });
+  await expect(identification).toContainText("Fiche absente");
+  await identification.getByRole("button", { name: "Remplir la fiche" }).click();
+  const ficheIdentite = page.getByRole("form", { name: "Fiche d'identification" });
+  await ficheIdentite.getByLabel("N° de la pièce").fill("CI 0042 7788");
+  await ficheIdentite.getByLabel("Expire le").fill(dans(800));
+  await ficheIdentite.getByLabel("Date de naissance").fill("1975-06-02");
+  await ficheIdentite.getByLabel("Nationalité").fill("Ivoirienne");
+  await ficheIdentite.getByLabel("Activité (profession)").fill("Transporteur");
+  await ficheIdentite.getByLabel("Adresse").fill("Yopougon, Maroc");
+  await ficheIdentite.getByRole("button", { name: "Enregistrer la fiche" }).click();
+  await expect(identification).toContainText("Fiche à compléter");
+  await expect(identification).toContainText("n° ••••7788");
+  await identification.getByLabel("Fichier (JPEG, PNG ou PDF, 5 Mo au plus)").setInputFiles({
+    name: "cni.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n% CNI de test\n%%EOF\n"),
+  });
+  await identification.getByRole("button", { name: "Joindre" }).click();
+  await expect(identification.getByRole("link", { name: "cni.pdf" })).toBeVisible();
+  await identification.getByRole("button", { name: "J'ai vu l'original" }).click();
+  await expect(identification).toContainText("Fiche complète");
+  await identification.getByRole("button", { name: "Afficher le n° en entier" }).click();
+  await expect(identification).toContainText("n° CI00427788");
+
+  // Réclamation reçue au guichet, puis réponse depuis le registre
+  const blocReclamations = page.locator("section", { has: page.getByRole("heading", { name: "Réclamations" }) });
+  await blocReclamations.getByRole("button", { name: "Nouvelle réclamation" }).click();
+  await blocReclamations.getByLabel("Objet").selectOption("attestation");
+  await blocReclamations.getByLabel("Ce que dit le client").fill("L'attestation du camion n'est toujours pas arrivée.");
+  await blocReclamations.getByRole("button", { name: "Enregistrer la réclamation" }).click();
+  await expect(blocReclamations.getByText(/Réclamation REC-\d{4}-\d{4} enregistrée/)).toBeVisible();
+  await navigation.getByRole("link", { name: "Réclamations", exact: true }).click();
+  await page.getByRole("row", { name: /Transports Kouamé & Fils/ }).getByRole("link", { name: /^REC-/ }).click();
+  await page.getByRole("button", { name: "Accusé de réception envoyé" }).click();
+  await expect(page.locator(".badge", { hasText: /^En cours$/ })).toBeVisible();
+  await page.getByLabel("Réponse donnée au client").fill("Attestation déposée dans l'espace client ce jour, avec nos excuses.");
+  await page.getByRole("button", { name: "Enregistrer la réponse" }).click();
+  await expect(page.locator(".badge", { hasText: /^Répondue$/ })).toBeVisible();
+  await page.getByRole("button", { name: "Clore la réclamation" }).click();
+  await expect(page.locator(".badge", { hasText: /^Close$/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Traitement" })).toHaveCount(0);
+
+  // Conformité et statistiques
+  await navigation.getByRole("link", { name: "Conformité", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Alertes (gérant seulement)" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Formations du personnel" })).toBeVisible();
+  await navigation.getByRole("link", { name: "Statistiques", exact: true }).click();
+  await expect(page.getByRole("heading", { name: `Statistiques ${new Date().getFullYear()}` })).toBeVisible();
+  await expect(page.getByRole("img", { name: /Primes émises et encaissements/ })).toBeVisible();
 
   // --- Nouveau compte : mot de passe provisoire affiché une seule fois
   await page.getByRole("link", { name: "Personnel" }).click();

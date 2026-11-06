@@ -1,12 +1,13 @@
 // Coquille de l'espace client : connexion, puis en-tête du client et ses pages. Une entreprise y suit sa
-// flotte et les accès de son équipe ; un particulier, ses contrats. Tous paient en ligne et déclarent leurs
-// sinistres.
+// flotte et les accès de son équipe ; un particulier, ses contrats. Tous paient en ligne, déclarent leurs
+// sinistres et peuvent adresser une réclamation.
 
 import { Chargement } from "./composants";
 import { TELEPHONE_AGENCE, WHATSAPP_AGENCE } from "./format";
 import { Collaborateurs } from "./pages/Collaborateurs";
 import { Connexion } from "./pages/Connexion";
 import { HistoriquePaiements, PagePaiement, Payer } from "./pages/Paiements";
+import { Reclamations } from "./pages/Reclamations";
 import { DeclarerSinistre, DetailSinistre, ListeSinistres } from "./pages/Sinistres";
 import { TableauDeBord } from "./pages/TableauDeBord";
 import { Vehicule } from "./pages/Vehicule";
@@ -34,6 +35,7 @@ export function App() {
   else if (chemin === "/sinistres") page = <ListeSinistres />;
   else if (chemin === "/sinistres/declarer") page = <DeclarerSinistre />;
   else if (parametre("/sinistres/ID")) page = <DetailSinistre id={parametre("/sinistres/ID")!} />;
+  else if (chemin === "/reclamations") page = <Reclamations />;
   else if (chemin === "/collaborateurs" && !particulier) page = <Collaborateurs />;
   else page = <><h1>Page introuvable</h1><p><Lien href="/">Retour à l'accueil</Lien></p></>;
 
@@ -56,6 +58,7 @@ export function App() {
           <Lien href="/" aria-current={actif("/")}>{accueil}</Lien>
           <Lien href="/sinistres" aria-current={actif("/sinistres")}>Sinistres</Lien>
           <Lien href="/paiements" aria-current={actif("/paiements") ?? actif("/payer")}>Paiements</Lien>
+          <Lien href="/reclamations" aria-current={actif("/reclamations")}>Réclamations</Lien>
           {!particulier && <Lien href="/collaborateurs" aria-current={actif("/collaborateurs")}>Accès de l'équipe</Lien>}
         </nav>
       </header>

@@ -10,7 +10,9 @@ import {
   telephone, TYPES_CLIENT, TYPES_RELANCE,
 } from "../../services/format";
 import { useSession } from "../../session";
+import { ReclamationsClient } from "../reclamations/Reclamations";
 import { AccesPortail } from "./AccesPortail";
+import { Identification } from "./Identification";
 
 interface Contrat {
   id: string;
@@ -118,6 +120,12 @@ export function FicheClient({ id }: { id: string }) {
         <div><dt>Commune</dt><dd>{client.commune ?? "—"}</dd></div>
         {client.rccm && <div><dt>RCCM</dt><dd>{client.rccm}</dd></div>}
       </dl>
+      {peut("gerant") && (
+        <p className="note">
+          Demande d'accès à ses données (droit d'accès) : <a href={`/api/clients/${client.id}/donnees.json`} download>exporter toutes ses données</a>
+          {" "}(export consigné) ; notez la demande dans ses réclamations, objet « Données personnelles ».
+        </p>
+      )}
       <Alerte>{erreur}</Alerte>
 
       <Section titre="Contrats" actions={peut("gerant", "charge_clientele") && <Repliable libelle="Nouveau contrat"><NouveauContrat clientId={client.id} apres={charger} /></Repliable>}>
@@ -194,8 +202,14 @@ export function FicheClient({ id }: { id: string }) {
         </Section>
       )}
 
+      <Identification key={`identification-${client.id}`} clientId={client.id} entreprise={client.type === "entreprise"} />
+
       {peut("gerant", "charge_clientele", "commercial", "auditeur") && (
         <AccesPortail clientId={client.id} particulier={client.type === "particulier"} telephoneClient={client.telephone} nomClient={client.nom} />
+      )}
+
+      {peut("gerant", "charge_clientele", "caissier", "commercial", "auditeur") && (
+        <ReclamationsClient clientId={client.id} contrats={fiche.contrats} />
       )}
 
       <Section titre="Rappels automatiques">
