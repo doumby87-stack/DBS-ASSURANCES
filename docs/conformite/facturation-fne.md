@@ -28,8 +28,7 @@ Questions à poser au comptable ou au centre des impôts (tâche 2) :
 2. Les quittances de prime relèvent-elles uniquement de SanlamAllianz ?
 3. Quel est le régime fiscal de DBS-ASSURANCES, et donc sa date d'obligation ?
 
-## Dans l'outil (tâche 12)
+## Dans l'outil (tâche 12, [ADR 0013](../architecture/adr/0013-conformite-et-pilotage.md))
 
-- Si le volume est faible : factures émises sur la plateforme FNE, numéro FNE saisi dans le back-office.
-- Si le volume le justifie : liaison par API, factures générées depuis les relevés de commissions.
-- Accès FNE rangés comme tous les secrets ([gestion des secrets](../securite/gestion-des-secrets.md)).
+- **En place** (faible volume) : la facture est émise sur la plateforme FNE ; le gérant note son numéro, sa date et son montant dans le back-office (page Commissions). Une facture par mois de commissions ; le rapprochement mensuel signale « À émettre » quand le relevé de la compagnie est saisi sans facture. Une facture erronée s'annule (avoir FNE) avec son motif, puis la bonne se saisit.
+- **Plus tard**, si le volume le justifie : liaison par API, factures générées depuis les relevés de commissions ; accès FNE rangés comme tous les secrets ([gestion des secrets](../securite/gestion-des-secrets.md)).

@@ -16,8 +16,7 @@ flowchart LR
   end
 
   subgraph Prod["Production (réseau privé)"]
-    EC["Espace client<br/>(tâche 9)"]
-    PO["Portail des entreprises<br/>apps/portail<br/>sous-domaine séparé"]
+    PO["Espace client<br/>apps/portail<br/>sous-domaine séparé"]
     BO["Back-office<br/>apps/admin<br/>sous-domaine séparé"]
     API["API<br/>apps/api"]
     DB[("PostgreSQL<br/>contrôle d'accès ligne par ligne<br/>journal d'audit chaîné")]
@@ -25,17 +24,16 @@ flowchart LR
   end
 
   subgraph Tiers["Services extérieurs"]
-    PAY["Paiement Mobile Money<br/>(CinetPay)"]
+    PAY["Paiement Mobile Money<br/>(prestataire à choisir)"]
     WA["WhatsApp Business"]
     SMS["SMS"]
     FNE["FNE (DGI)"]
   end
 
   V --> SV
-  C --> EC
+  C -->|"code WhatsApp"| PO
   G -->|"code WhatsApp"| PO
   P -->|"mot de passe + 2e facteur"| BO
-  EC --> API
   PO -->|"rôle de base dbs_portail"| API
   BO --> API
   API -->|"compte dbs_application"| DB
@@ -44,7 +42,7 @@ flowchart LR
   API --> WA
   API --> SMS
   API --> FNE
-  PAY -.->|"notification signée"| API
+  PAY -.->|"notification signée, puis vérification auprès du prestataire"| API
   WA -.->|"notification signée"| API
 ```
 
@@ -65,7 +63,7 @@ apps/
   site-vitrine/    site public, construit par Astro (seul dist/ est publié)
   api/             API : authentification, droits, règles, intégrations
   admin/           back-office de l'agence
-  portail/         portail des entreprises et des transporteurs (flotte, attestations, sinistres)
+  portail/         espace client : entreprises et particuliers (contrats ou flotte, attestations, paiement, sinistres)
 packages/
   domaine/         règles métier partagées (formats, délais, calculs)
   ui/              composants d'interface partagés

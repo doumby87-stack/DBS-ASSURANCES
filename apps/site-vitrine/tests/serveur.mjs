@@ -9,6 +9,8 @@ import { fileURLToPath } from "node:url";
 
 const DIST = resolve(fileURLToPath(new URL(`../${process.argv[3] ?? "dist"}/`, import.meta.url)));
 const PORT = Number(process.argv[2] ?? process.env.PORT ?? 4321);
+// 127.0.0.1 par défaut ; 0.0.0.0 dans le conteneur de la démonstration (demo/compose.yml), publié sur 127.0.0.1 seulement
+const HOTE = process.env.HOTE ?? "127.0.0.1";
 
 const TYPES = {
   ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8",
@@ -44,4 +46,4 @@ createServer((requete, reponse) => {
   }
   reponse.writeHead(statut, { ...enTetes(), "Content-Type": TYPES[extname(fichier)] ?? "application/octet-stream" });
   reponse.end(readFileSync(fichier));
-}).listen(PORT, "127.0.0.1", () => console.log(`Site servi sur http://127.0.0.1:${PORT}`));
+}).listen(PORT, HOTE, () => console.log(`Site servi sur http://${HOTE}:${PORT}`));

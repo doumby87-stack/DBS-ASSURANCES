@@ -14,6 +14,9 @@ const PAGES = [
   "/agence/",
   "/questions-frequentes/",
   "/devis/",
+  "/rendez-vous/",
+  "/rappel-echeance/",
+  "/appel-offres/",
   "/mentions-legales/",
 ];
 

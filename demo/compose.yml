@@ -1,0 +1,55 @@
+# Démonstration locale de DBS-ASSURANCES (guide : DEMARRER.md) : données fictives, rien ne sort de l'ordinateur.
+#   docker compose -f demo/compose.yml up -d --build --wait     puis ouvrir http://localhost:8080
+# Tous les ports ne sont ouverts que sur cet ordinateur (127.0.0.1), jamais sur le réseau.
+name: dbs-demo
+
+services:
+  base:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: demo-postgres
+    volumes:
+      - donnees:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # Rôles, base et migrations, avec les scripts de production (psql et bash sont dans l'image PostgreSQL)
+  preparation:
+    image: postgres:16-alpine
+    depends_on:
+      base:
+        condition: service_healthy
+    environment:
+      PGHOST: base
+      PGUSER: postgres
+      PGPASSWORD: demo-postgres
+    volumes:
+      - ../database:/depot/database:ro
+      - ./preparer-base.sh:/depot/demo/preparer-base.sh:ro
+    entrypoint: ["bash", "/depot/demo/preparer-base.sh"]
+    restart: "no"
+
+  demo:
+    build:
+      context: ..
+      dockerfile: demo/Dockerfile
+    depends_on:
+      preparation:
+        condition: service_completed_successfully
+    environment:
+      PGHOST: base
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: demo-postgres
+    ports:
+      - "127.0.0.1:8080:8080"   # page d'accueil de la démonstration
+      - "127.0.0.1:4321:4321"   # site vitrine
+      - "127.0.0.1:4173:4173"   # gestion (back-office)
+      - "127.0.0.1:4174:4174"   # espace client
+      - "127.0.0.1:3000:3000"   # API (appelée par le site)
+
+volumes:
+  donnees:

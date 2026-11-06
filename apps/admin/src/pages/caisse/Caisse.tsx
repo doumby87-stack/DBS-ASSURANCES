@@ -7,6 +7,7 @@ import { Lien } from "../../routeur";
 import { api, messageErreur } from "../../services/api";
 import { aujourdHui, COUPURES, dateHeure, montant, MODES_PAIEMENT } from "../../services/format";
 import { useSession } from "../../session";
+import { PaiementsEnLigne } from "./PaiementsEnLigne";
 
 interface Totaux {
   especes: number;
@@ -64,6 +65,7 @@ export function Caisse() {
       {peut("gerant", "caissier") && <MaCaisseSection apresCloture={() => setVersion((v) => v + 1)} />}
       {peut("gerant", "caissier", "auditeur") && <Clotures key={version} />}
       <JournalDuJour />
+      <PaiementsEnLigne />
     </>
   );
 }

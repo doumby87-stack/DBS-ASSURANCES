@@ -1,0 +1,105 @@
+---
+// Rappel d'échéance gratuit (tâche 13) : le visiteur donne l'échéance de son assurance actuelle, chez n'importe
+// quel assureur ; l'agence le rappelle un mois avant avec un devis. Il peut aussi ajouter le rappel à son agenda.
+import EntetePage from "../composants/EntetePage.astro";
+import EnvoiOutil from "../composants/EnvoiOutil.astro";
+import Icone from "../composants/Icone.astro";
+import { AGENCE, LIEN_TELEPHONE, lienWhatsApp } from "../donnees/agence";
+import { ACCORD_RAPPEL, ADRESSE_RAPPELS, ASSURANCES_RAPPEL, AVANCE_RAPPEL_JOURS, FETES_FIXES } from "../donnees/outils";
+import Base from "../mises-en-page/Base.astro";
+
+const enregistre = ADRESSE_RAPPELS !== null;
+const reglages = {
+  whatsapp: AGENCE.whatsapp, email: AGENCE.email, telephoneAgence: AGENCE.telephone.affichage, fetes: FETES_FIXES,
+  avanceRappel: AVANCE_RAPPEL_JOURS, horizonRendezVous: 0, delaiDossier: 0, garanties: [], dossier: [],
+};
+---
+<Base
+  titre="Rappel gratuit avant l'échéance de votre assurance"
+  description="Donnez-nous la date d'échéance de votre assurance auto, moto ou habitation : DBS-ASSURANCES vous rappelle un mois avant avec un devis SanlamAllianz. Gratuit et sans engagement."
+>
+  <noscript slot="tete"><link rel="stylesheet" href="/styles/sans-js.css" /></noscript>
+  <EntetePage surtitre="Rappel gratuit" titre="Ne laissez plus passer votre échéance." page="Rappel d'échéance">
+    <p>Votre assurance arrive à échéance dans quelques mois, ici ou ailleurs ? Donnez-nous la date : un conseiller vous rappelle un mois avant, avec un devis SanlamAllianz. C'est gratuit et sans engagement.</p>
+  </EntetePage>
+
+  <section class="section">
+    <div class="conteneur devis">
+      <form class="formulaire" id="formulaire-rappel" data-outil="rappel" novalidate data-reglages={JSON.stringify(reglages)} data-api={ADRESSE_RAPPELS ?? undefined}>
+        <noscript>
+          <div class="sans-js">
+            <h2 class="h3">Ce formulaire a besoin de JavaScript</h2>
+            <p>Sans lui, envoyez-nous la date d'échéance de votre assurance sur WhatsApp, ou appelez-nous.</p>
+            <div class="sans-js__actions">
+              <a class="bouton bouton--principal" href={LIEN_TELEPHONE}>Appeler le {AGENCE.telephone.affichage}</a>
+              <a class="bouton bouton--whatsapp" href={lienWhatsApp("Bonjour DBS-ASSURANCES, pouvez-vous me rappeler avant l'échéance de mon assurance, le ")}>Écrire sur WhatsApp</a>
+            </div>
+          </div>
+        </noscript>
+        <div data-contenu>
+          <h2 class="sous-titre-formulaire">Votre assurance actuelle</h2>
+          <div class="grille-2">
+            <div class="champ">
+              <label for="champ-assurance">Assurance *</label>
+              <select class="saisie" id="champ-assurance" name="assurance">
+                {ASSURANCES_RAPPEL.map((a) => <option value={a.id}>{a.titre}</option>)}
+              </select>
+            </div>
+            <div class="champ">
+              <label for="champ-echeance">Date d'échéance *</label>
+              <input class="saisie" id="champ-echeance" name="echeance" type="date" required aria-describedby="aide-echeance erreur-echeance" />
+              <p class="champ__aide" id="aide-echeance">Elle figure sur votre attestation ou vos conditions particulières.</p>
+              <p class="champ__erreur" id="erreur-echeance"></p>
+            </div>
+          </div>
+          <p class="formulaire__note">
+            <Icone nom="calendrier" />
+            <span>Vous préférez un simple pense-bête ? <button class="lien-bouton" type="button" data-agenda>Ajouter le rappel à mon agenda</button> (un fichier pour votre téléphone, rien n'est envoyé).</span>
+          </p>
+
+          <h2 class="sous-titre-formulaire">Qui rappeler ?</h2>
+          <EnvoiOutil
+            profils={[
+              { id: "particulier", titre: "Un particulier", icone: "personne" },
+              { id: "professionnel", titre: "Un professionnel", icone: "boutique" },
+              { id: "entreprise", titre: "Une entreprise", icone: "immeuble" },
+            ]}
+            accord={ACCORD_RAPPEL}
+            enregistre={enregistre}
+            libelleEnvoi="Programmer mon rappel"
+          />
+        </div>
+        {enregistre && (
+          <div class="confirmation" data-confirmation tabindex="-1" hidden>
+            <span class="confirmation__icone"><Icone nom="cocheRonde" /></span>
+            <h2 class="h3" data-confirmation-titre>Rappel programmé</h2>
+            <p>Un conseiller vous appelle à partir du <strong data-confirmation-date>mois précédant votre échéance</strong>, avec un devis.</p>
+            <p>Une question d'ici là ? Écrivez-nous sur WhatsApp en rappelant le numéro de votre demande.</p>
+            <a class="bouton bouton--whatsapp" data-confirmation-whatsapp href={lienWhatsApp()} target="_blank" rel="noopener noreferrer"><Icone nom="whatsapp" />Écrire à l'agence</a>
+          </div>
+        )}
+        <p class="etat-envoi" role="status" aria-live="polite" tabindex="-1" data-statut-envoi></p>
+      </form>
+
+      <aside class="aside-devis" aria-label="Comment ça marche">
+        <div class="carte">
+          <h2 class="h3">Comment ça marche ?</h2>
+          <ol class="liste-losanges">
+            <li>Vous nous donnez la date d'échéance de votre contrat actuel.</li>
+            <li>Un mois avant, un conseiller vous rappelle avec une cotation SanlamAllianz.</li>
+            <li>Vous comparez et décidez, sans engagement. Votre contrat actuel reste le vôtre jusqu'à son terme.</li>
+          </ol>
+        </div>
+        <div class="carte">
+          <h2 class="h3">Pressé ?</h2>
+          <p>Votre échéance est dans moins d'un mois : demandez directement votre devis.</p>
+          <a class="bouton bouton--contour" href="/devis/"><Icone nom="document" />Demander un devis</a>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <script>
+    import "../scripts/outils";
+  </script>
+</Base>

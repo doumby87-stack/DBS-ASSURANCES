@@ -2,7 +2,10 @@
 // connue (astro.config.mjs), il reste vide et n'est pas annoncé dans robots.txt.
 import type { APIRoute } from "astro";
 
-const PAGES = ["/", "/particuliers/", "/professionnels/", "/flottes/", "/sinistre/", "/devis/", "/agence/", "/questions-frequentes/", "/mentions-legales/"];
+const PAGES = [
+  "/", "/particuliers/", "/professionnels/", "/flottes/", "/sinistre/", "/devis/", "/rendez-vous/", "/rappel-echeance/", "/appel-offres/",
+  "/agence/", "/questions-frequentes/", "/mentions-legales/",
+];
 
 export const GET: APIRoute = ({ site }) => {
   const urls = site ? PAGES.map((page) => `  <url><loc>${new URL(page, site).href}</loc></url>`) : [];

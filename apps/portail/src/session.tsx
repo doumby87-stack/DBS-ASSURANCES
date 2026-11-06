@@ -1,4 +1,4 @@
-// Session du portail : la personne connectée, son rôle et son entreprise. Lue auprès de l'API au chargement ;
+// Session du portail : la personne connectée, son rôle, son entreprise (ou elle-même, pour un particulier). Lue auprès de l'API au chargement ;
 // perdue (expirée, accès retiré) dès qu'une réponse le signale.
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
@@ -7,8 +7,10 @@ import { api, ErreurApi, quandSessionPerdue } from "./api";
 export interface Session {
   nom: string;
   role: "titulaire" | "gestionnaire";
+  /** Nom du client : l'entreprise, ou le particulier lui-même */
   entreprise: string;
   telephone: string;
+  typeClient: "particulier" | "professionnel" | "entreprise";
 }
 
 interface ContexteSession {

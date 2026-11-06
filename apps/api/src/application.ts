@@ -17,6 +17,9 @@ import { routesNotificationsWhatsApp } from "./integrations/whatsapp/notificatio
 import { routesCaisse } from "./modules/encaissements/caisse.js";
 import { routesEncaissements } from "./modules/encaissements/routes.js";
 import { routesFlottes } from "./modules/flottes/routes.js";
+import { creerPrestataire, type PrestatairePaiement } from "./integrations/paiement/prestataire.js";
+import { routesNotificationsPaiement, routesPaiementsEnLigne } from "./modules/paiements/routes.js";
+import { routesPaiementsPortail } from "./modules/paiements/routes-portail.js";
 import { creerEnvoiCodes, type EnvoiCodes } from "./modules/portail/connexion.js";
 import { routesPortail } from "./modules/portail/routes.js";
 import { routesPortailAgence } from "./modules/portail/routes-agence.js";
@@ -24,6 +27,13 @@ import { creerMessagerie, type Messagerie } from "./modules/relances/messagerie.
 import { routesRelances } from "./modules/relances/routes.js";
 import { routesReversements } from "./modules/reversements/routes.js";
 import { routesSinistres } from "./modules/sinistres/routes.js";
+import { routesSinistresPortail } from "./modules/sinistres/routes-portail.js";
+import { routesExportDonnees } from "./modules/clients/export-donnees.js";
+import { routesIdentification } from "./modules/conformite/identification.js";
+import { routesRegistres } from "./modules/conformite/registres.js";
+import { routesReclamations, routesReclamationsPortail } from "./modules/reclamations/routes.js";
+import { routesRendezVous } from "./modules/rendez-vous/routes.js";
+import { routesStatistiques } from "./modules/statistiques/routes.js";
 import { routesUtilisateurs } from "./modules/utilisateurs/routes.js";
 import { routesVehicules } from "./modules/vehicules/routes.js";
 import { creerGardes } from "./securite/gardes.js";
@@ -44,6 +54,8 @@ export interface DependancesApplication {
   antivirus?: Antivirus;
   /** Envoi des codes de connexion au portail (remplaçable dans les tests) ; sinon, d'après la configuration. */
   envoiCodes?: EnvoiCodes;
+  /** Prestataire de paiement en ligne (le même que celui de la maintenance) ; sinon, d'après la configuration. */
+  prestatairePaiement?: PrestatairePaiement | null;
   journal?: boolean;
 }
 
@@ -114,25 +126,45 @@ export async function construireApplication(dependances: DependancesApplication)
   await app.register(routesVehicules, { pool, gardes });
   await app.register(routesFlottes, { pool, gardes });
   await app.register(routesDevis, { pool, gardes });
-  await app.register(routesSinistres, { pool, gardes });
+  await app.register(routesSinistres, { pool, gardes, cleChiffrement: config.cleChiffrement });
   const antivirus = dependances.antivirus ?? creerAntivirus(config.antivirus);
   await app.register(routesDemandesSiteBackOffice, { pool, gardes, cleChiffrement: config.cleChiffrement, antivirus });
   // Formulaire du site : seulement si l'adresse du site est configurée (sinon le site garde l'envoi par WhatsApp)
   if (config.origineSite) {
     await app.register(routesDemandesSite, { pool, cleChiffrement: config.cleChiffrement, origineSite: config.origineSite, antivirus });
   }
-  // Portail des entreprises : accès et attestations gérés par l'agence ; le portail lui-même seulement si son
-  // adresse est configurée
+  // Portail (espace client) : accès et attestations gérés par l'agence ; le portail lui-même seulement si son
+  // adresse est configurée, et le paiement en ligne seulement si un prestataire l'est aussi
   await app.register(routesPortailAgence, { pool, gardes, cleChiffrement: config.cleChiffrement, antivirus });
+  await app.register(routesPaiementsEnLigne, { pool, gardes });
+  const prestataire = config.paiement ? (dependances.prestatairePaiement ?? creerPrestataire(config.paiement)) : null;
   if (config.originePortail) {
     await app.register(routesPortail, {
-      pool, cleChiffrement: config.cleChiffrement, envoiCodes: dependances.envoiCodes ?? creerEnvoiCodes(config.relances),
+      pool,
+      cleChiffrement: config.cleChiffrement,
+      envoiCodes: dependances.envoiCodes ?? creerEnvoiCodes(config.relances),
+      paiementEnLigne: prestataire !== null,
     });
+    await app.register(routesSinistresPortail, { pool, cleChiffrement: config.cleChiffrement, antivirus });
+    await app.register(routesReclamationsPortail, { pool });
+    if (prestataire && config.paiement) {
+      await app.register(routesPaiementsPortail, {
+        pool, prestataire, originePortail: config.originePortail, montantMax: config.paiement.montantMax,
+      });
+    }
   }
+  if (prestataire) await app.register(routesNotificationsPaiement, { pool, prestataire });
   await app.register(routesEncaissements, { pool, gardes });
   await app.register(routesCaisse, { pool, gardes });
   await app.register(routesReversements, { pool, gardes });
   await app.register(routesCommissions, { pool, gardes });
+  // Conformité et pilotage (tâche 12)
+  await app.register(routesIdentification, { pool, gardes, cleChiffrement: config.cleChiffrement, antivirus });
+  await app.register(routesRegistres, { pool, gardes });
+  await app.register(routesReclamations, { pool, gardes });
+  await app.register(routesStatistiques, { pool, gardes });
+  await app.register(routesRendezVous, { pool, gardes });
+  await app.register(routesExportDonnees, { pool, gardes });
   await app.register(routesRelances, {
     pool,
     gardes,

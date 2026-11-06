@@ -1,4 +1,5 @@
-// Portail des entreprises et des transporteurs (tâche 10), appelé depuis l'adresse du portail seulement :
+// Portail des entreprises et des transporteurs (tâche 10), ouvert aux particuliers (tâche 9 : espace client),
+// appelé depuis l'adresse du portail seulement :
 //   · connexion par un code envoyé sur WhatsApp au numéro de l'accès (aucun mot de passe) ;
 //   · tableau de bord de la flotte : véhicules, contrats et reste à payer, échéances des documents,
 //     attestations, sinistres ;
@@ -44,14 +45,14 @@ async function lireVehicules(client: Client, clientId: string): Promise<Vehicule
             v.puissance_fiscale AS "puissanceFiscale",
             v.echeance_visite_technique AS "echeanceVisiteTechnique", v.echeance_vignette AS "echeanceVignette",
             v.echeance_carte_transport AS "echeanceCarteTransport",
-            l.id AS "ligneId", l.numero_police AS "numeroPolice", l.statut AS "statutContrat",
+            l.id AS "ligneId", l.contrat_id AS "contratId", l.numero_police AS "numeroPolice", l.statut AS "statutContrat",
             l.numero_attestation AS "numeroAttestation",
             coalesce(a.etat_analyse = 'saine', false) AS "attestationDisponible",
             (SELECT count(*)::int FROM app.sinistres s WHERE s.vehicule_id = v.id) AS sinistres,
             (SELECT count(*)::int FROM app.sinistres s WHERE s.vehicule_id = v.id AND s.statut::text <> ALL ($2)) AS "sinistresEnCours"
      FROM app.vehicules v
      LEFT JOIN LATERAL (
-       SELECT cv.id, cv.numero_attestation, k.numero_police, k.statut
+       SELECT cv.id, cv.contrat_id, cv.numero_attestation, k.numero_police, k.statut
        FROM app.contrats_vehicules cv JOIN app.contrats k ON k.id = cv.contrat_id
        WHERE cv.vehicule_id = v.id AND cv.retire_le IS NULL AND k.statut IN ('en_attente_paiement', 'en_vigueur')
        ORDER BY k.date_echeance DESC LIMIT 1
@@ -66,9 +67,9 @@ async function lireVehicules(client: Client, clientId: string): Promise<Vehicule
 
 export async function routesPortail(
   app: FastifyInstance,
-  options: { pool: Pool; cleChiffrement: Buffer; envoiCodes: EnvoiCodes },
+  options: { pool: Pool; cleChiffrement: Buffer; envoiCodes: EnvoiCodes; paiementEnLigne: boolean },
 ): Promise<void> {
-  const { pool, cleChiffrement, envoiCodes } = options;
+  const { pool, cleChiffrement, envoiCodes, paiementEnLigne } = options;
   const empreinteCode = creerEmpreinteCode(cleChiffrement);
   const garde = gardePortail(pool);
   const config = { appeleeParLePortail: true };
@@ -132,7 +133,7 @@ export async function routesPortail(
       if (!numero) throw erreurs.codeInvalide();
       type Resultat =
         | { statut: "invalide" | "trop_de_tentatives" }
-        | { statut: "valide"; jeton: string; session: { nom: string; role: string; entreprise: string; telephone: string; expire_le: Date } };
+        | { statut: "valide"; jeton: string; session: { nom: string; role: string; entreprise: string; telephone: string; typeClient: string; expire_le: Date } };
       const resultat = await transactionSysteme(pool, async (client): Promise<Resultat> => {
         const { rows } = await client.query<{ statut: "valide" | "invalide" | "trop_de_tentatives"; gestionnaire_id: string | null }>(
           "SELECT * FROM portail.verifier_code($1, $2, $3)",
@@ -145,8 +146,9 @@ export async function routesPortail(
         const { jeton, empreinte } = genererJeton();
         await client.query("SELECT portail.ouvrir_session($1, $2, $3, $4, $5)",
           [verification.gestionnaire_id, empreinte, DUREE_SESSION_PORTAIL, requete.ip, requete.headers["user-agent"] ?? null]);
-        const session = await client.query<{ nom: string; role: string; entreprise: string; telephone: string; expire_le: Date }>(
-          "SELECT nom, role, entreprise, telephone, expire_le FROM portail.lire_session($1, $2)", [empreinte, INACTIVITE_PORTAIL]);
+        const session = await client.query<{ nom: string; role: string; entreprise: string; telephone: string; typeClient: string; expire_le: Date }>(
+          `SELECT nom, role, entreprise, telephone, type_client AS "typeClient", expire_le FROM portail.lire_session($1, $2)`,
+          [empreinte, INACTIVITE_PORTAIL]);
         return { statut: "valide", jeton, session: session.rows[0]! };
       });
       if (resultat.statut === "trop_de_tentatives") throw erreurs.tropDeTentatives();
@@ -168,7 +170,7 @@ export async function routesPortail(
 
   app.get("/portail/session", { preHandler: garde }, async (requete) => {
     const moi = gestionnaireDe(requete);
-    return { session: { nom: moi.nom, role: moi.role, entreprise: moi.entreprise, telephone: moi.telephone } };
+    return { session: { nom: moi.nom, role: moi.role, entreprise: moi.entreprise, telephone: moi.telephone, typeClient: moi.typeClient } };
   });
 
   // --- Tableau de bord de la flotte ------------------------------------------------------------------
@@ -180,7 +182,9 @@ export async function routesPortail(
       const { rows: contrats } = await client.query<{ statut: string; resteAPayer: number }>(
         `SELECT s.contrat_id AS id, s.numero_police AS "numeroPolice", s.branche, s.statut, k.date_effet AS "dateEffet",
                 k.date_echeance AS "dateEcheance", s.prime_due AS "primeDue", s.reste_a_payer AS "resteAPayer",
-                (SELECT count(*)::int FROM app.contrats_vehicules cv WHERE cv.contrat_id = k.id AND cv.retire_le IS NULL) AS vehicules
+                (SELECT count(*)::int FROM app.contrats_vehicules cv WHERE cv.contrat_id = k.id AND cv.retire_le IS NULL) AS vehicules,
+                (SELECT p.id FROM app.paiements_en_ligne p WHERE p.contrat_id = k.id AND p.statut IN ('initie', 'en_attente')
+                 ORDER BY p.cree_le DESC LIMIT 1) AS "paiementEnCours"
          FROM app.v_soldes_contrats s JOIN app.contrats k ON k.id = s.contrat_id
          WHERE k.client_id = $1 AND (s.statut IN ('en_attente_paiement', 'en_vigueur', 'suspendu')
                                      OR k.date_echeance >= (now() AT TIME ZONE 'Africa/Abidjan')::date - 90)
@@ -192,6 +196,9 @@ export async function routesPortail(
         .filter((date) => date !== null && (Date.parse(date) - aujourdHui) / 86_400_000 <= 30).length, 0);
       return {
         entreprise: moi.entreprise,
+        typeClient: moi.typeClient,
+        // Paiement en ligne proposé seulement si l'agence a configuré un prestataire
+        paiementEnLigne,
         vehicules,
         contrats,
         resume: {

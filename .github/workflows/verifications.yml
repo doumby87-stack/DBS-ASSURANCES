@@ -205,6 +205,28 @@ jobs:
       - name: Parcours d'un transporteur dans le navigateur (base, API, portail et ses en-têtes de sécurité)
         run: npm run test:e2e -w @dbs/portail
 
+  demonstration:
+    name: Démonstration locale
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Démarrage complet avec Docker Compose, comme sur le poste d'un utilisateur (DEMARRER.md)
+        run: docker compose -f demo/compose.yml up -d --build --wait
+      - name: Espaces, connexion du personnel et d'une cliente avec les codes de la page d'accueil
+        run: node demo/verifier.mjs
+      - name: Journal de la démonstration en cas d'échec
+        if: failure()
+        run: docker compose -f demo/compose.yml logs --no-color
+      - name: Arrêt
+        if: always()
+        run: docker compose -f demo/compose.yml down -v
+
   secrets:
     name: Recherche de secrets
     runs-on: ubuntu-latest

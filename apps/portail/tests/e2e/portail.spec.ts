@@ -1,7 +1,10 @@
-// Parcours d'un transporteur sur son espace entreprise, dans un vrai navigateur : connexion par code,
-// tableau de bord de la flotte, attestation et attestations en lot, historique des sinistres d'un véhicule,
-// accès de l'équipe, affichage sur téléphone, déconnexion. Aucune violation de la politique de sécurité du
-// contenu n'est tolérée, et la flotte d'une autre entreprise n'apparaît jamais.
+// Parcours dans un vrai navigateur :
+//   · un transporteur sur son espace : connexion par code, tableau de bord de la flotte, attestation et
+//     attestations en lot, historique des sinistres d'un véhicule, accès de l'équipe, téléphone, déconnexion ;
+//   · une particulière : son espace s'ouvre à sa première demande de code, elle paie sa prime en deux fois
+//     (paiement simulé), déclare un sinistre avec une photo, puis adresse une réclamation à l'agence.
+// Aucune violation de la politique de sécurité du contenu n'est tolérée, et les données d'un autre client
+// n'apparaissent jamais.
 
 import { expect, test, type Page } from "@playwright/test";
 import { createHmac, hkdfSync } from "node:crypto";
@@ -47,7 +50,7 @@ test("parcours du titulaire d'une entreprise sur son espace", async ({ page }) =
   await page.goto("/");
 
   // --- Connexion : numéro WhatsApp, puis code
-  await expect(page.getByRole("heading", { name: "Espace entreprise" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Espace client" })).toBeVisible();
   await page.getByLabel("Votre numéro WhatsApp").fill("07 01 02 03 04");
   await page.getByRole("button", { name: "Recevoir mon code" }).click();
   await expect(page.getByRole("status")).toContainText("Si ce numéro a un accès au portail");
@@ -100,7 +103,7 @@ test("parcours du titulaire d'une entreprise sur son espace", async ({ page }) =
   await expect(historique).toContainText("Transmis à la compagnie");
   await expect(historique).toContainText("SAN-2026-0457");
   await expect(page.getByText("Note interne")).toHaveCount(0);
-  await page.getByRole("link", { name: "Votre flotte" }).click();
+  await page.getByRole("link", { name: "Accueil", exact: true }).click();
 
   // --- Accès de l'équipe : le titulaire ajoute puis retire un collaborateur
   await page.getByRole("link", { name: "Accès de l'équipe" }).click();
@@ -125,8 +128,101 @@ test("parcours du titulaire d'une entreprise sur son espace", async ({ page }) =
 
   // --- Déconnexion : retour à l'écran de connexion, plus aucune session
   await page.getByRole("button", { name: "Se déconnecter" }).click();
-  await expect(page.getByRole("heading", { name: "Espace entreprise" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Espace client" })).toBeVisible();
   expect(await page.evaluate(async () => (await fetch("/api/portail/session")).status)).toBe(401);
+
+  expect(violations).toEqual([]);
+});
+
+/** Demande un code pour ce numéro, pose un code connu, se connecte. */
+async function seConnecter(page: Page, saisie: string, telephone: string): Promise<void> {
+  await page.goto("/");
+  await page.getByLabel("Votre numéro WhatsApp").fill(saisie);
+  await page.getByRole("button", { name: "Recevoir mon code" }).click();
+  await expect(page.getByRole("status")).toContainText("Si ce numéro a un accès au portail");
+  await poserCode(telephone, CODE);
+  await page.getByLabel("Code reçu sur WhatsApp").fill(CODE);
+  await page.getByRole("button", { name: "Se connecter" }).click();
+}
+
+test("parcours d'une particulière : paiement de sa prime en ligne et déclaration d'un sinistre", async ({ page }) => {
+  test.setTimeout(120_000);
+  const violations = surveillerCsp(page);
+  await seConnecter(page, "07 08 09 10 11", acces.particuliere.telephone);
+
+  // --- Son espace : ses contrats, sans flotte ni équipe
+  await expect(page.getByRole("heading", { name: "Vos contrats" })).toBeVisible();
+  await expect(page.locator(".entete__entreprise")).toHaveText("Koné Mariam");
+  await expect(page.getByRole("link", { name: "Accès de l'équipe" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Exporter la liste des véhicules (Excel)" })).toHaveCount(0);
+  await expect(page.getByText("Transports Kouassi")).toHaveCount(0);
+  const contrat = page.getByRole("row", { name: /^AUTO-KM-2026 · Automobile/ });
+  await expect(contrat).toContainText("En attente de paiement");
+  await expect(contrat).toContainText(/150\s003\sF CFA/);
+
+  // --- Premier paiement, partiel : 50 000 F CFA par Orange Money
+  const aPayer = page.getByRole("region", { name: "À payer" });
+  await expect(aPayer).toContainText(/AUTO-KM-2026 · Automobile : 150\s003\sF CFA/);
+  await aPayer.getByRole("link", { name: "Payer en ligne le contrat AUTO-KM-2026" }).click();
+  await expect(page.getByRole("heading", { name: "Payer la prime du contrat AUTO-KM-2026" })).toBeVisible();
+  await expect(page.getByLabel("Montant à payer (F CFA)")).toHaveValue("150005");
+  await page.getByLabel("Montant à payer (F CFA)").fill("50000");
+  await page.getByRole("button", { name: /^Payer 50\s000\sF CFA$/ }).click();
+  await expect(page.getByRole("heading", { name: /^Paiement de 50\s000\sF CFA$/ })).toBeVisible();
+  await expect(page.getByText("Mode démonstration : aucun argent n'est débité.")).toBeVisible();
+  await page.getByRole("button", { name: "Payer avec Orange Money" }).click();
+  await expect(page.getByText("Merci, votre paiement est enregistré.")).toBeVisible();
+  await expect(page.getByText(/Il reste 100\s003\sF CFA à payer sur ce contrat/)).toBeVisible();
+
+  // --- Le solde, arrondi au multiple de 5 : le contrat passe en vigueur
+  await page.getByRole("link", { name: "Mes contrats" }).click();
+  await page.getByRole("link", { name: "Payer en ligne le contrat AUTO-KM-2026" }).click();
+  await expect(page.getByLabel("Montant à payer (F CFA)")).toHaveValue("100005");
+  await page.getByRole("button", { name: /^Payer 100\s005\sF CFA$/ }).click();
+  await page.getByRole("button", { name: "Payer avec Wave" }).click();
+  await expect(page.getByText(/Votre contrat est payé et en vigueur/)).toBeVisible();
+  await page.getByRole("link", { name: "Paiements", exact: true }).click();
+  await expect(page.getByRole("row", { name: /Paiement reçu/ })).toHaveCount(2);
+  await page.getByRole("link", { name: "Mes contrats" }).click();
+  await expect(page.getByRole("row", { name: /^AUTO-KM-2026 · Automobile/ })).toContainText("En vigueur");
+  await expect(page.getByRole("row", { name: /^AUTO-KM-2026 · Automobile/ })).toContainText("Payé");
+  await expect(page.getByRole("region", { name: "À payer" })).toHaveCount(0);
+
+  // --- Déclaration d'un sinistre, avec une photo
+  await page.getByRole("link", { name: "Sinistres", exact: true }).click();
+  await expect(page.getByText("Aucun sinistre enregistré.")).toBeVisible();
+  await page.getByRole("link", { name: "Déclarer un sinistre" }).click();
+  const declaration = page.getByRole("form", { name: "Déclaration de sinistre" });
+  await expect(declaration.getByLabel("Contrat concerné")).toHaveValue(/[0-9a-f-]{36}/);
+  await expect(declaration.getByLabel("Véhicule", { exact: true })).toHaveValue(/[0-9a-f-]{36}/);
+  await declaration.getByLabel("Lieu (facultatif)").fill("Boulevard Latrille, Cocody");
+  await declaration.getByLabel("Ce qui s'est passé").fill("Un véhicule a heurté mon rétroviseur en stationnement, puis il est parti.");
+  await declaration.getByLabel("Photos et documents (facultatif)").setInputFiles({
+    name: "retroviseur.png", mimeType: "image/png",
+    buffer: Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from("photo de test")]),
+  });
+  await declaration.getByRole("button", { name: "Envoyer la déclaration" }).click();
+  await expect(page.getByText("Sinistre déclaré : l'agence l'a reçu et vous recontacte pour la suite.")).toBeVisible();
+  await expect(page.getByText("Déclaré à l'agence")).toBeVisible();
+  await expect(page.getByText(/retroviseur\.png/)).toBeVisible();
+  await page.getByRole("link", { name: "Vos sinistres" }).click();
+  await expect(page.getByRole("row", { name: /Dommages matériels/ })).toContainText("2024 KM 01");
+
+  // --- Réclamation adressée à l'agence, suivie dans l'espace
+  await page.getByRole("link", { name: "Réclamations", exact: true }).click();
+  const reclamation = page.getByRole("form", { name: "Nouvelle réclamation" });
+  await reclamation.getByLabel("Elle concerne").selectOption("attestation");
+  await reclamation.getByLabel("Votre réclamation").fill("Mon attestation n'est pas encore disponible dans mon espace.");
+  await reclamation.getByRole("button", { name: "Envoyer la réclamation" }).click();
+  await expect(page.getByText(/^Réclamation REC-\d{4}-\d{4} reçue/)).toBeVisible();
+  await expect(page.getByRole("region", { name: "Vos réclamations" })).toContainText("Une attestation");
+  await expect(page.getByRole("region", { name: "Vos réclamations" })).toContainText("Reçue");
+
+  // --- Sur téléphone : rien ne déborde
+  await page.setViewportSize({ width: 360, height: 780 });
+  await page.getByRole("link", { name: "Mes contrats" }).click();
+  await expect(page.getByRole("heading", { name: "Vos contrats" })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
 
   expect(violations).toEqual([]);
 });

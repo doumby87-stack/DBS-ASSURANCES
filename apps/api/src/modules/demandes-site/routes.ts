@@ -1,5 +1,6 @@
-// Demandes de devis reçues par le site, au back-office (tâche 7) : liste, détail avec les clients qui ont
-// déjà ce numéro, carte grise à télécharger, conversion en client et devis, ou classement sans suite.
+// Demandes reçues par le site, au back-office (tâches 7 et 13) : devis, rappels d'échéance, appels d'offres.
+// Liste (un rappel n'est à traiter qu'un mois avant l'échéance), détail avec les clients qui ont déjà ce numéro,
+// carte grise à télécharger, conversion en client et devis, ou classement sans suite.
 
 import type { FastifyInstance } from "fastify";
 import type { Pool } from "../../base-de-donnees/connexion.js";
@@ -11,10 +12,14 @@ import type { Gardes } from "../../securite/gardes.js";
 import { utilisateurDe } from "../../securite/gardes.js";
 import { consignerEvenement } from "../../securite/limitation.js";
 import { exigerClientVisible } from "../clients/visibilite.js";
+import { GARANTIES_APPEL_OFFRES, TYPES_MARCHE, type Marche } from "./outils-site.js";
 import { dechiffrerPiece, EXTENSIONS, type TypePiece } from "./piece.js";
 
-const STATUTS = ["nouvelle", "convertie", "sans_suite"] as const;
-const COLONNES = `d.id, d.numero, d.branche, d.profil, d.nom, d.telephone, d.email, d.commune, d.besoin,
+// « a_venir » : rappels d'échéance reçus, pas encore à traiter
+const STATUTS = ["nouvelle", "a_venir", "convertie", "sans_suite"] as const;
+const COLONNES = `d.id, d.numero, d.nature, d.branche, d.profil, d.nom, d.telephone, d.email, d.commune, d.besoin,
+  to_char(d.echeance_actuelle, 'YYYY-MM-DD') AS "echeanceActuelle", to_char(d.date_limite_offre, 'YYYY-MM-DD') AS "dateLimiteOffre",
+  d.appel_offres AS "appelOffres", to_char(d.a_traiter_le, 'YYYY-MM-DD') AS "aTraiterLe",
   d.accord_traitement AS "accordTraitement", d.accord_whatsapp AS "accordWhatsApp", d.recue_le AS "recueLe",
   d.statut, d.motif, d.client_id AS "clientId", d.devis_id AS "devisId", d.traitee_le AS "traiteeLe",
   u.nom AS "traiteePar"`;
@@ -49,15 +54,23 @@ export async function routesDemandesSiteBackOffice(
         const { rows: demandes } = await client.query(
           `SELECT ${COLONNES}, EXISTS (SELECT 1 FROM app.pieces_demandes_site p WHERE p.demande_id = d.id AND p.etat_analyse <> 'infectee') AS "aUnePiece"
            FROM app.demandes_site d LEFT JOIN app.utilisateurs u ON u.id = d.traitee_par
-           WHERE d.statut = $1
-           ORDER BY CASE WHEN d.statut = 'nouvelle' THEN d.recue_le END ASC, d.traitee_le DESC NULLS LAST
+           WHERE CASE $1::text
+                   WHEN 'nouvelle' THEN d.statut = 'nouvelle' AND d.a_traiter_le <= app.aujourdhui()
+                   WHEN 'a_venir' THEN d.statut = 'nouvelle' AND d.a_traiter_le > app.aujourdhui()
+                   ELSE d.statut::text = $1 END
+           -- À traiter : les appels d'offres d'abord (date limite la plus proche), puis par ancienneté
+           ORDER BY CASE WHEN d.statut = 'nouvelle' THEN d.date_limite_offre END ASC NULLS LAST,
+                    CASE WHEN d.statut = 'nouvelle' THEN d.a_traiter_le END ASC,
+                    CASE WHEN d.statut = 'nouvelle' THEN d.recue_le END ASC, d.traitee_le DESC NULLS LAST
            LIMIT 200`,
           [statut],
         );
-        const { rows: compte } = await client.query<{ nouvelles: number }>(
-          "SELECT count(*)::int AS nouvelles FROM app.demandes_site WHERE statut = 'nouvelle'",
+        const { rows: compte } = await client.query<{ nouvelles: number; aVenir: number }>(
+          `SELECT count(*) FILTER (WHERE a_traiter_le <= app.aujourdhui())::int AS nouvelles,
+                  count(*) FILTER (WHERE a_traiter_le > app.aujourdhui())::int AS "aVenir"
+           FROM app.demandes_site WHERE statut = 'nouvelle'`,
         );
-        return { demandes, nouvelles: compte[0]?.nouvelles ?? 0 };
+        return { demandes, nouvelles: compte[0]?.nouvelles ?? 0, aVenir: compte[0]?.aVenir ?? 0 };
       });
     },
   );
@@ -169,11 +182,10 @@ export async function routesDemandesSiteBackOffice(
     async (requete, reponse) => {
       const corps = requete.body;
       const resultat = await transactionUtilisateur(pool, utilisateurDe(requete).id, async (client) => {
-        const { rows } = await client.query<{
-          statut: string; branche: Branche; profil: string; nom: string; telephone: string; email: string | null;
-          commune: string | null; besoin: string | null; accordWhatsApp: boolean;
-        }>(
-          `SELECT statut, branche, profil, nom, telephone, email, commune, besoin, accord_whatsapp IS NOT NULL AS "accordWhatsApp"
+        const { rows } = await client.query<DemandeAConvertir>(
+          `SELECT statut, nature, branche, profil, nom, telephone, email, commune, besoin, accord_whatsapp IS NOT NULL AS "accordWhatsApp",
+                  to_char(echeance_actuelle, 'DD/MM/YYYY') AS "echeanceActuelle", to_char(date_limite_offre, 'DD/MM/YYYY') AS "dateLimiteOffre",
+                  appel_offres AS "appelOffres"
            FROM app.demandes_site WHERE id = $1 FOR UPDATE`,
           [requete.params.id],
         );
@@ -199,7 +211,7 @@ export async function routesDemandesSiteBackOffice(
 
         const devis = await client.query<{ id: string }>(
           `INSERT INTO app.devis (client_id, branche, origine, description) VALUES ($1, $2, 'site', $3) RETURNING id`,
-          [clientId, corps.branche ?? demande.branche, demande.besoin],
+          [clientId, corps.branche ?? demande.branche, descriptionDevis(demande)],
         );
         const devisId = devis.rows[0]!.id;
 
@@ -258,4 +270,35 @@ export async function routesDemandesSiteBackOffice(
       });
     },
   );
+}
+
+interface DemandeAConvertir {
+  statut: string; nature: "devis" | "rappel_echeance" | "appel_offres"; branche: Branche; profil: string; nom: string; telephone: string;
+  email: string | null; commune: string | null; besoin: string | null; accordWhatsApp: boolean;
+  echeanceActuelle: string | null; dateLimiteOffre: string | null; appelOffres: Marche | null;
+}
+
+const enFrancs = (valeur: number) => `${new Intl.NumberFormat("fr-FR").format(valeur).replace(/\s/g, " ")} F CFA`;
+
+/** Description du devis créé : le besoin du visiteur, précédé de ce que l'outil du site a recueilli */
+export function descriptionDevis(d: Pick<DemandeAConvertir, "nature" | "besoin" | "echeanceActuelle" | "dateLimiteOffre" | "appelOffres">): string | null {
+  const lignes: string[] = [];
+  if (d.nature === "rappel_echeance" && d.echeanceActuelle) {
+    lignes.push(`Rappel d'échéance demandé sur le site : contrat actuel à échéance le ${d.echeanceActuelle}.`);
+  }
+  if (d.nature === "appel_offres" && d.appelOffres) {
+    const m = d.appelOffres;
+    lignes.push(`Appel d'offres (${TYPES_MARCHE[m.typeMarche] ?? m.typeMarche}) de ${m.maitreOuvrage} : ${m.objet}.`);
+    if (d.dateLimiteOffre) lignes.push(`Date limite de dépôt : ${d.dateLimiteOffre}.`);
+    const details = [
+      m.lieu ? `lieu : ${m.lieu}` : null,
+      m.montant !== undefined ? `montant estimé : ${enFrancs(m.montant)}` : null,
+      m.dureeMois !== undefined ? `durée : ${m.dureeMois} mois` : null,
+    ].filter((x): x is string => x !== null);
+    if (details.length > 0) lignes.push(`${details.join(" ; ")}.`.replace(/^./, (c) => c.toUpperCase()));
+    lignes.push(`Garanties demandées : ${m.garanties.map((g) => GARANTIES_APPEL_OFFRES[g]?.libelle ?? g).join(", ")}.`);
+  }
+  if (d.besoin) lignes.push(d.besoin);
+  const texte = lignes.join("\n").slice(0, 2000);
+  return texte || null;
 }

@@ -1,7 +1,11 @@
 // Maintenance de l'agence, sans utilisateur connecté, toutes les heures :
 //   · expiration des contrats en vigueur dont l'échéance est passée (database/migrations/0011) ;
+//   · paiements en ligne en attente depuis plus de 10 minutes : résultat demandé au prestataire (si le client
+//     n'est pas revenu et qu'une notification s'est perdue, l'argent reçu est quand même encaissé), puis abandon
+//     de ceux restés sans réponse plus d'un jour (database/migrations/0013) ;
 //   · purge des demandes du site qui ne sont pas devenues un devis, 12 mois après leur classement sans suite
-//     (ou leur réception si personne ne les a traitées), avec leur carte grise ;
+//     (ou leur réception si personne ne les a traitées ; l'échéance pour un rappel), avec leur carte grise, et des
+//     rendez-vous de prospects 12 mois après leur clôture (database/migrations/0015) ;
 //   · analyse des cartes grises reçues pendant que l'antivirus ne répondait pas.
 // Toutes passent par les fonctions que la base réserve à cet usage (database/migrations/0008 et 0011).
 
@@ -9,26 +13,50 @@ import type { FastifyBaseLogger } from "fastify";
 import type { Pool } from "../../base-de-donnees/connexion.js";
 import { transactionSysteme } from "../../base-de-donnees/connexion.js";
 import type { Antivirus } from "../../integrations/antivirus/clamav.js";
+import type { PrestatairePaiement } from "../../integrations/paiement/prestataire.js";
+import { verifierEtConclure } from "../paiements/conclusion.js";
 import { dechiffrerPiece } from "./piece.js";
 
 export interface BilanMaintenance {
   contratsExpires: number;
+  paiementsConclus: number;
+  paiementsAbandonnes: number;
   purgees: number;
+  /** Rendez-vous de prospects clos depuis plus de 12 mois (tâche 13) */
+  rendezVousPurges: number;
   analysees: number;
   infectees: number;
   enAttente: number;
 }
 
 const LOT_ANALYSES = 20;
+const LOT_PAIEMENTS = 50;
 
 export async function executerMaintenance(
   pool: Pool,
   antivirus: Antivirus,
   cleChiffrement: Buffer,
   journal?: Pick<FastifyBaseLogger, "warn" | "error">,
+  prestataire: PrestatairePaiement | null = null,
 ): Promise<BilanMaintenance> {
   const contratsExpires = await transactionSysteme(pool, async (client) => {
     const { rows } = await client.query<{ nombre: number }>("SELECT app.expirer_contrats() AS nombre");
+    return rows[0]?.nombre ?? 0;
+  });
+  let paiementsConclus = 0;
+  if (prestataire) {
+    const { rows: aVerifier } = await transactionSysteme(pool, (client) =>
+      client.query<{ reference: string }>("SELECT reference FROM app.paiements_en_ligne_a_verifier($1)", [LOT_PAIEMENTS]));
+    for (const { reference } of aVerifier) {
+      try {
+        if (await verifierEtConclure(pool, prestataire, reference)) paiementsConclus += 1;
+      } catch (erreur) {
+        journal?.warn({ err: erreur, reference }, "paiement en ligne non vérifié : prestataire injoignable ou réponse illisible");
+      }
+    }
+  }
+  const paiementsAbandonnes = await transactionSysteme(pool, async (client) => {
+    const { rows } = await client.query<{ nombre: number }>("SELECT app.abandonner_paiements_en_ligne() AS nombre");
     return rows[0]?.nombre ?? 0;
   });
   const purgees = await transactionSysteme(pool, async (client) => {
@@ -37,8 +65,14 @@ export async function executerMaintenance(
     await client.query("SELECT portail.purger()");
     return rows[0]?.nombre ?? 0;
   });
+  const rendezVousPurges = await transactionSysteme(pool, async (client) => {
+    const { rows } = await client.query<{ nombre: number }>("SELECT app.purger_rendez_vous() AS nombre");
+    return rows[0]?.nombre ?? 0;
+  });
 
-  const bilan: BilanMaintenance = { contratsExpires, purgees, analysees: 0, infectees: 0, enAttente: 0 };
+  const bilan: BilanMaintenance = {
+    contratsExpires, paiementsConclus, paiementsAbandonnes, purgees, rendezVousPurges, analysees: 0, infectees: 0, enAttente: 0,
+  };
   if (!antivirus.configure) return bilan;
 
   const pieces = await transactionSysteme(pool, async (client) => {
@@ -85,6 +119,7 @@ export function demarrerMaintenancePeriodique(
   antivirus: Antivirus,
   cleChiffrement: Buffer,
   journal: Pick<FastifyBaseLogger, "info" | "warn" | "error">,
+  prestataire: PrestatairePaiement | null = null,
   intervalleMs = 60 * 60 * 1000,
 ): () => void {
   let enCours = false;
@@ -92,7 +127,7 @@ export function demarrerMaintenancePeriodique(
     if (enCours) return;
     enCours = true;
     try {
-      const bilan = await executerMaintenance(pool, antivirus, cleChiffrement, journal);
+      const bilan = await executerMaintenance(pool, antivirus, cleChiffrement, journal, prestataire);
       if (Object.values(bilan).some(Boolean)) journal.info({ bilan }, "maintenance de l'agence");
     } catch (erreur) {
       journal.error({ err: erreur }, "maintenance de l'agence en échec");

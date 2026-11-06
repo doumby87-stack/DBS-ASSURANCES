@@ -1,7 +1,8 @@
 // Prépare le test de bout en bout du portail : base PostgreSQL neuve (rôles, migrations), puis une entreprise
 // assurée par l'agence comme en vrai : trois véhicules sur un contrat flotte payé, une attestation PDF
 // déposée (chiffrée avec la clé de l'API, comme le ferait l'API), un sinistre suivi, deux accès au portail ;
-// et une autre entreprise, que le portail ne doit jamais montrer. Écrit les accès dans .e2e/acces.json.
+// une autre entreprise, que le portail ne doit jamais montrer ; une particulière assurée pour sa voiture, prime
+// à payer, dont l'espace s'ouvre à sa première demande de code. Écrit les accès dans .e2e/acces.json.
 //
 // Variables : PGHOST (adresse TCP), PGPORT, PGUSER (superutilisateur) et PGPASSWORD d'un serveur DE TEST.
 
@@ -57,6 +58,7 @@ const jour = (decalage) => {
   return d.toISOString().slice(0, 10);
 };
 const titulaire = { nom: "Awa Kouassi", telephone: "+2250701020304" };
+const particuliere = { nom: "Koné Mariam", telephone: "+2250708091011" };
 const pdf = Buffer.from("%PDF-1.4\n% Attestation digitale ASACI de test, 1001 KF 01\n%%EOF\n");
 
 try {
@@ -105,6 +107,15 @@ try {
     `INSERT INTO app.gestionnaires_portail (client_id, nom, telephone, role) VALUES ($1, $2, $3, 'titulaire'),
        ($1, 'Yao Chef de parc', '+2250701020305', 'gestionnaire')`,
     [client.id, titulaire.nom, titulaire.telephone]);
+  // Particulière : un contrat automobile en attente de paiement, aucun accès créé par l'agence
+  const { rows: [mariam] } = await base.query(
+    "INSERT INTO app.clients (type, nom, telephone) VALUES ('particulier', $1, $2) RETURNING id", [particuliere.nom, particuliere.telephone]);
+  const { rows: [voiture] } = await base.query(
+    "INSERT INTO app.vehicules (client_id, immatriculation, marque) VALUES ($1, '2024 KM 01', 'Toyota Yaris') RETURNING id", [mariam.id]);
+  const { rows: [auto] } = await base.query(
+    `INSERT INTO app.contrats (client_id, numero_police, branche, date_effet, date_echeance, prime_ttc)
+     VALUES ($1, 'AUTO-KM-2026', 'automobile', $2, $3, 150003) RETURNING id`, [mariam.id, jour(-2), jour(363)]);
+  await base.query("INSERT INTO app.contrats_vehicules (contrat_id, vehicule_id, ajoute_le) VALUES ($1, $2, $3)", [auto.id, voiture.id, jour(-2)]);
   await base.query("COMMIT");
 } finally {
   await base.end();
@@ -118,6 +129,7 @@ writeFileSync(
     urlSuperutilisateur,
     cleChiffrement: cleChiffrement.toString("base64"),
     titulaire,
+    particuliere,
     attestation: pdf.toString("base64"),
   }),
   { mode: 0o600 },

@@ -120,7 +120,7 @@ export function Contrat({ id }: { id: string }) {
 }
 
 function Encaisser({ contrat }: { contrat: SoldeContrat }) {
-  const [saisie, setSaisie] = useState({ montant: String(contrat.resteAPayer), mode: contrat.especesPossibles > 0 ? "especes" : "mobile_money", reference: "" });
+  const [saisie, setSaisie] = useState({ montant: String(contrat.resteAPayer), mode: contrat.especesPossibles > 0 ? "especes" : "mobile_money", reference: "", payeurTiers: "" });
   const [erreur, setErreur] = useState("");
   const [envoi, setEnvoi] = useState(false);
 
@@ -133,6 +133,7 @@ function Encaisser({ contrat }: { contrat: SoldeContrat }) {
         corps: {
           contratId: contrat.id, montant: Number(saisie.montant), mode: saisie.mode,
           ...(saisie.reference.trim() ? { reference: saisie.reference.trim() } : {}),
+          ...(saisie.payeurTiers.trim() ? { payeurTiers: saisie.payeurTiers.trim() } : {}),
         },
       });
       naviguer(`/recus/${encaissement.id}`);
@@ -157,6 +158,9 @@ function Encaisser({ contrat }: { contrat: SoldeContrat }) {
         <Champ libelle="Référence" aide={AIDE_REFERENCE[saisie.mode]}>
           <input maxLength={60} required={saisie.mode !== "especes"} value={saisie.reference}
                  onChange={(e) => setSaisie({ ...saisie, reference: e.target.value })} />
+        </Champ>
+        <Champ libelle="Payé par un tiers (facultatif)" aide="Nom de la personne ou de la société qui paie, si ce n'est pas le client : signalé au gérant (lutte contre le blanchiment).">
+          <input maxLength={120} value={saisie.payeurTiers} onChange={(e) => setSaisie({ ...saisie, payeurTiers: e.target.value })} />
         </Champ>
         <div className="formulaire__actions"><button className="bouton bouton--principal" disabled={envoi}>Encaisser et imprimer le reçu</button></div>
         <Alerte>{erreur}</Alerte>

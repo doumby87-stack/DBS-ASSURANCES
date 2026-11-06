@@ -1,13 +1,20 @@
-// Coquille du portail : connexion, puis en-tête de l'entreprise et pages de la flotte.
+// Coquille de l'espace client : connexion, puis en-tête du client et ses pages. Une entreprise y suit sa
+// flotte et les accès de son équipe ; un particulier, ses contrats. Tous paient en ligne, déclarent leurs
+// sinistres et peuvent adresser une réclamation.
 
 import { Chargement } from "./composants";
 import { TELEPHONE_AGENCE, WHATSAPP_AGENCE } from "./format";
 import { Collaborateurs } from "./pages/Collaborateurs";
 import { Connexion } from "./pages/Connexion";
+import { HistoriquePaiements, PagePaiement, Payer } from "./pages/Paiements";
+import { Reclamations } from "./pages/Reclamations";
+import { DeclarerSinistre, DetailSinistre, ListeSinistres } from "./pages/Sinistres";
 import { TableauDeBord } from "./pages/TableauDeBord";
 import { Vehicule } from "./pages/Vehicule";
 import { Lien, useChemin } from "./routeur";
 import { useSession } from "./session";
+
+const UUID = "([0-9a-f-]{36})";
 
 export function App() {
   const { session, fermer } = useSession();
@@ -16,27 +23,43 @@ export function App() {
   if (session === undefined) return <main className="page"><Chargement /></main>;
   if (session === null) return <Connexion />;
 
-  const vehicule = /^\/vehicules\/([0-9a-f-]{36})$/.exec(chemin)?.[1];
+  const particulier = session.typeClient === "particulier";
+  const accueil = particulier ? "Mes contrats" : "Ma flotte";
+  const parametre = (motif: string) => new RegExp(`^${motif.replace("ID", UUID)}$`).exec(chemin)?.[1];
   let page;
   if (chemin === "/") page = <TableauDeBord />;
-  else if (vehicule) page = <Vehicule id={vehicule} />;
-  else if (chemin === "/collaborateurs") page = <Collaborateurs />;
-  else page = <><h1>Page introuvable</h1><p><Lien href="/">Retour à votre flotte</Lien></p></>;
+  else if (parametre("/vehicules/ID")) page = <Vehicule id={parametre("/vehicules/ID")!} />;
+  else if (parametre("/payer/ID")) page = <Payer contratId={parametre("/payer/ID")!} />;
+  else if (chemin === "/paiements") page = <HistoriquePaiements />;
+  else if (parametre("/paiements/ID")) page = <PagePaiement id={parametre("/paiements/ID")!} />;
+  else if (chemin === "/sinistres") page = <ListeSinistres />;
+  else if (chemin === "/sinistres/declarer") page = <DeclarerSinistre />;
+  else if (parametre("/sinistres/ID")) page = <DetailSinistre id={parametre("/sinistres/ID")!} />;
+  else if (chemin === "/reclamations") page = <Reclamations />;
+  else if (chemin === "/collaborateurs" && !particulier) page = <Collaborateurs />;
+  else page = <><h1>Page introuvable</h1><p><Lien href="/">Retour à l'accueil</Lien></p></>;
+
+  const actif = (prefixe: string) => (prefixe === "/" ? chemin === "/" || chemin.startsWith("/vehicules/") : chemin.startsWith(prefixe)) ? "page" : undefined;
 
   return (
     <>
       <a className="evitement" href="#contenu">Aller au contenu</a>
       <header className="entete">
         <div className="entete__haut">
-          <Lien href="/" className="entete__marque" aria-label="DBS-ASSURANCES, espace entreprise : accueil">
-            DBS-ASSURANCES <span>Espace entreprise</span>
+          <Lien href="/" className="entete__marque" aria-label="DBS-ASSURANCES, espace client : accueil">
+            DBS-ASSURANCES <span>Espace client</span>
           </Lien>
           <button type="button" className="bouton bouton--clair bouton--petit" onClick={() => void fermer()}>Se déconnecter</button>
         </div>
-        <p className="entete__entreprise"><strong>{session.entreprise}</strong> · {session.nom}</p>
+        <p className="entete__entreprise">
+          {particulier ? <strong>{session.nom}</strong> : <><strong>{session.entreprise}</strong> · {session.nom}</>}
+        </p>
         <nav aria-label="Navigation principale" className="entete__navigation">
-          <Lien href="/" aria-current={chemin === "/" ? "page" : undefined}>Ma flotte</Lien>
-          <Lien href="/collaborateurs" aria-current={chemin === "/collaborateurs" ? "page" : undefined}>Accès de l'équipe</Lien>
+          <Lien href="/" aria-current={actif("/")}>{accueil}</Lien>
+          <Lien href="/sinistres" aria-current={actif("/sinistres")}>Sinistres</Lien>
+          <Lien href="/paiements" aria-current={actif("/paiements") ?? actif("/payer")}>Paiements</Lien>
+          <Lien href="/reclamations" aria-current={actif("/reclamations")}>Réclamations</Lien>
+          {!particulier && <Lien href="/collaborateurs" aria-current={actif("/collaborateurs")}>Accès de l'équipe</Lien>}
         </nav>
       </header>
       <main id="contenu" className="page">{page}</main>

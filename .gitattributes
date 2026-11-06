@@ -2,6 +2,9 @@
 * text=auto eol=lf
 *.sh text eol=lf
 *.sql text eol=lf
+*.command text eol=lf
+# Scripts Windows (demo/*.bat) : fins de ligne Windows, que l'invite de commandes lit sans surprise
+*.bat text eol=crlf
 
 # Fichiers binaires
 *.png binary

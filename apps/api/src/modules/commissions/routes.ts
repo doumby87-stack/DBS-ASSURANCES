@@ -1,5 +1,6 @@
 // Commissions : taux par branche (datés), relevés envoyés par la compagnie, rapprochement mensuel
-// avec la commission attendue (calculée par la base sur la prime nette de chaque encaissement).
+// avec la commission attendue (calculée par la base sur la prime nette de chaque encaissement), et facture
+// FNE de l'agence pour chaque mois (tâche 12).
 // Réservé au gérant ; l'auditeur lit.
 
 import type { FastifyInstance } from "fastify";
@@ -26,8 +27,11 @@ export async function routesCommissions(app: FastifyInstance, options: { pool: P
       const rapprochement = await client.query(
         `SELECT to_char(m.mois, 'YYYY-MM') AS mois, m.primes_encaissees AS "primesEncaissees",
                 m.commission_attendue AS "commissionAttendue", m.encaissements_incomplets AS "encaissementsIncomplets",
-                m.montant_declare AS "montantDeclare", m.reference, m.ecart
-         FROM app.v_commissions_mensuelles m ORDER BY m.mois DESC LIMIT 12`,
+                m.montant_declare AS "montantDeclare", m.reference, m.ecart,
+                f.numero_fne AS "numeroFne", f.montant_ttc AS "montantFne"
+         FROM app.v_commissions_mensuelles m
+         LEFT JOIN app.factures_fne f ON f.mois = m.mois AND f.objet = 'commissions' AND f.annulee_le IS NULL
+         ORDER BY m.mois DESC LIMIT 12`,
       );
       // Contrats payés dont la prime nette manque : sans elle, la commission attendue reste inconnue
       const aCompleter = await client.query(

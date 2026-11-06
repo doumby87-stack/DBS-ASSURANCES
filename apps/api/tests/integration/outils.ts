@@ -8,6 +8,7 @@ import { construireApplication } from "../../src/application.js";
 import type { Antivirus, Verdict } from "../../src/integrations/antivirus/clamav.js";
 import { creerPool, type Pool } from "../../src/base-de-donnees/connexion.js";
 import { chargerConfiguration } from "../../src/config/configuration.js";
+import type { PrestatairePaiement } from "../../src/integrations/paiement/prestataire.js";
 import type { EnvoiCodes } from "../../src/modules/portail/connexion.js";
 import type { Messagerie } from "../../src/modules/relances/messagerie.js";
 import { initialiserPremierAcces, preparerAccesProvisoire } from "../../src/modules/utilisateurs/acces.js";
@@ -61,6 +62,7 @@ export interface Contexte {
 export async function demarrer(
   options: {
     verifierFuite?: VerificateurFuite | null; env?: Record<string, string>; messagerie?: Messagerie; envoiCodes?: EnvoiCodes;
+    prestatairePaiement?: PrestatairePaiement;
   } = {},
 ): Promise<Contexte> {
   const antivirus = antivirusDeTest();
@@ -78,6 +80,7 @@ export async function demarrer(
     config, pool, journal: false, horloge: () => horloge.ms, verifierFuite: options.verifierFuite ?? null, antivirus,
     ...(options.messagerie ? { messagerie: options.messagerie } : {}),
     ...(options.envoiCodes ? { envoiCodes: options.envoiCodes } : {}),
+    ...(options.prestatairePaiement ? { prestatairePaiement: options.prestatairePaiement } : {}),
   });
   return {
     app, antivirus, cleChiffrement: config.cleChiffrement, pool, base, horloge,
@@ -120,7 +123,7 @@ export async function creerCompte(ctx: Contexte, role: Role, email = adresseUniq
 }
 
 interface Envoi {
-  methode?: "GET" | "POST" | "PATCH" | "DELETE";
+  methode?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   url: string;
   cookie?: string | undefined;
   corps?: object;

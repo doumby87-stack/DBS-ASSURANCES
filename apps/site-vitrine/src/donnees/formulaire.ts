@@ -16,8 +16,13 @@ function lireAdresseApi(): URL | null {
 
 const API = lireAdresseApi();
 
+/** Adresse d'une route publique de l'API (« /site/… »), ou null si l'enregistrement n'est pas activé. */
+export function adresseApi(chemin: string): string | null {
+  return API ? `${API.origin}${API.pathname.replace(/\/$/, "")}${chemin}` : null;
+}
+
 /** Adresse où le formulaire envoie la demande, ou null si l'enregistrement n'est pas activé. */
-export const ADRESSE_DEMANDES = API ? `${API.origin}${API.pathname.replace(/\/$/, "")}/site/demandes-devis` : null;
+export const ADRESSE_DEMANDES = adresseApi("/site/demandes-devis");
 /** Origine de l'API, ajoutée à la politique de sécurité du contenu (connect-src) par astro.config.mjs. */
 export const ORIGINE_API = API?.origin ?? null;
 

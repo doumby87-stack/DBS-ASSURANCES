@@ -1,18 +1,39 @@
-// Demandes de devis reçues par le site (tâche 7) : à traiter dans l'ordre d'arrivée. Chacune devient un
-// client et un devis (ou rejoint la fiche du client qui a déjà ce numéro), ou est classée sans suite.
+// Demandes reçues par le site (tâches 7 et 13) : devis, rappels d'échéance, appels d'offres. Les appels d'offres
+// passent devant (date limite la plus proche), puis le reste dans l'ordre d'arrivée ; un rappel n'apparaît
+// qu'un mois avant l'échéance (onglet « Rappels à venir » d'ici là). Chacune devient un client et un devis
+// (ou rejoint la fiche du client qui a déjà ce numéro), ou est classée sans suite.
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Alerte, Badge, Chargement, Champ, Section, Vide } from "../../composants/communs";
 import { Lien, naviguer } from "../../routeur";
 import { api, ErreurApi, messageErreur } from "../../services/api";
-import { BRANCHES, dateHeure, lienWhatsApp, telephone, TYPES_CLIENT } from "../../services/format";
+import {
+  BRANCHES, dateCourte, dateHeure, ecartEnJours, GARANTIES_APPEL_OFFRES, joursRestants, lienWhatsApp, montant, NATURES_DEMANDE_SITE,
+  telephone, TYPES_CLIENT, TYPES_MARCHE,
+} from "../../services/format";
 import { useSession } from "../../session";
 
 type Statut = "nouvelle" | "convertie" | "sans_suite";
+type Onglet = Statut | "a_venir";
+
+interface Marche {
+  typeMarche: string;
+  maitreOuvrage: string;
+  objet: string;
+  lieu?: string;
+  montant?: number;
+  dureeMois?: number;
+  garanties: string[];
+}
 
 interface Demande {
   id: string;
   numero: number;
+  nature: "devis" | "rappel_echeance" | "appel_offres";
+  echeanceActuelle: string | null;
+  dateLimiteOffre: string | null;
+  appelOffres: Marche | null;
+  aTraiterLe: string;
   branche: string;
   profil: string;
   nom: string;
@@ -44,8 +65,9 @@ interface Detail {
   clientsMemeNumero: { id: string; nom: string; type: string }[];
 }
 
-const ONGLETS: { statut: Statut; titre: string }[] = [
+const ONGLETS: { statut: Onglet; titre: string }[] = [
   { statut: "nouvelle", titre: "À traiter" },
+  { statut: "a_venir", titre: "Rappels à venir" },
   { statut: "convertie", titre: "Converties" },
   { statut: "sans_suite", titre: "Sans suite" },
 ];
@@ -62,9 +84,26 @@ function taille(octets: number): string {
   return octets >= 1024 * 1024 ? `${(octets / 1024 / 1024).toFixed(1).replace(".", ",")} Mo` : `${Math.max(1, Math.round(octets / 1024))} Ko`;
 }
 
+/** Ce que l'outil du site a recueilli, en une ligne pour la liste */
+function Resume({ d }: { d: Demande }) {
+  if (d.nature === "rappel_echeance" && d.echeanceActuelle) {
+    return <>Contrat actuel à échéance le {dateCourte(d.echeanceActuelle)}{d.statut === "nouvelle" && ` · à rappeler dès le ${dateCourte(d.aTraiterLe)}`}</>;
+  }
+  if (d.nature === "appel_offres" && d.appelOffres && d.dateLimiteOffre) {
+    return <>{d.appelOffres.maitreOuvrage} : {d.appelOffres.objet}<br /><DateLimite jour={d.dateLimiteOffre} /></>;
+  }
+  return <span className="message-relance">{d.besoin ?? "—"}</span>;
+}
+
+/** Date limite de dépôt d'une offre, en rouge à moins de 10 jours */
+function DateLimite({ jour }: { jour: string }) {
+  const reste = ecartEnJours(jour);
+  return <Badge ton={reste < 10 ? "rouge" : "orange"}>Dépôt le {dateCourte(jour)} ({joursRestants(reste).replace("expiré depuis", "passé depuis")})</Badge>;
+}
+
 export function DemandesSite() {
-  const [statut, setStatut] = useState<Statut>("nouvelle");
-  const [donnees, setDonnees] = useState<{ demandes: Demande[]; nouvelles: number } | null>(null);
+  const [statut, setStatut] = useState<Onglet>("nouvelle");
+  const [donnees, setDonnees] = useState<{ demandes: Demande[]; nouvelles: number; aVenir: number } | null>(null);
   const [erreur, setErreur] = useState("");
 
   const charger = useCallback(async () => {
@@ -83,8 +122,9 @@ export function DemandesSite() {
     <>
       <h1>Demandes du site</h1>
       <p>
-        Demandes de devis envoyées par le formulaire du site, à traiter dans l'ordre d'arrivée : rappelez le visiteur,
-        puis créez son devis ou classez la demande sans suite.
+        Demandes envoyées par le site : devis, appels d'offres (en premier, date limite la plus proche d'abord) et rappels
+        d'échéance, qui arrivent ici un mois avant l'échéance du visiteur. Rappelez-le, puis créez son devis ou classez la
+        demande sans suite.
       </p>
       <div className="onglets" role="group" aria-label="Demandes affichées">
         {ONGLETS.map((onglet) => (
@@ -96,6 +136,7 @@ export function DemandesSite() {
             onClick={() => setStatut(onglet.statut)}
           >
             {onglet.titre}{onglet.statut === "nouvelle" && donnees ? ` (${donnees.nouvelles})` : ""}
+            {onglet.statut === "a_venir" && donnees ? ` (${donnees.aVenir})` : ""}
           </button>
         ))}
       </div>
@@ -103,12 +144,12 @@ export function DemandesSite() {
       {!donnees ? (
         !erreur && <Chargement />
       ) : donnees.demandes.length === 0 ? (
-        <Vide>{statut === "nouvelle" ? "Aucune demande à traiter." : "Aucune demande."}</Vide>
+        <Vide>{statut === "nouvelle" ? "Aucune demande à traiter." : statut === "a_venir" ? "Aucun rappel en attente." : "Aucune demande."}</Vide>
       ) : (
         <div className="tableau-defilant">
           <table className="tableau">
             <thead>
-              <tr><th>N°</th><th>Reçue le</th><th>Demandeur</th><th>Assurance</th><th>{statut === "nouvelle" ? "Besoin" : "Traitement"}</th></tr>
+              <tr><th>N°</th><th>Reçue le</th><th>Demandeur</th><th>Assurance</th><th>{statut === "nouvelle" || statut === "a_venir" ? "Besoin" : "Traitement"}</th></tr>
             </thead>
             <tbody>
               {donnees.demandes.map((d) => (
@@ -121,11 +162,12 @@ export function DemandesSite() {
                   </td>
                   <td>
                     {BRANCHES[d.branche] ?? d.branche}
+                    {d.nature !== "devis" && <><br /><Badge ton="bleu">{NATURES_DEMANDE_SITE[d.nature]}</Badge></>}
                     {d.aUnePiece && <><br /><Badge ton="bleu">Carte grise jointe</Badge></>}
                   </td>
                   <td>
-                    {statut === "nouvelle" ? (
-                      <span className="message-relance">{d.besoin ?? "—"}</span>
+                    {statut === "nouvelle" || statut === "a_venir" ? (
+                      <Resume d={d} />
                     ) : (
                       <>
                         {d.traiteePar} · {d.traiteeLe && dateHeure(d.traiteeLe)}
@@ -241,12 +283,15 @@ export function DemandeSite({ id }: { id: string }) {
   return (
     <>
       <p className="fil"><Lien href="/demandes-site">Demandes du site</Lien></p>
-      <h1>Demande n° {d.numero}</h1>
+      <h1>{d.nature === "devis" ? "Demande" : NATURES_DEMANDE_SITE[d.nature]} n° {d.numero}</h1>
       <p>
         <Badge ton={STATUTS[d.statut].ton}>{STATUTS[d.statut].libelle}</Badge>{" "}
         Reçue le {dateHeure(d.recueLe)}
         {d.traiteeLe && <> · traitée le {dateHeure(d.traiteeLe)} par {d.traiteePar}</>}
       </p>
+      {d.statut === "nouvelle" && ecartEnJours(d.aTraiterLe) > 0 && (
+        <Alerte type="info">Rappel prévu à partir du {dateCourte(d.aTraiterLe)}, un mois avant l'échéance du visiteur.</Alerte>
+      )}
       <Alerte>{erreur}</Alerte>
       <Alerte type="succes">{message}</Alerte>
       {d.statut === "sans_suite" && <Alerte type="info">Classée sans suite : {d.motif}</Alerte>}
@@ -263,13 +308,17 @@ export function DemandeSite({ id }: { id: string }) {
             <dt>Téléphone</dt>
             <dd>
               <a href={`tel:${d.telephone}`}>{telephone(d.telephone)}</a>{" · "}
-              <a href={lienWhatsApp(d.telephone, `Bonjour ${d.nom}, ici DBS-ASSURANCES : nous avons bien reçu votre demande de devis n° ${d.numero}.`)} target="_blank" rel="noopener noreferrer">
+              <a href={lienWhatsApp(d.telephone, messageWhatsApp(d))} target="_blank" rel="noopener noreferrer">
                 Écrire sur WhatsApp
               </a>
             </dd>
           </div>
           {d.email && <div><dt>E-mail</dt><dd><a href={`mailto:${d.email}`}>{d.email}</a></dd></div>}
           {d.commune && <div><dt>Commune</dt><dd>{d.commune}</dd></div>}
+          {d.echeanceActuelle && (
+            <div><dt>Échéance de son contrat actuel</dt><dd>{dateCourte(d.echeanceActuelle)} ({joursRestants(ecartEnJours(d.echeanceActuelle)).replace("expiré depuis", "passée depuis")})</dd></div>
+          )}
+          {d.appelOffres && d.dateLimiteOffre && <DetailsMarche m={d.appelOffres} dateLimite={d.dateLimiteOffre} />}
           <div><dt>Besoin</dt><dd className="texte-libre">{d.besoin ?? "Non précisé"}</dd></div>
           <div>
             <dt>Carte grise</dt>
@@ -352,4 +401,33 @@ export function DemandeSite({ id }: { id: string }) {
       )}
     </>
   );
+}
+
+function DetailsMarche({ m, dateLimite }: { m: Marche; dateLimite: string }) {
+  return (
+    <>
+      <div><dt>Date limite de dépôt</dt><dd><DateLimite jour={dateLimite} /></dd></div>
+      <div><dt>Marché</dt><dd>{TYPES_MARCHE[m.typeMarche] ?? m.typeMarche} · {m.objet}</dd></div>
+      <div><dt>Maître d'ouvrage</dt><dd>{m.maitreOuvrage}</dd></div>
+      {m.lieu && <div><dt>Lieu</dt><dd>{m.lieu}</dd></div>}
+      {m.montant !== undefined && <div><dt>Montant estimé</dt><dd>{montant(m.montant)}</dd></div>}
+      {m.dureeMois !== undefined && <div><dt>Durée</dt><dd>{m.dureeMois} mois</dd></div>}
+      <div>
+        <dt>Garanties demandées</dt>
+        <dd><ul className="liste-simple">{m.garanties.map((g) => <li key={g}>{GARANTIES_APPEL_OFFRES[g] ?? g}</li>)}</ul></dd>
+      </div>
+    </>
+  );
+}
+
+/** Premier message WhatsApp, selon ce que le visiteur a demandé */
+function messageWhatsApp(d: Demande): string {
+  const bonjour = `Bonjour ${d.nom}, ici DBS-ASSURANCES.`;
+  if (d.nature === "rappel_echeance" && d.echeanceActuelle) {
+    return `${bonjour} Vous nous avez demandé de vous rappeler avant l'échéance de votre assurance, le ${dateCourte(d.echeanceActuelle)} : pouvons-nous préparer votre devis ?`;
+  }
+  if (d.nature === "appel_offres" && d.appelOffres) {
+    return `${bonjour} Nous avons bien reçu votre demande pour l'appel d'offres « ${d.appelOffres.objet} » (demande n° ${d.numero}). Pouvez-vous nous envoyer le cahier des charges ?`;
+  }
+  return `${bonjour} Nous avons bien reçu votre demande de devis n° ${d.numero}.`;
 }

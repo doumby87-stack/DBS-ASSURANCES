@@ -34,37 +34,57 @@ L = lire · C = créer · M = modifier · — = aucun accès
 | Clôtures de caisse | L C, visa (des autres) | — | sa caisse : L C | — | — | L |
 | Commissions (taux, relevés) | L C M | — | — | — | — | L |
 | Sinistres | L C M | L C M | — | L | — | L |
+| Photos et documents des sinistres (joints par le client, ajout seul) | L (téléchargement consigné) | L (téléchargement consigné) | — | L (téléchargement consigné) | — | L (liste) |
+| Paiements en ligne des clients | L, régularisation | L | L | — | — | L |
 | Devis | L C M | L C M | — | L C M | ses clients : L C | L |
 | Échanges (ajout seul) | L C | L C | L C | L C | ses clients : L C | L |
 | Consentements aux relances (ajout seul) | L C | L C | L | L C | ses clients : L | L |
 | Relances | L, annulation avant l'envoi | L, annulation avant l'envoi | — | L | — | L |
 | Avenants de flotte (ajout seul ; une erreur se corrige par un avenant d'annulation) | L C | L C | L | L | ses clients : L | L |
-| Demandes reçues par le site | L, traitement | L, traitement | — | L, traitement | — | L |
+| Demandes reçues par le site (devis, rappels d'échéance, appels d'offres) | L, traitement | L, traitement | — | L, traitement | — | L |
+| Rendez-vous (agenda) | L, fixer, confirmer, clôturer, annuler | L, fixer, confirmer, clôturer, annuler | — | L, fixer, confirmer, clôturer, annuler | — | L |
 | Cartes grises jointes aux demandes | L (téléchargement consigné) | L (téléchargement consigné) | — | L (téléchargement consigné) | — | — |
-| Accès au portail des entreprises | L C M (retrait, rétablissement) | L C M (retrait, rétablissement) | — | L | — | L |
+| Accès à l'espace client (entreprises, professionnels, particuliers) | L C M (retrait, rétablissement) | L C M (retrait, rétablissement) | — | L | — | L |
 | Attestations des véhicules (PDF) | L (téléchargement consigné) C M | L (téléchargement consigné) C M | — | L (téléchargement consigné) | — | L |
 | Journal du portail (connexions, téléchargements) | L | — | — | — | — | L |
+| Fiche d'identification d'un client : état (complète, à compléter, à revoir) | L | L | L | L | ses clients : L | L |
+| Fiche d'identification : contenu, dirigeants et bénéficiaires effectifs | L C M | L C M | — | — | — | L |
+| N° de pièce d'identité en entier (affichage consigné) | L | L | — | — | — | — |
+| Justificatifs d'identité (ajout seul) | L (téléchargement consigné) C | L (téléchargement consigné) C | — | — | — | L (liste) |
+| Alertes de lutte contre le blanchiment et décisions (ajout seul) | L C | — | — | — | — | — |
+| Formations du personnel (ajout seul) | L C | les siennes : L | les siennes : L | les siennes : L | les siennes : L | L |
+| Réclamations | L C, traitement, export | L C, traitement | celles qu'il enregistre : L C | celles qu'il enregistre : L C | — | L, export |
+| Factures FNE de l'agence | L C, annulation | — | — | — | — | L |
+| Statistiques | L | — | — | — | — | L |
+| Export de toutes les données d'un client (droit d'accès, consigné) | L | — | — | — | — | — |
 | Journal d'audit | via le rôle `dbs_audit` | — | — | — | — | via le rôle `dbs_audit` |
 
 Personne, pas même le gérant, ne modifie un encaissement, ne valide son propre bordereau, ne vise sa propre clôture de caisse ou ne supprime une ligne. Les exports de données sont consignés au journal de sécurité : bordereaux réservés au gérant ; liste des véhicules d'une flotte pour la cotation, au gérant, au chargé de clientèle et au commercial. Un avenant de flotte est calculé par la base (prorata) et ne se modifie jamais ; après le paiement de la prime de départ, la composition d'un contrat ne change que par avenant ([ADR 0010](../architecture/adr/0010-flottes.md)).
 
 Personne ne crée une relance à la main ni ne réécrit un consentement : les relances sont créées par le planificateur de l'API, qui travaille sans utilisateur connecté au moyen de cinq fonctions de la base limitées à cet usage ([ADR 0007](../architecture/adr/0007-relances-whatsapp-et-sms.md)). Un « STOP » reçu sur WhatsApp est enregistré par la base sans auteur, comme réponse du client.
 
-Personne ne crée ni ne modifie une demande reçue par le site : elle entre par une seule fonction de la base, appelée par la route publique du formulaire, qui limite les envois par adresse et par jour ([ADR 0009](../architecture/adr/0009-demandes-de-devis-du-site.md)). Son traitement (conversion en client et devis, ou classement sans suite avec un motif) porte le nom de la personne qui l'a fait et ne revient pas en arrière. L'empreinte de l'adresse IP du visiteur ne sert qu'aux limites : l'application ne peut pas la lire. Personne ne supprime une demande : seule la purge automatique le fait, 12 mois après son classement sans suite. Une carte grise n'est remise qu'après une analyse antivirus réussie.
+Personne ne crée ni ne modifie une demande reçue par le site : elle entre par une seule fonction de la base, appelée par la route publique du formulaire, qui limite les envois par adresse et par jour ([ADR 0009](../architecture/adr/0009-demandes-de-devis-du-site.md)). Les rappels d'échéance, les appels d'offres et les demandes de rendez-vous ont chacun leur fonction, avec les mêmes limites, communes à tous ([ADR 0014](../architecture/adr/0014-outils-du-site.md)). Un rendez-vous ne se modifie que par les fonctions de l'agenda, au nom de la personne connectée ; il ne se supprime pas, sauf par la purge des rendez-vous de prospects. Son traitement (conversion en client et devis, ou classement sans suite avec un motif) porte le nom de la personne qui l'a fait et ne revient pas en arrière. L'empreinte de l'adresse IP du visiteur ne sert qu'aux limites : l'application ne peut pas la lire. Personne ne supprime une demande : seule la purge automatique le fait, 12 mois après son classement sans suite. Une carte grise n'est remise qu'après une analyse antivirus réussie.
 
-## Portail des entreprises
+## Espace client (portail)
 
-Les personnes connectées au portail ne sont pas du personnel : elles n'ont aucun des rôles ci-dessus. Pendant leurs requêtes, l'API prend le rôle de base `dbs_portail`, qui ne voit que l'entreprise de la personne connectée ([ADR 0011](../architecture/adr/0011-portail-des-entreprises.md)) :
+Les personnes connectées à l'espace client ne sont pas du personnel : elles n'ont aucun des rôles ci-dessus. Pendant leurs requêtes, l'API prend le rôle de base `dbs_portail`, qui ne voit que le client de la personne connectée : son entreprise, ou elle-même pour un particulier ([ADR 0011](../architecture/adr/0011-portail-des-entreprises.md), [ADR 0012](../architecture/adr/0012-espace-client-et-paiement-en-ligne.md)) :
 
-| Données de son entreprise | Titulaire | Collaborateur |
+| Données de son client | Titulaire | Collaborateur (entreprise) |
 | --- | --- | --- |
-| Entreprise (nom), véhicules, contrats (sans la prime nette), composition, reste à payer | L | L |
-| Sinistres (sans les notes de l'agence) | L | L |
+| Client (nom), véhicules, contrats (sans la prime nette), composition, reste à payer | L | L |
+| Paiements en ligne (sans les références de l'opérateur ni les motifs de l'agence) | L C (paiement d'une prime) | L C (paiement d'une prime) |
+| Réclamations et réponses de l'agence (sans les auteurs de l'agence) | L C | L C |
+| Sinistres (sans les notes de l'agence) | L C (déclaration) | L C (déclaration) |
+| Photos et documents d'un sinistre | liste, C (dans les 7 jours) | liste, C (dans les 7 jours) |
 | Attestations | L (téléchargement consigné) | L (téléchargement consigné) |
 | Liste des véhicules (CSV) | L (export consigné) | L (export consigné) |
-| Accès de l'entreprise | L C, retrait des collaborateurs | L |
+| Accès de l'entreprise | L C, retrait des collaborateurs (pas de collaborateurs pour un particulier) | L |
 
-Tout le reste (personnel, autres clients, caisse, relances, demandes du site, journaux) est refusé par la base. Un accès retiré, par l'agence ou par le titulaire, coupe aussitôt les sessions ouvertes. Une personne, un numéro, un accès : pas d'accès partagé.
+Tout le reste (personnel, autres clients, caisse, relances, demandes du site, journaux) est refusé par la base. Un accès retiré, par l'agence ou par le titulaire, coupe aussitôt les sessions ouvertes. Une personne, un numéro, un accès : pas d'accès partagé. L'espace d'un particulier s'ouvre tout seul à sa première demande de code si le numéro est exactement celui de sa fiche (et d'aucun autre client) et qu'il a un contrat ; un accès retiré ne se rouvre pas tout seul.
+
+Personne, pas même le gérant, ne modifie une fiche d'identification vérifiée sans que la vérification tombe, ni ne réécrit une décision sur une alerte, une étape de réclamation ou une facture FNE : la base date et signe chacune, une fois. Un contrat ne se souscrit pas pour un client à risque élevé dont la fiche n'est pas complète ([ADR 0013](../architecture/adr/0013-conformite-et-pilotage.md)).
+
+Personne, pas même le gérant, n'enregistre un paiement en ligne à la main : son encaissement est enregistré par la base, sans caissier et hors caisse, une fois le résultat vérifié auprès du prestataire de paiement. Un paiement reçu mais impossible à encaisser est régularisé par le gérant seul, avec le motif.
 
 ## Vie des comptes
 
