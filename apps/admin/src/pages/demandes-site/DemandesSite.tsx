@@ -5,6 +5,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Alerte, Badge, Chargement, Champ, Section, Vide } from "../../composants/communs";
+import { LectureAutomatique } from "../../composants/LectureAutomatique";
 import { Lien, naviguer } from "../../routeur";
 import { api, ErreurApi, messageErreur } from "../../services/api";
 import {
@@ -346,6 +347,9 @@ export function DemandeSite({ id }: { id: string }) {
             </dd>
           </div>
         </dl>
+        {piece && piece.etatAnalyse === "saine" && peut("gerant", "charge_clientele", "commercial") && (
+          <LectureAutomatique document="carte_grise" pieces={[{ id: d.id, libelle: "Carte grise jointe à la demande", source: "demandeSiteId" }]} />
+        )}
         <h3>Accords donnés sur le site</h3>
         <ul className="liste-simple">
           <li>{d.accordTraitement}</li>
