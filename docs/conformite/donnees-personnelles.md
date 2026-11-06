@@ -41,7 +41,7 @@ Une demande qui n'est pas devenue un devis est **supprimée automatiquement 12 m
 
 ## Droits des personnes
 
-Accès, rectification, opposition et suppression (dans les limites des obligations légales de conservation). Demande par e-mail ou à l'agence ; réponse sous un mois. Le back-office aura un module pour extraire les données d'une personne et tracer chaque demande (tâche 12).
+Accès, rectification, opposition et suppression (dans les limites des obligations légales de conservation). Demande par e-mail ou à l'agence ; réponse sous un mois. Chaque demande s'enregistre dans le registre des réclamations, objet « Données personnelles » (délais suivis, réponse tracée) ; pour une demande d'accès, le gérant exporte depuis la fiche du client toutes les données que l'agence tient sur lui, en un fichier, sans aucun contenu chiffré, et l'export est consigné (tâche 12).
 
 ## Sous-traitants prévus
 

@@ -28,6 +28,12 @@ erDiagram
   GESTIONNAIRES_PORTAIL ||--o{ PAIEMENTS_EN_LIGNE : "commence"
   GESTIONNAIRES_PORTAIL |o--o{ SINISTRES : "déclare en ligne"
   SINISTRES ||--o{ PIECES_SINISTRES : "photos et documents"
+  CLIENTS ||--o| IDENTIFICATIONS_CLIENTS : "identifié par"
+  CLIENTS ||--o{ DIRIGEANTS_BENEFICIAIRES : "dirigé, possédé par"
+  CLIENTS ||--o{ JUSTIFICATIFS_IDENTIFICATION : "justifié par"
+  CLIENTS |o--o{ RECLAMATIONS : "réclame"
+  CONTRATS |o--o{ RECLAMATIONS : "concerné par"
+  UTILISATEURS ||--o{ FORMATIONS_PERSONNEL : "formé"
   CLIENTS ||--o{ RELANCES : "reçoit"
   CONTRATS ||--o{ AVENANTS_FLOTTE : "modifié par"
   AVENANTS_FLOTTE ||--|{ AVENANTS_FLOTTE_LIGNES : "détaille"
@@ -91,6 +97,7 @@ erDiagram
     timestamptz encaisse_le
     uuid encaisse_par "caissier ; vide pour un paiement en ligne (hors caisse)"
     uuid paiement_en_ligne_id
+    text payeur_tiers "qui paie, si ce n'est pas le client : alerte au gérant"
   }
   REVERSEMENTS {
     uuid id
@@ -181,6 +188,32 @@ erDiagram
     text moyen "Wave, Orange Money, MTN MoMo, Moov Money"
     text motif "à régulariser : pourquoi, puis ce que l'agence a fait"
   }
+  IDENTIFICATIONS_CLIENTS {
+    niveau_risque niveau_risque "faible, normal, élevé"
+    boolean personne_politiquement_exposee "risque élevé d'office"
+    bytea numero_piece_chiffre "chiffré par l'API ; 4 derniers caractères en clair"
+    date verifiee_le "original vu, par une fonction dédiée"
+    date prochaine_revue "3, 2 ou 1 an selon le risque"
+  }
+  DIRIGEANTS_BENEFICIAIRES {
+    text nom
+    boolean est_dirigeant
+    boolean est_beneficiaire_effectif
+    numeric part_capital
+    timestamptz retire_le "retrait, jamais d'effacement"
+  }
+  RECLAMATIONS {
+    text reference "REC-2026-0001, par la base"
+    canal_reclamation canal "guichet, téléphone… espace client"
+    date echeance_reponse "10 jours ouvrés"
+    text reponse "et son issue"
+    text escalade "compagnie, Direction des Assurances"
+  }
+  FACTURES_FNE {
+    text numero_fne "attribué par la plateforme de la DGI"
+    date mois "commissions : une par mois"
+    timestamptz annulee_le "avoir, avec motif"
+  }
   PIECES_SINISTRES {
     text nom_fichier
     text type_contenu "JPEG, PNG ou PDF"
@@ -249,11 +282,13 @@ Toutes les vues appliquent les droits de la personne qui les consulte (`security
 
 Le schéma `portail` (tables `codes_connexion`, `sessions`, `evenements`) n'est accessible que par ses fonctions : codes de connexion (empreinte seule), sessions du portail et journal de ses connexions et téléchargements ([ADR 0011](adr/0011-portail-des-entreprises.md)).
 
+L'état d'une fiche d'identification (`app.etat_identification`) se lit sans aucune donnée d'identité ; la vérification de l'original passe par `app.verifier_identification`. Les alertes de lutte contre le blanchiment (`app.v_alertes`) ne sont lisibles que par le gérant ; les réclamations se traitent par `app.traiter_reclamation`, qui date et signe chaque étape ; les échéances se calculent en jours ouvrés (`app.ajouter_jours_ouvres`) ([ADR 0013](adr/0013-conformite-et-pilotage.md)).
+
 Les paiements en ligne sont préparés et conclus par la base (`portail.preparer_paiement`, `app.conclure_paiement_en_ligne`) : l'encaissement d'un paiement accepté est enregistré sans caissier, hors caisse ; un paiement reçu mais impossible à encaisser reste « à régulariser » par le gérant. Les sinistres déclarés en ligne et leurs pièces passent par `portail.declarer_sinistre` et `portail.joindre_piece_sinistre` ; une pièce ne se modifie ni ne se supprime ([ADR 0012](adr/0012-espace-client-et-paiement-en-ligne.md)).
 
 ## À venir
 
-Documents des contrats (stockage de fichiers, tâche 11), identification des clients et réclamations (tâche 12).
+Documents des contrats (stockage de fichiers, tâche 11) ; purge des fiches d'identification à la fin de la durée légale de conservation, une fois celle-ci confirmée.
 
 Les demandes du site n'entrent que par la fonction `app.enregistrer_demande_site`, appelée sans utilisateur connecté par la route publique du formulaire : elle limite les envois par adresse (5 par heure) et par jour (300), et range la carte grise chiffrée dans `app.pieces_demandes_site`, en ajout seul et hors du journal d'audit. Le verdict de l'antivirus ne s'enregistre que par `app.enregistrer_analyse_piece` ; la maintenance de l'API retrouve les pièces à analyser par `app.pieces_a_analyser` et supprime les demandes sans suite depuis 12 mois par `app.purger_demandes_site`, seule à pouvoir supprimer dans ces tables ([ADR 0009](adr/0009-demandes-de-devis-du-site.md)).
 

@@ -106,9 +106,18 @@ Nouvelle application `apps/portail`, sur sa propre adresse, pour les entreprises
 
 Hébergement, sauvegardes testées, surveillance, test d'intrusion par un prestataire indépendant, formation du personnel (hameçonnage, mots de passe, procédure d'incident).
 
-## ⏳ Tâche 12 — Conformité et pilotage
+## ✅ Tâche 12 — Conformité et pilotage
 
-Fiche d'identification des clients (lutte contre le blanchiment), registre des réclamations, factures FNE, statistiques du gérant.
+([ADR 0013](architecture/adr/0013-conformite-et-pilotage.md))
+
+- **identification des clients** (lutte contre le blanchiment) : fiche avec la pièce d'identité au numéro chiffré, justificatifs, dirigeants et bénéficiaires effectifs, original vu par l'agence, revue selon le risque ; aucun contrat pour un client à risque élevé mal identifié ([LBC/FT](conformite/lbc-ft.md)) ;
+- **alertes** (espèces proches du plafond, paiement par un tiers, fractionnement, résiliation rapide) et décision du gérant, seul à les voir ;
+- **registre des formations** du personnel ;
+- **registre des réclamations** : au guichet et dans l'espace client, délais en jours ouvrés, traitement étape par étape, export ; demandes d'accès aux données tracées, export des données d'un client ;
+- **factures FNE** des commissions notées dans le back-office ([FNE](conformite/facturation-fne.md)) ;
+- **statistiques du gérant** : production, encaissements, portefeuille, renouvellements, sinistres, réclamations.
+
+*À faire par l'agence (tâche 2) :* obtenir la procédure LBC/FT de SanlamAllianz (seuils, pièces, circuit de déclaration) et confirmer la durée de conservation ; valider les délais des réclamations ; faire confirmer par le comptable l'obligation FNE ; enregistrer les formations du personnel ; compléter progressivement la fiche des clients existants (page Conformité).
 
 ## ⏳ Tâche 13 — Outils d'attraction sur le site
 

@@ -46,6 +46,16 @@ L = lire · C = créer · M = modifier · — = aucun accès
 | Accès à l'espace client (entreprises, professionnels, particuliers) | L C M (retrait, rétablissement) | L C M (retrait, rétablissement) | — | L | — | L |
 | Attestations des véhicules (PDF) | L (téléchargement consigné) C M | L (téléchargement consigné) C M | — | L (téléchargement consigné) | — | L |
 | Journal du portail (connexions, téléchargements) | L | — | — | — | — | L |
+| Fiche d'identification d'un client : état (complète, à compléter, à revoir) | L | L | L | L | ses clients : L | L |
+| Fiche d'identification : contenu, dirigeants et bénéficiaires effectifs | L C M | L C M | — | — | — | L |
+| N° de pièce d'identité en entier (affichage consigné) | L | L | — | — | — | — |
+| Justificatifs d'identité (ajout seul) | L (téléchargement consigné) C | L (téléchargement consigné) C | — | — | — | L (liste) |
+| Alertes de lutte contre le blanchiment et décisions (ajout seul) | L C | — | — | — | — | — |
+| Formations du personnel (ajout seul) | L C | les siennes : L | les siennes : L | les siennes : L | les siennes : L | L |
+| Réclamations | L C, traitement, export | L C, traitement | celles qu'il enregistre : L C | celles qu'il enregistre : L C | — | L, export |
+| Factures FNE de l'agence | L C, annulation | — | — | — | — | L |
+| Statistiques | L | — | — | — | — | L |
+| Export de toutes les données d'un client (droit d'accès, consigné) | L | — | — | — | — | — |
 | Journal d'audit | via le rôle `dbs_audit` | — | — | — | — | via le rôle `dbs_audit` |
 
 Personne, pas même le gérant, ne modifie un encaissement, ne valide son propre bordereau, ne vise sa propre clôture de caisse ou ne supprime une ligne. Les exports de données sont consignés au journal de sécurité : bordereaux réservés au gérant ; liste des véhicules d'une flotte pour la cotation, au gérant, au chargé de clientèle et au commercial. Un avenant de flotte est calculé par la base (prorata) et ne se modifie jamais ; après le paiement de la prime de départ, la composition d'un contrat ne change que par avenant ([ADR 0010](../architecture/adr/0010-flottes.md)).
@@ -62,6 +72,7 @@ Les personnes connectées à l'espace client ne sont pas du personnel : elles n'
 | --- | --- | --- |
 | Client (nom), véhicules, contrats (sans la prime nette), composition, reste à payer | L | L |
 | Paiements en ligne (sans les références de l'opérateur ni les motifs de l'agence) | L C (paiement d'une prime) | L C (paiement d'une prime) |
+| Réclamations et réponses de l'agence (sans les auteurs de l'agence) | L C | L C |
 | Sinistres (sans les notes de l'agence) | L C (déclaration) | L C (déclaration) |
 | Photos et documents d'un sinistre | liste, C (dans les 7 jours) | liste, C (dans les 7 jours) |
 | Attestations | L (téléchargement consigné) | L (téléchargement consigné) |
@@ -69,6 +80,8 @@ Les personnes connectées à l'espace client ne sont pas du personnel : elles n'
 | Accès de l'entreprise | L C, retrait des collaborateurs (pas de collaborateurs pour un particulier) | L |
 
 Tout le reste (personnel, autres clients, caisse, relances, demandes du site, journaux) est refusé par la base. Un accès retiré, par l'agence ou par le titulaire, coupe aussitôt les sessions ouvertes. Une personne, un numéro, un accès : pas d'accès partagé. L'espace d'un particulier s'ouvre tout seul à sa première demande de code si le numéro est exactement celui de sa fiche (et d'aucun autre client) et qu'il a un contrat ; un accès retiré ne se rouvre pas tout seul.
+
+Personne, pas même le gérant, ne modifie une fiche d'identification vérifiée sans que la vérification tombe, ni ne réécrit une décision sur une alerte, une étape de réclamation ou une facture FNE : la base date et signe chacune, une fois. Un contrat ne se souscrit pas pour un client à risque élevé dont la fiche n'est pas complète ([ADR 0013](../architecture/adr/0013-conformite-et-pilotage.md)).
 
 Personne, pas même le gérant, n'enregistre un paiement en ligne à la main : son encaissement est enregistré par la base, sans caissier et hors caisse, une fois le résultat vérifié auprès du prestataire de paiement. Un paiement reçu mais impossible à encaisser est régularisé par le gérant seul, avec le motif.
 
