@@ -309,6 +309,8 @@ Les paiements en ligne sont préparés et conclus par la base (`portail.preparer
 
 Les rappels d'échéance et les appels d'offres sont des demandes du site d'une autre nature, enregistrées par `app.enregistrer_rappel_echeance` et `app.enregistrer_appel_offres`. Les demandes de rendez-vous passent par `app.demander_rendez_vous`. Toutes partagent les limites de `app.controler_limites_site`. L'agenda avance par `app.fixer_rendez_vous` et `app.traiter_rendez_vous`, qui refusent les chevauchements et datent chaque étape ; `app.purger_rendez_vous` supprime les rendez-vous de prospects 12 mois après leur clôture ([ADR 0014](adr/0014-outils-du-site.md)).
 
+Chaque lecture automatique d'un document ajoute un événement `lecture_automatique` à `securite.evenements` (qui, quand, quel document de quel client, jamais les valeurs lues) ; l'index `evenements_lectures_idx` sert à compter les lectures de la dernière heure ([ADR 0015](adr/0015-lecture-automatique.md)).
+
 ## À venir
 
 Documents des contrats (stockage de fichiers, tâche 11) ; purge des fiches d'identification à la fin de la durée légale de conservation, une fois celle-ci confirmée.
