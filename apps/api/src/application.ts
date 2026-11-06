@@ -32,6 +32,7 @@ import { routesExportDonnees } from "./modules/clients/export-donnees.js";
 import { routesIdentification } from "./modules/conformite/identification.js";
 import { routesRegistres } from "./modules/conformite/registres.js";
 import { routesReclamations, routesReclamationsPortail } from "./modules/reclamations/routes.js";
+import { routesRendezVous } from "./modules/rendez-vous/routes.js";
 import { routesStatistiques } from "./modules/statistiques/routes.js";
 import { routesUtilisateurs } from "./modules/utilisateurs/routes.js";
 import { routesVehicules } from "./modules/vehicules/routes.js";
@@ -162,6 +163,7 @@ export async function construireApplication(dependances: DependancesApplication)
   await app.register(routesRegistres, { pool, gardes });
   await app.register(routesReclamations, { pool, gardes });
   await app.register(routesStatistiques, { pool, gardes });
+  await app.register(routesRendezVous, { pool, gardes });
   await app.register(routesExportDonnees, { pool, gardes });
   await app.register(routesRelances, {
     pool,

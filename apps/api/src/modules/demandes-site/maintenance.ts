@@ -4,7 +4,8 @@
 //     n'est pas revenu et qu'une notification s'est perdue, l'argent reçu est quand même encaissé), puis abandon
 //     de ceux restés sans réponse plus d'un jour (database/migrations/0013) ;
 //   · purge des demandes du site qui ne sont pas devenues un devis, 12 mois après leur classement sans suite
-//     (ou leur réception si personne ne les a traitées), avec leur carte grise ;
+//     (ou leur réception si personne ne les a traitées ; l'échéance pour un rappel), avec leur carte grise, et des
+//     rendez-vous de prospects 12 mois après leur clôture (database/migrations/0015) ;
 //   · analyse des cartes grises reçues pendant que l'antivirus ne répondait pas.
 // Toutes passent par les fonctions que la base réserve à cet usage (database/migrations/0008 et 0011).
 
@@ -21,6 +22,8 @@ export interface BilanMaintenance {
   paiementsConclus: number;
   paiementsAbandonnes: number;
   purgees: number;
+  /** Rendez-vous de prospects clos depuis plus de 12 mois (tâche 13) */
+  rendezVousPurges: number;
   analysees: number;
   infectees: number;
   enAttente: number;
@@ -62,9 +65,13 @@ export async function executerMaintenance(
     await client.query("SELECT portail.purger()");
     return rows[0]?.nombre ?? 0;
   });
+  const rendezVousPurges = await transactionSysteme(pool, async (client) => {
+    const { rows } = await client.query<{ nombre: number }>("SELECT app.purger_rendez_vous() AS nombre");
+    return rows[0]?.nombre ?? 0;
+  });
 
   const bilan: BilanMaintenance = {
-    contratsExpires, paiementsConclus, paiementsAbandonnes, purgees, analysees: 0, infectees: 0, enAttente: 0,
+    contratsExpires, paiementsConclus, paiementsAbandonnes, purgees, rendezVousPurges, analysees: 0, infectees: 0, enAttente: 0,
   };
   if (!antivirus.configure) return bilan;
 

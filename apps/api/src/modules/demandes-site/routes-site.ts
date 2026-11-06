@@ -16,6 +16,7 @@ import { ErreurApi } from "../../commun/erreurs.js";
 import type { Antivirus } from "../../integrations/antivirus/clamav.js";
 import { normaliserTelephone } from "../../commun/formats.js";
 import { BRANCHES, texteCourt, type Branche } from "../../commun/schemas.js";
+import { routesOutilsSite } from "./outils-site.js";
 import { chiffrerPiece, LONGUEUR_BASE64_MAX, TYPES_PIECE, verifierPiece, type TypePiece } from "./piece.js";
 
 export const CHEMIN_DEMANDE = "/site/demandes-devis";
@@ -52,6 +53,7 @@ export async function routesDemandesSite(
   const { pool, cleChiffrement, origineSite, antivirus } = options;
   // Clé dédiée aux empreintes d'adresses : jamais la clé de chiffrement elle-même
   const cleEmpreinte = Buffer.from(hkdfSync("sha256", cleChiffrement, Buffer.alloc(0), "dbs:empreinte-adresse-ip", 32));
+  const empreinte = (ip: string) => createHmac("sha256", cleEmpreinte).update(ip).digest();
 
   // Réponses lisibles par le site, et par lui seul (erreurs comprises, pour afficher le bon message)
   app.addHook("onSend", async (requete, reponse, charge) => {
@@ -144,7 +146,7 @@ export async function routesDemandesSite(
         };
       }
 
-      const empreinteIp = createHmac("sha256", cleEmpreinte).update(requete.ip).digest();
+      const empreinteIp = empreinte(requete.ip);
       const { rows } = await transactionSysteme(pool, async (client) => {
         const resultat = await client.query<{ numero: number }>(
           `SELECT numero FROM app.enregistrer_demande_site($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
@@ -159,4 +161,7 @@ export async function routesDemandesSite(
       return reponse.status(201).send({ numero: rows[0]?.numero ?? null });
     },
   );
+
+  // Rappel d'échéance, appel d'offres, rendez-vous (tâche 13) : dans ce même contexte, pour les mêmes en-têtes
+  await routesOutilsSite(app, { pool, empreinte });
 }
