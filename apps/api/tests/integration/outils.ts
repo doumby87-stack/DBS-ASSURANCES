@@ -123,7 +123,7 @@ export async function creerCompte(ctx: Contexte, role: Role, email = adresseUniq
 }
 
 interface Envoi {
-  methode?: "GET" | "POST" | "PATCH" | "DELETE";
+  methode?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   url: string;
   cookie?: string | undefined;
   corps?: object;

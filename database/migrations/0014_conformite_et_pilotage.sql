@@ -862,7 +862,7 @@ GRANT EXECUTE ON FUNCTION app.verifier_identification(uuid), app.etat_identifica
 -- Espace client : ses réclamations (sans les auteurs de l'agence), déposées par sa fonction
 CREATE POLICY reclamations_portail ON app.reclamations FOR SELECT TO dbs_portail
   USING (client_id = (SELECT portail.client_courant()));
-GRANT SELECT (id, reference, objet, description, statut, canal, recue_le, echeance_reponse, accuse_le, reponse,
+GRANT SELECT (id, reference, client_id, objet, description, statut, canal, recue_le, echeance_reponse, accuse_le, reponse,
               repondue_le, close_le, contrat_id, sinistre_id, cree_par_gestionnaire) ON app.reclamations TO dbs_portail;
 REVOKE ALL ON FUNCTION portail.deposer_reclamation(app.objet_reclamation, text, uuid, uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION portail.deposer_reclamation(app.objet_reclamation, text, uuid, uuid) TO dbs_portail;

@@ -28,6 +28,10 @@ import { routesRelances } from "./modules/relances/routes.js";
 import { routesReversements } from "./modules/reversements/routes.js";
 import { routesSinistres } from "./modules/sinistres/routes.js";
 import { routesSinistresPortail } from "./modules/sinistres/routes-portail.js";
+import { routesIdentification } from "./modules/conformite/identification.js";
+import { routesRegistres } from "./modules/conformite/registres.js";
+import { routesReclamations, routesReclamationsPortail } from "./modules/reclamations/routes.js";
+import { routesStatistiques } from "./modules/statistiques/routes.js";
 import { routesUtilisateurs } from "./modules/utilisateurs/routes.js";
 import { routesVehicules } from "./modules/vehicules/routes.js";
 import { creerGardes } from "./securite/gardes.js";
@@ -140,6 +144,7 @@ export async function construireApplication(dependances: DependancesApplication)
       paiementEnLigne: prestataire !== null,
     });
     await app.register(routesSinistresPortail, { pool, cleChiffrement: config.cleChiffrement, antivirus });
+    await app.register(routesReclamationsPortail, { pool });
     if (prestataire && config.paiement) {
       await app.register(routesPaiementsPortail, {
         pool, prestataire, originePortail: config.originePortail, montantMax: config.paiement.montantMax,
@@ -151,6 +156,11 @@ export async function construireApplication(dependances: DependancesApplication)
   await app.register(routesCaisse, { pool, gardes });
   await app.register(routesReversements, { pool, gardes });
   await app.register(routesCommissions, { pool, gardes });
+  // Conformité et pilotage (tâche 12)
+  await app.register(routesIdentification, { pool, gardes, cleChiffrement: config.cleChiffrement, antivirus });
+  await app.register(routesRegistres, { pool, gardes });
+  await app.register(routesReclamations, { pool, gardes });
+  await app.register(routesStatistiques, { pool, gardes });
   await app.register(routesRelances, {
     pool,
     gardes,

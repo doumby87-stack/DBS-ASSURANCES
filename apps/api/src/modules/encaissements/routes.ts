@@ -92,7 +92,7 @@ export async function routesEncaissements(app: FastifyInstance, options: { pool:
       }),
   );
 
-  app.post<{ Body: { contratId: string; montant: number; mode: Mode; reference?: string } }>(
+  app.post<{ Body: { contratId: string; montant: number; mode: Mode; reference?: string; payeurTiers?: string } }>(
     "/encaissements",
     {
       preHandler: gardes.roles("gerant", "caissier"),
@@ -106,6 +106,8 @@ export async function routesEncaissements(app: FastifyInstance, options: { pool:
             montant,
             mode: { type: "string", enum: MODES },
             reference: texteCourt(60, 3),
+            // Nom de la personne qui paie, quand ce n'est pas le client (signalé au gérant : lutte contre le blanchiment)
+            payeurTiers: texteCourt(120, 2),
           },
         },
       },
@@ -113,6 +115,7 @@ export async function routesEncaissements(app: FastifyInstance, options: { pool:
     async (requete, reponse) => {
       const { contratId, montant: valeur, mode } = requete.body;
       const reference = requete.body.reference?.trim() || null;
+      const payeurTiers = requete.body.payeurTiers?.trim() || null;
       if (mode !== "especes" && !reference) {
         throw new ErreurApi(422, "reference_obligatoire", "Indiquez la référence du paiement (n° de transaction, de chèque ou de virement).");
       }
@@ -135,9 +138,9 @@ export async function routesEncaissements(app: FastifyInstance, options: { pool:
           );
         }
         const { rows } = await client.query<{ id: string }>(
-          `INSERT INTO app.encaissements (contrat_id, montant, mode, reference_externe)
-           VALUES ($1, $2, $3, $4) RETURNING id`,
-          [contratId, valeur, mode, reference],
+          `INSERT INTO app.encaissements (contrat_id, montant, mode, reference_externe, payeur_tiers)
+           VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+          [contratId, valeur, mode, reference, payeurTiers],
         );
         const id = rows[0]!.id;
         const apres = await lireSolde(client, contratId);
