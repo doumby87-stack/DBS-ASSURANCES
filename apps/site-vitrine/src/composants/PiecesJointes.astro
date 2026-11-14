@@ -1,0 +1,28 @@
+---
+// Documents à joindre à une demande (devis, rappel d'échéance, appel d'offres) : un champ de fichier par nature de
+// pièce (src/donnees/pieces.ts), facultatif. Pour le devis, tous les champs sont rendus cachés et le script
+// (scripts/pieces.ts) n'affiche que ceux de l'assurance choisie. Rendu seulement quand l'API est connue.
+import { AIDES_NATURE, formatsAcceptes, LIBELLES_NATURE, NATURES_PIECE, PIECES_MAX, type NaturePiece } from "../donnees/pieces";
+
+interface Props {
+  /** Natures proposées ; par défaut toutes, cachées (le script en choisit) */
+  natures?: readonly NaturePiece[];
+  cachees?: boolean;
+  titre?: string;
+}
+const { natures = NATURES_PIECE, cachees = false, titre = "Documents utiles" } = Astro.props;
+---
+<fieldset class="champ groupe pieces" data-pieces>
+  <legend class="champ__libelle">{titre} <span class="champ__facultatif">(facultatif)</span></legend>
+  <p class="champ__aide pieces__intro">Jusqu'à {PIECES_MAX} fichiers, 5 Mo chacun : une photo (JPEG ou PNG) ou un PDF, et un classeur Excel (.xlsx) pour les listes. Nous n'aurons pas à vous les redemander.</p>
+  {natures.map((nature) => (
+    <div class="champ pieces__champ" data-piece={nature} hidden={cachees}>
+      <label for={`champ-piece-${nature}`}>{LIBELLES_NATURE[nature]}</label>
+      <input class="saisie saisie--fichier" id={`champ-piece-${nature}`} name={`piece-${nature}`} type="file" multiple accept={formatsAcceptes(nature)} data-nature={nature} aria-describedby={`aide-piece-${nature} erreur-piece-${nature}`} />
+      <p class="champ__aide" id={`aide-piece-${nature}`}>{AIDES_NATURE[nature]}</p>
+      <p class="champ__erreur" id={`erreur-piece-${nature}`}></p>
+    </div>
+  ))}
+  <p class="champ__aide" data-pieces-total aria-live="polite"></p>
+  <p class="champ__erreur" id="erreur-pieces" aria-live="polite"></p>
+</fieldset>

@@ -167,7 +167,7 @@ test("parcours du gérant, de la première connexion à la caisse et au reversem
   expect(csv.type).toBe("text/csv; charset=utf-8");
   expect(csv.texte).toContain("Transports Kouamé & Fils");
 
-  // --- Demande de devis reçue du site (tâche 7) : carte grise téléchargée, puis client et devis créés
+  // --- Demande de devis reçue du site (tâche 7) : carte grise jointe et téléchargée, puis client et devis créés
   const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
   const envoiSite = await page.request.post("http://127.0.0.1:3100/site/demandes-devis", {
     headers: { Origin: "http://localhost:4321" },
@@ -175,17 +175,18 @@ test("parcours du gérant, de la première connexion à la caisse et au reversem
       assurance: "automobile", profil: "particulier", nom: "Mariam Traoré", telephone: "07 08 09 10 11",
       besoin: "Suzuki Swift 2021, usage personnel", accordTraitement: "J'accepte que DBS-ASSURANCES utilise ces informations pour répondre à ma demande.",
       accordWhatsApp: "J'accepte de recevoir sur WhatsApp les rappels de l'agence.",
-      piece: { type: "image/png", contenu: png.toString("base64") },
+      pieces: [{ nature: "carte_grise", type: "image/png", contenu: png.toString("base64") }],
     },
   });
   expect(envoiSite.status()).toBe(201);
   expect(envoiSite.headers()["access-control-allow-origin"]).toBe("http://localhost:4321");
   await page.getByRole("link", { name: "Demandes du site" }).click();
   await expect(page.getByRole("button", { name: "À traiter (1)" })).toBeVisible();
-  await expect(page.getByRole("row", { name: /Mariam Traoré/ })).toContainText("Carte grise jointe");
+  await expect(page.getByRole("row", { name: /Mariam Traoré/ })).toContainText("1 pièce jointe");
   await page.getByRole("link", { name: /^n° \d+$/ }).click();
   await expect(page.getByRole("heading", { name: /^Demande n° \d+$/ })).toBeVisible();
   // Analysée par l'antivirus à la réception, puis de nouveau au téléchargement
+  await expect(page.getByText("Carte grise", { exact: true })).toBeVisible();
   await expect(page.getByText(/Aucune menace trouvée par l'antivirus/)).toBeVisible();
   const [carteGrise] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /^Télécharger/ }).click()]);
   expect(carteGrise.suggestedFilename()).toMatch(/^carte-grise-demande-\d+\.png$/);

@@ -34,6 +34,16 @@ Contraintes :
 - Un service de plus à exploiter : le démon ClamAV, dont les signatures se mettent à jour plusieurs fois par jour (`freshclam`). S'il tombe, les demandes continuent d'arriver mais les nouvelles cartes grises restent fermées jusqu'à son retour.
 - **Avant la mise en ligne** : déclaration à l'ARTCI faite, hébergeur choisi, démon ClamAV installé à côté de l'API (`ANTIVIRUS_ADRESSE`), puis `URL_SITE_VITRINE` dans l'API et `URL_API` dans la construction du site (Netlify).
 
+## Complément du 2026-11-14 — plusieurs pièces, selon l'assurance
+
+La carte grise seule ne suffisait qu'à l'automobile. Pour coter sans rappeler le visiteur, chaque formulaire du site (devis, rappel d'échéance, appel d'offres) propose désormais **jusqu'à quatre documents, choisis selon l'assurance** : carte grise, attestation ou contrat actuel, liste des véhicules, carte de transport, registre de commerce, photos du bien, devis de travaux, liste du matériel, cahier des charges, ou tout autre document utile. Le vocabulaire et les natures permises par assurance sont écrits une fois dans l'API (`pieces-site.ts`) et recopiés sur le site (`donnees/pieces.ts`), un test vérifiant qu'ils restent identiques ; la base garantit le vocabulaire, les types, les tailles et les limites (migration 0019).
+
+- **Mêmes protections pour chaque pièce** : type reconnu d'après le contenu, 5 Mo au plus, antivirus à la réception et à chaque téléchargement, chiffrement lié à l'identifiant de la pièce, téléchargement consigné (avec la nature de la pièce), purge avec la demande. Limites par demande : 4 pièces, 12 Mo en tout.
+- **Classeur Excel (.xlsx) pour les listes seulement** (véhicules, matériel), sans macro : un classeur à macros, protégé par mot de passe ou illisible est refusé avant même l'antivirus. Pas de CSV ni d'ancien format `.xls` : la liste importée dans une flotte (tâche 8) les lit, mais une pièce jointe libre doit rester un format fermé et vérifiable.
+- **Ordre du visiteur conservé** (`rang`) : la pièce la plus utile est proposée en premier.
+- **Compatibilité** : l'ancien champ `piece` (une carte grise) reste accepté par l'API pour les pages du site déjà ouvertes, et `GET /demandes-site/:id/piece` renvoie toujours la carte grise ; chaque pièce se télécharge par `GET /demandes-site/:id/pieces/:pieceId`.
+- **Écarté** : exiger certaines pièces (un devis se demande sans), ou laisser le visiteur nommer librement ses documents (l'agence retrouve une pièce par sa nature, et le nom du fichier n'entre jamais en base).
+
 ## Options écartées
 
 - **Netlify Forms ou un service de formulaires** : les demandes et les cartes grises seraient stockées chez un tiers, hors de l'outil de l'agence, avec un transfert de données de plus à déclarer.

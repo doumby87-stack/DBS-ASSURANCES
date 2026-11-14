@@ -3,9 +3,12 @@
 //   · par défaut, le message est préparé dans le navigateur puis ouvert dans WhatsApp ou la messagerie du
 //     visiteur : rien n'est envoyé au site lui-même ;
 //   · si le site a été construit avec l'adresse de l'API (data-api, tâche 7), la demande est enregistrée
-//     par l'agence, avec la carte grise éventuelle ; WhatsApp et l'e-mail restent proposés, et servent de
-//     repli si l'envoi échoue.
+//     par l'agence, avec les documents joints selon l'assurance (carte grise, attestation, liste des
+//     véhicules… : pieces.ts) ; WhatsApp et l'e-mail restent proposés, et servent de repli si l'envoi échoue.
 // Sans JavaScript, le formulaire est remplacé par les coordonnées de l'agence (public/styles/sans-js.css).
+
+import { PIECES_PAR_BRANCHE } from "../donnees/pieces";
+import { initialiserPieces } from "./pieces";
 
 interface Coordonnees {
   whatsapp: string;
@@ -14,20 +17,12 @@ interface Coordonnees {
 
 type Canal = "whatsapp" | "email" | "site";
 
-const TYPES_CARTE_GRISE: Record<string, string> = {
-  "image/jpeg": "image/jpeg", "image/png": "image/png", "application/pdf": "application/pdf",
-  jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", pdf: "application/pdf",
-};
-const TAILLE_CARTE_GRISE_MAX = 5 * 1024 * 1024;
-
 const MESSAGES = {
   assurance: "Choisissez l'assurance qui vous intéresse, ou « Autre besoin ».",
   nom: "Indiquez votre nom ou celui de votre entreprise.",
   telephone: "Indiquez un numéro à 10 chiffres, par exemple 07 49 36 07 02, ou un numéro étranger commençant par +.",
   email: "Cette adresse e-mail semble incomplète.",
   consentement: "Cochez cette case pour que nous puissions vous répondre.",
-  carteGriseType: "Choisissez une photo (JPEG ou PNG) ou un PDF.",
-  carteGriseTaille: "La carte grise dépasse 5 Mo : envoyez une photo moins lourde.",
 } as const;
 
 const PROFILS: Record<string, string> = {
@@ -64,10 +59,9 @@ function initialiser(form: HTMLFormElement): void {
   const aideBesoin = form.querySelector<HTMLElement>("[data-aide-besoin]");
   const recapitulatif = form.querySelector<HTMLElement>("[data-recapitulatif]");
   const reduireAnimations = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  // Enregistrement par l'API (tâche 7)
+  // Enregistrement par l'API (tâche 7), avec les documents joints (absents si l'API n'est pas connue)
   const adresseApi = form.dataset.api ?? null;
-  const assurancesAvecCarteGrise = JSON.parse(form.dataset.carteGrise ?? "[]") as string[];
-  const champCarteGrise = form.querySelector<HTMLElement>("[data-champ-carte-grise]");
+  const pieces = initialiserPieces(form);
   const confirmation = form.querySelector<HTMLElement>("[data-confirmation]");
 
   const saisie = (nom: string) => form.elements.namedItem(nom) as HTMLInputElement | HTMLTextAreaElement;
@@ -81,7 +75,6 @@ function initialiser(form: HTMLFormElement): void {
   const commune = saisie("commune") as HTMLInputElement;
   const besoin = saisie("besoin") as HTMLTextAreaElement;
   const consentement = saisie("consentement") as HTMLInputElement;
-  const carteGrise = form.elements.namedItem("carteGrise") as HTMLInputElement | null;
   const rappelsWhatsApp = form.elements.namedItem("rappelsWhatsApp") as HTMLInputElement | null;
   const piege = form.elements.namedItem("siteWeb") as HTMLInputElement | null;
 
@@ -111,30 +104,8 @@ function initialiser(form: HTMLFormElement): void {
   function majAide(): void {
     const id = choisi("assurance")?.value ?? "autre";
     if (aideBesoin) aideBesoin.textContent = `À préciser : ${aides[id] ?? aides.autre ?? ""}`;
-    if (champCarteGrise) champCarteGrise.hidden = !assurancesAvecCarteGrise.includes(id);
-  }
-
-  /** Carte grise choisie, si le champ est proposé pour l'assurance choisie */
-  function fichierCarteGrise(): File | null {
-    if (!carteGrise || !champCarteGrise || champCarteGrise.hidden) return null;
-    return carteGrise.files?.[0] ?? null;
-  }
-
-  function typeCarteGrise(fichier: File): string | null {
-    const extension = fichier.name.split(".").pop()?.toLowerCase() ?? "";
-    return TYPES_CARTE_GRISE[fichier.type] ?? TYPES_CARTE_GRISE[extension] ?? null;
-  }
-
-  function carteGriseValide(): boolean {
-    const fichier = fichierCarteGrise();
-    if (!carteGrise || !fichier) {
-      if (carteGrise) signaler(carteGrise, "erreur-carte-grise", "");
-      return true;
-    }
-    const message = !typeCarteGrise(fichier) ? MESSAGES.carteGriseType : fichier.size > TAILLE_CARTE_GRISE_MAX ? MESSAGES.carteGriseTaille : "";
-    const ok = signaler(carteGrise, "erreur-carte-grise", message);
-    if (!ok) carteGrise.focus();
-    return ok;
+    // Les documents utiles dépendent de l'assurance : carte grise pour un véhicule, photos pour un logement…
+    pieces?.afficher(PIECES_PAR_BRANCHE[id] ?? PIECES_PAR_BRANCHE.autre ?? []);
   }
 
   /* ---------- Récapitulatif de l'étape 3 ---------- */
@@ -145,6 +116,8 @@ function initialiser(form: HTMLFormElement): void {
       ["Profil", choisi("profil")?.value ?? ""],
     ];
     if (commune.value.trim()) lignes.push(["Commune", commune.value.trim()]);
+    const documents = pieces?.libelles() ?? [];
+    if (documents.length > 0) lignes.push(["Documents", documents.join(" · ")]);
     const liste = document.createElement("dl");
     liste.append(
       ...lignes.map(([terme, valeur]) => {
@@ -196,7 +169,7 @@ function initialiser(form: HTMLFormElement): void {
       if (!ok) radios("assurance")[0]?.focus();
       return ok;
     }
-    if (index === 1) return carteGriseValide();
+    if (index === 1) return pieces?.valider() ?? true;
     if (index === 2) return coordonneesValides();
     return true;
   }
@@ -246,9 +219,6 @@ function initialiser(form: HTMLFormElement): void {
   consentement.addEventListener("change", () => {
     if (consentement.checked) signaler(consentement, "erreur-consentement", "");
   });
-  carteGrise?.addEventListener("change", () => {
-    carteGriseValide();
-  });
 
   /* ---------- Message envoyé à l'agence ---------- */
   function message(): string {
@@ -264,6 +234,9 @@ function initialiser(form: HTMLFormElement): void {
     if (email.value.trim()) lignes.push(`• E-mail : ${email.value.trim()}`);
     if (commune.value.trim()) lignes.push(`• Commune / ville : ${commune.value.trim()}`);
     if (besoin.value.trim()) lignes.push("", "Mon besoin :", besoin.value.trim());
+    // Les fichiers ne voyagent pas dans le lien : le visiteur les joint lui-même à son message
+    const documents = pieces?.libelles() ?? [];
+    if (documents.length > 0) lignes.push("", "Je joins à ce message :", ...documents.map((d) => `• ${d}`));
     lignes.push("", "(Demande envoyée depuis le site DBS-ASSURANCES)");
     return lignes.join("\n");
   }
@@ -303,15 +276,6 @@ function initialiser(form: HTMLFormElement): void {
   /** Texte exact de la case cochée : il est enregistré comme preuve de l'accord */
   function texteAccord(caseACocher: HTMLInputElement): string {
     return caseACocher.closest("label")?.querySelector("[data-texte-accord]")?.textContent?.trim() ?? "";
-  }
-
-  function lireEnBase64(fichier: File): Promise<string> {
-    return new Promise((resoudre, rejeter) => {
-      const lecteur = new FileReader();
-      lecteur.addEventListener("load", () => resoudre(String(lecteur.result).split(",")[1] ?? ""));
-      lecteur.addEventListener("error", () => rejeter(lecteur.error));
-      lecteur.readAsDataURL(fichier);
-    });
   }
 
   function occupe(enCours: boolean): void {
@@ -356,8 +320,8 @@ function initialiser(form: HTMLFormElement): void {
     occupe(true);
     annoncer("Envoi de votre demande…");
     try {
-      const fichier = fichierCarteGrise();
-      if (fichier) corps.piece = { type: typeCarteGrise(fichier), contenu: await lireEnBase64(fichier) };
+      const documents = (await pieces?.lire()) ?? [];
+      if (documents.length > 0) corps.pieces = documents;
       const reponse = await fetch(adresseApi, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

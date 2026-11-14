@@ -2,6 +2,8 @@
 // publiques), puis leur traitement au back-office : demandes à traiter ou à venir, conversion, agenda.
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { TYPE_CLASSEUR } from "../../src/modules/demandes-site/piece.js";
+import { classeurMinimal } from "../fixtures/zip.js";
 import { connecter, creerCompte, demarrer, envoyer, type Compte, type Contexte } from "./outils.js";
 
 const SITE = "https://www.site.test.ci";
@@ -95,6 +97,40 @@ describe("routes publiques des outils du site", () => {
     expect(robot.json().numero).toBeNull();
     const { rows } = await ctx.base.query("SELECT 1 FROM app.demandes_site WHERE telephone = '+2250700000099'");
     expect(rows).toHaveLength(0);
+  });
+
+  it("rappel d'échéance et appel d'offres : des pièces jointes aussi, selon la demande", async () => {
+    const PDF = Buffer.from("%PDF-1.4\n1 0 obj << >> endobj\n%%EOF\n", "latin1").toString("base64");
+    const avecAttestation = await poster("/site/rappels-echeance", rappel({
+      pieces: [{ nature: "attestation_precedente", type: "application/pdf", contenu: PDF }],
+    }));
+    expect(avecAttestation.statusCode).toBe(201);
+    const pieces = async (numero: number) => (await ctx.base.query(
+      `SELECT p.nature, p.etat_analyse AS etat FROM app.pieces_demandes_site p JOIN app.demandes_site d ON d.id = p.demande_id
+       WHERE d.numero = $1 ORDER BY p.rang`, [numero])).rows;
+    expect(await pieces(avecAttestation.json().numero)).toEqual([{ nature: "attestation_precedente", etat: "saine" }]);
+    // Une carte grise n'a pas sa place dans un rappel ; un cahier des charges, si, dans un appel d'offres
+    const carteGrise = await poster("/site/rappels-echeance", rappel({
+      pieces: [{ nature: "carte_grise", type: "application/pdf", contenu: PDF }],
+    }));
+    expect(carteGrise.statusCode).toBe(422);
+    expect(carteGrise.json().code).toBe("piece_inattendue");
+
+    const appel = await poster("/site/appels-offres", appelOffres({
+      pieces: [
+        { nature: "cahier_des_charges", type: "application/pdf", contenu: PDF },
+        { nature: "liste_vehicules", type: TYPE_CLASSEUR, contenu: classeurMinimal().toString("base64") },
+      ],
+    }));
+    expect(appel.statusCode).toBe(201);
+    expect(await pieces(appel.json().numero)).toEqual([{ nature: "cahier_des_charges", etat: "saine" }, { nature: "liste_vehicules", etat: "saine" }]);
+    expect((await poster("/site/appels-offres", appelOffres({
+      pieces: [{ nature: "photos_bien", type: "application/pdf", contenu: PDF }],
+    }))).json().code).toBe("piece_inattendue");
+    // Le rendez-vous n'en prend pas
+    expect((await poster("/site/rendez-vous", rendezVous(jourDans(5), {
+      pieces: [{ nature: "autre", type: "application/pdf", contenu: PDF }],
+    }))).statusCode).toBe(400);
   });
 
   it("appel d'offres : professionnels seulement, branche déduite des garanties, marché gardé tel quel", async () => {

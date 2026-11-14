@@ -6,6 +6,9 @@
 //   · si le site a été construit avec l'adresse de l'API (data-api), elle est enregistrée par l'agence, et
 //     WhatsApp reste proposé en repli.
 // Les contrôles de dates reprennent ceux de la base, qui reste seule juge : son message s'affiche s'il diffère.
+// Le rappel et l'appel d'offres acceptent des documents (attestation actuelle, cahier des charges… : pieces.ts).
+
+import { initialiserPieces } from "./pieces";
 
 type Outil = "rappel" | "appel-offres" | "rendez-vous";
 type Canal = "whatsapp" | "email" | "site";
@@ -76,6 +79,7 @@ function initialiser(form: HTMLFormElement): void {
   const etat = form.querySelector<HTMLElement>("[data-statut-envoi]");
   const confirmation = form.querySelector<HTMLElement>("[data-confirmation]");
   const contenu = form.querySelector<HTMLElement>("[data-contenu]");
+  const pieces = initialiserPieces(form);
   let dernierCanal: Canal = adresseApi ? "site" : "whatsapp";
 
   const champ = <T extends Champ = HTMLInputElement>(nom: string) => form.elements.namedItem(nom) as T | null;
@@ -165,8 +169,9 @@ function initialiser(form: HTMLFormElement): void {
     if (premier) {
       const element = form.elements.namedItem(premier);
       (element instanceof RadioNodeList ? (element[0] as HTMLInputElement) : (element as Champ | null))?.focus();
+      return false;
     }
-    return !premier;
+    return pieces?.valider() ?? true;
   }
 
   // Une erreur s'efface dès que le visiteur corrige le champ
@@ -276,6 +281,9 @@ function initialiser(form: HTMLFormElement): void {
     if (valeur("email")) lignes.push(`• E-mail : ${valeur("email")}`);
     const precision = valeur("besoin") || valeur("message");
     if (precision) lignes.push("", precision);
+    // Les fichiers ne voyagent pas dans le lien : le visiteur les joint lui-même à son message
+    const documents = pieces?.libelles() ?? [];
+    if (documents.length > 0) lignes.push("", "Je joins à ce message :", ...documents.map((d) => `• ${d}`));
     lignes.push("", "(Envoyé depuis le site DBS-ASSURANCES)");
     return lignes.join("\n");
   }
@@ -351,8 +359,11 @@ function initialiser(form: HTMLFormElement): void {
     occupe(true);
     annoncer("Envoi de votre demande…");
     try {
+      const c = corps();
+      const documents = (await pieces?.lire()) ?? [];
+      if (documents.length > 0) c.pieces = documents;
       const reponse = await fetch(adresseApi, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(corps()), credentials: "omit",
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(c), credentials: "omit",
       });
       const donnees = (await reponse.json().catch(() => ({}))) as { numero?: number | null; aTraiterLe?: string | null; message?: string };
       if (!reponse.ok) {

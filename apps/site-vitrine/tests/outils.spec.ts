@@ -144,6 +144,7 @@ test.describe("avec l'API de l'agence", () => {
     const recues = await simulerApi(context, "/site/rappels-echeance", { numero: 77, aTraiterLe: iso(dans(70)) });
     await page.goto("/rappel-echeance/?assurance=habitation");
     await page.getByLabel("Date d'échéance *").fill(iso(dans(100)));
+    await page.getByLabel(/Attestation ou contrat/).setInputFiles({ name: "attestation.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4") });
     await coordonnees(page);
     await page.getByRole("checkbox", { name: /rappels de l'agence/ }).check();
     await page.getByRole("button", { name: "Programmer mon rappel" }).click();
@@ -155,6 +156,7 @@ test.describe("avec l'API de l'agence", () => {
       profil: "particulier", nom: "Awa Koné", telephone: "07 12 34 56 78", assurance: "habitation", echeance: iso(dans(100)),
       accordTraitement: "J'accepte que DBS-ASSURANCES garde ces informations jusqu'à mon échéance, pour me rappeler et me proposer un devis.",
       accordWhatsApp: "J'accepte de recevoir sur WhatsApp les rappels de l'agence (échéances, suivi de mon dossier). Je pourrai répondre STOP à tout moment.",
+      pieces: [{ nature: "attestation_precedente", type: "application/pdf", contenu: Buffer.from("%PDF-1.4").toString("base64") }],
     }]);
     expect(erreurs).toEqual([]);
   });
@@ -170,6 +172,7 @@ test.describe("avec l'API de l'agence", () => {
     await page.getByLabel(/Date limite de dépôt/).fill(iso(dans(30)));
     await page.getByRole("checkbox", { name: /Transport des fournitures/ }).check();
     await page.getByRole("checkbox", { name: /responsabilité civile professionnelle/i }).check();
+    await expect(page.getByLabel(/Cahier des charges/)).toBeVisible();
     await coordonnees(page);
     await page.getByRole("button", { name: "Envoyer à l'agence" }).click();
     await expect(page.locator("[data-confirmation]").getByRole("heading")).toHaveText("Demande enregistrée (n° 78)");

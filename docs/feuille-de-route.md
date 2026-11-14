@@ -61,6 +61,8 @@ Messages WhatsApp (modèles validés par Meta, [textes](metier/modeles-de-messag
 
 Le formulaire du site enregistre la demande, avec la carte grise (photo ou PDF, vérifiée puis chiffrée) et l'accord éventuel pour les rappels WhatsApp ; le visiteur reçoit un numéro de demande, WhatsApp et l'e-mail restent proposés. Écran « Demandes du site » au back-office : carte grise à télécharger (consigné), conversion en client et devis d'origine « site » (ou rattachement à la fiche qui a déjà ce numéro), classement sans suite avec un motif. Envois limités par adresse et par jour, champ piège pour les robots. Carte grise analysée par l'antivirus ClamAV à la réception et à chaque téléchargement ; demandes sans suite supprimées automatiquement après 12 mois, sans trace de leurs données personnelles dans le journal d'audit ([ADR 0009](architecture/adr/0009-demandes-de-devis-du-site.md)).
 
+*Complément :* chaque formulaire (devis, rappel d'échéance, appel d'offres) accepte jusqu'à quatre documents selon l'assurance (carte grise, attestation actuelle, liste des véhicules en Excel, carte de transport, registre de commerce, photos du bien, devis de travaux, liste du matériel, cahier des charges, autre), avec les mêmes protections pour chacun ; le back-office les télécharge un par un ([ADR 0009, complément](architecture/adr/0009-demandes-de-devis-du-site.md)).
+
 *Avant la mise en service (🧑‍💼) :* déclaration à l'ARTCI faite, hébergeur choisi, démon ClamAV installé à côté de l'API, puis `URL_SITE_VITRINE` et `ANTIVIRUS_ADRESSE` dans l'API et `URL_API` dans Netlify ; les textes du formulaire et des mentions légales basculent alors d'eux-mêmes.
 
 ## ✅ Tâche 8 — Flottes

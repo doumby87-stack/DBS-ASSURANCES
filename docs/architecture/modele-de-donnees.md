@@ -44,7 +44,7 @@ erDiagram
   RELANCES ||--o{ ANNONCES_DOCUMENTS : "annonce"
   DEMANDES_SITE |o--o| DEVIS : "devient"
   DEMANDES_SITE }o--o| CLIENTS : "rattachée à"
-  DEMANDES_SITE ||--o| PIECES_DEMANDES_SITE : "carte grise jointe"
+  DEMANDES_SITE ||--o{ PIECES_DEMANDES_SITE : "pièces jointes"
   RENDEZ_VOUS }o--o| CLIENTS : "rattaché à"
   RENDEZ_VOUS }o--o| UTILISATEURS : "avec"
   CONTRATS |o--o{ RELANCES : "échéance"
@@ -272,8 +272,10 @@ erDiagram
   }
   PIECES_DEMANDES_SITE {
     uuid id "entre dans le contexte du chiffrement"
-    text type_contenu "JPEG, PNG ou PDF, d'après le contenu"
-    integer taille "5 Mo au plus"
+    smallint rang "ordre d'envoi, 4 pièces au plus"
+    text nature "carte grise, attestation, liste de véhicules, registre de commerce, photos…"
+    text type_contenu "JPEG, PNG ou PDF d'après le contenu ; classeur .xlsx pour les listes"
+    integer taille "5 Mo au plus, 12 Mo par demande"
     bytea contenu_chiffre "AES-256-GCM"
     bytea empreinte "SHA-256 du fichier"
     analyse_piece etat_analyse "à analyser, saine, infectée (contenu effacé)"
@@ -322,7 +324,7 @@ Les rappels d'échéance et les appels d'offres sont des demandes du site d'une 
 
 Documents des contrats (stockage de fichiers, tâche 11) ; purge des fiches d'identification à la fin de la durée légale de conservation, une fois celle-ci confirmée.
 
-Les demandes du site n'entrent que par la fonction `app.enregistrer_demande_site`, appelée sans utilisateur connecté par la route publique du formulaire : elle limite les envois par adresse (5 par heure) et par jour (300), et range la carte grise chiffrée dans `app.pieces_demandes_site`, en ajout seul et hors du journal d'audit. Le verdict de l'antivirus ne s'enregistre que par `app.enregistrer_analyse_piece` ; la maintenance de l'API retrouve les pièces à analyser par `app.pieces_a_analyser` et supprime les demandes sans suite depuis 12 mois par `app.purger_demandes_site`, seule à pouvoir supprimer dans ces tables ([ADR 0009](adr/0009-demandes-de-devis-du-site.md)).
+Les demandes du site n'entrent que par la fonction `app.enregistrer_demande_site`, appelée sans utilisateur connecté par la route publique du formulaire : elle limite les envois par adresse (5 par heure) et par jour (300), et range les pièces jointes chiffrées (4 au plus, 12 Mo en tout, chacune avec sa nature et son rang) dans `app.pieces_demandes_site`, en ajout seul et hors du journal d'audit ; les rappels d'échéance et les appels d'offres en reçoivent aussi par leurs fonctions. Le verdict de l'antivirus ne s'enregistre que par `app.enregistrer_analyse_piece` ; la maintenance de l'API retrouve les pièces à analyser par `app.pieces_a_analyser` et supprime les demandes sans suite depuis 12 mois par `app.purger_demandes_site`, seule à pouvoir supprimer dans ces tables ([ADR 0009](adr/0009-demandes-de-devis-du-site.md)).
 
 Les relances ne sont créées que par le planificateur de l'API, au moyen des fonctions `app.planifier_relances`, `app.prendre_relances_a_envoyer`, `app.enregistrer_envoi`, `app.enregistrer_statut_fournisseur` et `app.enregistrer_desinscription` ([ADR 0007](adr/0007-relances-whatsapp-et-sms.md)).
 

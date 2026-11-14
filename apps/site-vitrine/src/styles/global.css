@@ -670,6 +670,12 @@ textarea.saisie { min-height: 130px; resize: vertical; line-height: 1.5; }
 .etat-envoi a { color: inherit; font-weight: 750; }
 /* Champ piège pour les robots : hors de l'écran, ignoré par les lecteurs d'écran et le clavier */
 .champ-piege { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+.pieces { display: grid; gap: 4px; }
+.pieces > legend { float: left; width: 100%; }
+.pieces__intro { margin: 0 0 14px; }
+.pieces__champ { margin: 0 0 14px; padding: 12px 14px; border: 1.5px solid var(--ligne); border-radius: var(--rayon); }
+.pieces__champ:has(input:focus-visible) { border-color: var(--bleu-700); }
+.pieces__champ > label { font-size: 0.95rem; }
 .saisie--fichier { padding: 10px 12px; font-size: 0.95rem; cursor: pointer; }
 .saisie--fichier::file-selector-button { margin-right: 12px; padding: 8px 14px; border: 1px solid var(--ligne); border-radius: 999px; background: var(--sable-50); color: var(--encre); font: inherit; font-weight: 700; cursor: pointer; }
 .confirmation { display: grid; gap: 12px; justify-items: start; padding: 8px 0; }
