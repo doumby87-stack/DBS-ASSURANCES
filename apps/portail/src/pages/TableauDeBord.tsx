@@ -5,7 +5,7 @@
 import { useEffect, useState } from "react";
 import { api, messageErreur } from "../api";
 import { Alerte, Badge, Carte, Chargement, Echeance } from "../composants";
-import { BRANCHES, dateCourte, montant, STATUTS_CONTRAT } from "../format";
+import { BRANCHES, dateCourte, montant, STATUTS_CONTRAT, type EcheancierPortail, montantAPayer } from "../format";
 import { Lien } from "../routeur";
 
 export interface VehiculeFlotte {
@@ -35,6 +35,7 @@ interface Flotte {
   contrats: {
     id: string; numeroPolice: string | null; branche: string; statut: string; dateEffet: string; dateEcheance: string;
     primeDue: number; resteAPayer: number; vehicules: number; paiementEnCours: string | null;
+    echeancier: EcheancierPortail | null;
   }[];
   resume: { vehicules: number; vehiculesAssures: number; documentsARenouveler: number; sinistresEnCours: number; resteAPayer: number };
 }
@@ -56,8 +57,11 @@ export function TableauDeBord() {
     : flotte.vehicules;
   const attestations = flotte.vehicules.filter((v) => v.attestationDisponible).length;
   const particulier = flotte.typeClient === "particulier";
+  // Prime payée en plusieurs fois : « à payer » seulement quand une échéance est due ou proche (15 jours)
+  const echeanceProche = (k: Flotte["contrats"][number]) =>
+    !k.echeancier?.echeances.length || !!k.echeancier.aPayerMaintenant || (k.echeancier.prochaine?.jours ?? 99) <= 15;
   const payable = (k: Flotte["contrats"][number]) =>
-    flotte.paiementEnLigne && k.resteAPayer > 0 && (k.statut === "en_attente_paiement" || k.statut === "en_vigueur");
+    flotte.paiementEnLigne && k.resteAPayer > 0 && (k.statut === "en_attente_paiement" || k.statut === "en_vigueur") && echeanceProche(k);
   const aPayer = flotte.contrats.filter(payable);
 
   return (
@@ -77,8 +81,19 @@ export function TableauDeBord() {
             {aPayer.map((k) => (
               <li key={k.id}>
                 <span>
-                  Contrat <strong>{k.numeroPolice ?? "N° à venir"}</strong> · {BRANCHES[k.branche] ?? k.branche} : <strong>{montant(k.resteAPayer)}</strong>
-                  {k.statut === "en_attente_paiement" && <span className="note"><br />Le contrat entre en vigueur une fois la prime payée.</span>}
+                  Contrat <strong>{k.numeroPolice ?? "N° à venir"}</strong> · {BRANCHES[k.branche] ?? k.branche} :{" "}
+                  <strong>{montant(montantAPayer(k.resteAPayer, k.echeancier))}</strong>
+                  {k.echeancier?.prochaine && (
+                    <span className="note"><br />
+                      Échéance {k.echeancier.prochaine.rang} sur {k.echeancier.echeances.length}
+                      {k.echeancier.prochaine.jours < 0 ? `, en retard depuis le ${dateCourte(k.echeancier.prochaine.exigibleLe)}` : `, à payer avant le ${dateCourte(k.echeancier.prochaine.exigibleLe)}`}.
+                    </span>
+                  )}
+                  {k.statut === "en_attente_paiement" && (
+                    <span className="note"><br />{k.echeancier?.echeances.length
+                      ? "Le contrat entre en vigueur une fois la première échéance payée."
+                      : "Le contrat entre en vigueur une fois la prime payée."}</span>
+                  )}
                 </span>
                 {k.paiementEnCours ? (
                   <Lien href={`/paiements/${k.paiementEnCours}`} className="bouton">Paiement en cours : voir</Lien>
@@ -132,7 +147,15 @@ export function TableauDeBord() {
                     <td>du {dateCourte(k.dateEffet)}<br />au {dateCourte(k.dateEcheance)}</td>
                     <td>{k.vehicules}</td>
                     <td>{montant(k.primeDue)}</td>
-                    <td>{k.resteAPayer > 0 ? <strong>{montant(k.resteAPayer)}</strong> : k.resteAPayer < -4 ? `Trop-perçu ${montant(-k.resteAPayer)}` : "Payé"}</td>
+                    <td>
+                      {k.resteAPayer > 0 ? <strong>{montant(k.resteAPayer)}</strong> : k.resteAPayer < -4 ? `Trop-perçu ${montant(-k.resteAPayer)}` : "Payé"}
+                      {k.echeancier && k.echeancier.echeances.length > 0 && (
+                        <><br /><small>
+                          En {k.echeancier.echeances.length} fois
+                          {k.echeancier.prochaine && ` · prochaine échéance ${montant(k.echeancier.prochaine.reste)} le ${dateCourte(k.echeancier.prochaine.exigibleLe)}`}
+                        </small></>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

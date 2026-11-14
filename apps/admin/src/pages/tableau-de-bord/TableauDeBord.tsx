@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Alerte, Badge, Chargement, Section, Vide } from "../../composants/communs";
 import { Lien } from "../../routeur";
 import { api, messageErreur } from "../../services/api";
-import { BRANCHES, DOCUMENTS_VEHICULE, dateCourte, joursRestants, lienWhatsApp, telephone } from "../../services/format";
+import { BRANCHES, DOCUMENTS_VEHICULE, dateCourte, joursRestants, lienWhatsApp, montant, telephone } from "../../services/format";
 import { useSession } from "../../session";
 import { AlerteReversement, type ResumeAReverser } from "../reversements/Reversements";
 
@@ -35,10 +35,28 @@ interface EcheanceVehicule {
   categorie: Categorie;
 }
 
+/** Échéance d'une prime payée en plusieurs fois, en retard ou due dans les 15 jours */
+interface EcheancePaiement {
+  id: string;
+  contratId: string;
+  clientId: string;
+  clientNom: string;
+  telephone: string;
+  numeroPolice: string | null;
+  rang: number;
+  nombre: number;
+  exigibleLe: string;
+  reste: number;
+  etat: "en_retard" | "bientot";
+  jours: number;
+}
+
 interface Echeances {
   resume: Record<Categorie, number>;
   contrats: EcheanceContrat[];
   vehicules: EcheanceVehicule[];
+  /** Vide pour qui ne voit pas la caisse */
+  paiements: EcheancePaiement[];
 }
 
 const CARTES: { categorie: Categorie; titre: string; ton: "rouge" | "orange" | "bleu" | "gris" }[] = [
@@ -158,6 +176,29 @@ export function TableauDeBord() {
           </div>
         )}
       </Section>
+
+      {donnees.paiements.length > 0 && (
+        <Section titre="Primes payées en plusieurs fois : échéances à encaisser">
+          <div className="tableau-defilant">
+            <table className="tableau">
+              <thead><tr><th>Client</th><th>Échéance</th><th>Montant</th><th>Contact</th></tr></thead>
+              <tbody>
+                {donnees.paiements.map((p) => (
+                  <tr key={p.id}>
+                    <td><Lien href={`/contrats/${p.contratId}`}>{p.clientNom}</Lien><br /><small>{p.numeroPolice ?? "n° de police à saisir"}</small></td>
+                    <td>
+                      {p.rang} / {p.nombre} · {dateCourte(p.exigibleLe)}<br />
+                      <Badge ton={p.etat === "en_retard" ? "rouge" : "orange"}>{p.etat === "en_retard" ? `en retard de ${-p.jours} j` : joursRestants(p.jours)}</Badge>
+                    </td>
+                    <td className="nombre">{montant(p.reste)}</td>
+                    <td><a href={`tel:${p.telephone}`}>{telephone(p.telephone)}</a></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Section>
+      )}
 
       <Section titre="Documents des véhicules à renouveler">
         {donnees.vehicules.length === 0 ? (
