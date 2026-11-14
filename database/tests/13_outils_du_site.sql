@@ -33,8 +33,7 @@ SELECT tests.verifier((SELECT email = 'awa@exemple.ci' FROM app.demandes_site WH
                       'adresse e-mail nettoyée');
 SELECT app.enregistrer_demande_site(
   'deux_roues', 'particulier', 'Koné Awa', '+2250719000001', NULL, NULL, NULL,
-  'J''accepte que DBS-ASSURANCES utilise ces informations pour répondre à ma demande.', NULL, decode(repeat('a3', 32), 'hex'),
-  NULL, NULL, NULL, NULL, NULL);
+  'J''accepte que DBS-ASSURANCES utilise ces informations pour répondre à ma demande.', NULL, decode(repeat('a3', 32), 'hex'));
 SELECT tests.verifier((SELECT nature = 'devis' AND a_traiter_le = current_date FROM app.demandes_site
                        WHERE telephone = '+2250719000001' AND branche = 'deux_roues'),
   'une demande de devis reste à traiter dès sa réception');
@@ -104,7 +103,7 @@ SELECT tests.verifier((SELECT numero >= 1 FROM app.demander_rendez_vous(
   'visite sur place demandée par une entreprise');
 -- Cinq demandes depuis la même adresse en une heure (rappels, appel d'offres, rendez-vous confondus) : la sixième est refusée
 SELECT tests.doit_echouer($q$SELECT app.enregistrer_demande_site('automobile', 'particulier', 'Koné Awa', '+2250719000001', NULL, NULL, NULL,
-  'J''accepte que DBS-ASSURANCES utilise ces informations.', NULL, decode(repeat('a1', 32), 'hex'), NULL, NULL, NULL, NULL, NULL)$q$,
+  'J''accepte que DBS-ASSURANCES utilise ces informations.', NULL, decode(repeat('a1', 32), 'hex'))$q$,
   'Trop de demandes');
 SELECT tests.doit_echouer($q$INSERT INTO app.rendez_vous (numero, origine, motif, mode, nom, telephone, statut)
   VALUES (990001, 'agence', 'devis', 'agence', 'Direct', '+2250719000009', 'demande')$q$, 'permission denied');
