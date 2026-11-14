@@ -8,6 +8,7 @@ import { erreurs, gestionnaireErreurs } from "./commun/erreurs.js";
 import type { Configuration } from "./config/configuration.js";
 import { routesClients } from "./modules/clients/routes.js";
 import { routesCommissions } from "./modules/commissions/routes.js";
+import { routesEcheancier } from "./modules/contrats/echeancier.js";
 import { routesContrats } from "./modules/contrats/routes.js";
 import { routesDevis } from "./modules/devis/routes.js";
 import { routesDemandesSiteBackOffice } from "./modules/demandes-site/routes.js";
@@ -123,6 +124,7 @@ export async function construireApplication(dependances: DependancesApplication)
   await app.register(routesUtilisateurs, { pool, gardes });
   await app.register(routesClients, { pool, gardes });
   await app.register(routesContrats, { pool, gardes });
+  await app.register(routesEcheancier, { pool, gardes });
   await app.register(routesVehicules, { pool, gardes });
   await app.register(routesFlottes, { pool, gardes });
   await app.register(routesDevis, { pool, gardes });

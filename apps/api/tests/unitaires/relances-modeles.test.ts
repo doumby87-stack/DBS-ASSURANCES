@@ -84,10 +84,26 @@ describe("Rédaction des relances", () => {
     expect(() => rediger("documents_vehicules", { nom: "Yao", etape: "j30", nombre: 1, documents: [] })).toThrow(ErreurRedaction);
   });
 
+  it("échéance d'une prime payée en plusieurs fois : à J-7, puis en retard", () => {
+    const parametres = { nom: "Transports Yao", branche: "flotte", numeroPolice: "FLT-2026-01", montant: 312_500, dateEcheance: "2027-02-01" };
+    const bientot = rediger("echeance_paiement", { ...parametres, etape: "j7" });
+    expect(bientot.whatsapp.nom).toBe("dbs_echeance_paiement");
+    expect(bientot.texte).toBe(
+      "Bonjour Transports Yao, l'échéance de 312 500 F CFA de votre assurance flotte (police FLT-2026-01) est à payer au plus tard "
+      + "le 01/02/2027. Vous pouvez la régler à l'agence ou par Mobile Money. Pour toute question, répondez à ce message "
+      + "ou appelez DBS-ASSURANCES au 07 49 36 07 02.",
+    );
+    const retard = rediger("echeance_paiement", { ...parametres, etape: "retard" });
+    expect(retard.whatsapp.parametres[3]).toBe("n'est pas encore réglée : elle était due le 01/02/2027");
+    expect(() => rediger("echeance_paiement", { ...parametres, etape: "j7", montant: 0 })).toThrow(ErreurRedaction);
+    expect(() => rediger("echeance_paiement", { ...parametres, etape: "j30" })).toThrow(ErreurRedaction);
+  });
+
   it("chaque type de relance a un modèle", () => {
     for (const type of TYPES_RELANCE) {
       const parametres = {
-        ...client, dateEcheance: "2026-11-29", survenuLe: "2026-11-02", statut: "declare", etape: "j30", nombre: 1,
+        ...client, dateEcheance: "2026-11-29", survenuLe: "2026-11-02", statut: "declare",
+        etape: type === "echeance_paiement" ? "j7" : "j30", nombre: 1, montant: 312_500,
         premiereEcheance: "2026-11-29", documents: [{ immatriculation: "1234 AB 01", document: "vignette", echeance: "2026-11-29" }],
       };
       expect(Object.keys(MODELES)).toContain(rediger(type, parametres).whatsapp.nom);
