@@ -147,4 +147,26 @@ SELECT tests.verifier(app.montant_requis_vigueur('31000000-0000-4000-8000-000000
 ROLLBACK;
 
 \echo
+\echo '64. Avenant sur un contrat payé en plusieurs fois : la dette la plus ancienne se paie d''abord'
+BEGIN;
+SET LOCAL ROLE dbs_api;
+SELECT set_config('app.utilisateur_id', '10000000-0000-4000-8000-000000000004', true);  -- chargé de clientèle
+INSERT INTO app.vehicules (id, client_id, immatriculation)
+VALUES ('41000000-0000-4000-8000-000000000101', '20000000-0000-4000-8000-000000000002', '9101 FR 01');
+SELECT app.avenant_flotte('31000000-0000-4000-8000-000000000003', current_date,
+  '[{"vehiculeId": "41000000-0000-4000-8000-000000000101", "mouvement": "incorporation", "primeVehicule": 365000}]', NULL, true);
+SELECT tests.verifier((SELECT etat FROM app.v_echeances_paiement WHERE contrat_id = '31000000-0000-4000-8000-000000000003' AND rang = 1) = 'payee'
+                      AND (SELECT avenants_impayes FROM app.v_echeances_paiement WHERE contrat_id = '31000000-0000-4000-8000-000000000003' AND rang = 1)
+                          = (SELECT sum(montant) FROM app.avenants_flotte WHERE contrat_id = '31000000-0000-4000-8000-000000000003'),
+                      'l''avenant ajouté après coup ne reprend pas le paiement de la première échéance : il est dû en plus');
+SELECT set_config('app.utilisateur_id', '10000000-0000-4000-8000-000000000003', true);  -- caissier
+INSERT INTO app.encaissements (contrat_id, montant, mode, reference_externe)
+SELECT '31000000-0000-4000-8000-000000000003', 400000 + sum(montant), 'virement', 'VIR-FRACT-AV'
+FROM app.avenants_flotte WHERE contrat_id = '31000000-0000-4000-8000-000000000003';
+SELECT tests.verifier((SELECT etat FROM app.v_echeances_paiement WHERE contrat_id = '31000000-0000-4000-8000-000000000003' AND rang = 2) = 'payee'
+                      AND (SELECT bool_and(regle) FROM app.v_avenants_flotte WHERE contrat_id = '31000000-0000-4000-8000-000000000003'),
+                      'l''échéance en retard puis l''avenant sont réglés : le paiement solde les dettes dans l''ordre des dates');
+ROLLBACK;
+
+\echo
 \echo 'Tests du paiement en plusieurs fois passés.'

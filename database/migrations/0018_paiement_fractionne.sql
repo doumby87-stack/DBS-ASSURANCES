@@ -7,7 +7,7 @@
 --   · mise en vigueur (Code CIMA, art. 13) : avec un échéancier, le contrat entre en vigueur une fois la
 --     première échéance payée ; sans échéancier, rien ne change (prime entière) ;
 --   · suivi : chaque échéance est payée, à payer bientôt, à venir ou en retard (app.v_echeances_paiement) ;
---     les paiements reçus soldent d'abord les avenants (dus aussitôt), puis les échéances dans l'ordre ;
+--     les paiements soldent la dette la plus ancienne d'abord (échéances et avenants, dans l'ordre des dates) ;
 --   · une échéance en retard ne suspend pas le contrat d'elle-même : la suspension suit une mise en demeure,
 --     décidée par l'agence. La base signale le retard, le client est relancé (J-7, puis une fois en retard).
 -- Conception : docs/architecture/adr/0015-paiement-fractionne.md
@@ -201,34 +201,72 @@ $$;
 GRANT EXECUTE ON FUNCTION app.definir_echeancier(uuid, jsonb, bigint) TO dbs_api;
 
 -- ---------------------------------------------------------------------
--- Suivi des échéances. Les paiements reçus soldent d'abord les avenants (dus aussitôt), puis les échéances
--- dans l'ordre. État : payée, en retard (date dépassée), bientôt (dans les 15 jours), à venir.
--- avenants_impayes : part des avenants pas encore payée, due tout de suite (la même sur chaque ligne).
+-- Suivi des échéances. Sur un contrat payé en plusieurs fois, les paiements soldent les dettes de la plus
+-- ancienne à la plus récente : les échéances à leur date, les avenants (dus aussitôt) à leur date d'effet ;
+-- à date égale, l'échéance d'abord. Les ristournes et annulations d'avenant comptent comme des avoirs.
+-- Un avenant ajouté après coup ne réattribue donc pas un paiement déjà imputé à une échéance passée.
 -- ---------------------------------------------------------------------
-CREATE VIEW app.v_echeances_paiement WITH (security_invoker = true) AS
-WITH soldes AS (
-  SELECT k.id AS contrat_id, k.primes_avenants,
-         coalesce((SELECT sum(x.montant) FROM app.encaissements x WHERE x.contrat_id = k.id), 0)::bigint AS encaisse
-  FROM app.contrats k
-), lignes AS (
-  SELECT e.id, e.contrat_id, e.rang, e.exigible_le, e.montant,
-         sum(e.montant) OVER (PARTITION BY e.contrat_id ORDER BY e.rang) AS cumul,
-         s.encaisse - s.primes_avenants AS disponible,
-         greatest(s.primes_avenants - s.encaisse, 0) AS avenants_impayes
+CREATE VIEW app.v_dettes_fractionnees WITH (security_invoker = true) AS
+WITH fractionnes AS (
+  SELECT DISTINCT e.contrat_id FROM app.echeances_paiement e
+), dettes AS (
+  SELECT e.contrat_id, e.id, 'echeance'::text AS nature, e.rang, e.exigible_le AS due_le, e.montant, 0 AS ordre
   FROM app.echeances_paiement e
-  JOIN soldes s ON s.contrat_id = e.contrat_id
-), payees AS (
-  SELECT l.*, least(greatest(l.disponible - (l.cumul - l.montant), 0), l.montant)::bigint AS paye
-  FROM lignes l
+  UNION ALL
+  SELECT a.contrat_id, a.id, 'avenant', NULL::smallint, a.date_effet, a.montant, 1
+  FROM app.avenants_flotte a JOIN fractionnes f ON f.contrat_id = a.contrat_id
+  WHERE a.montant > 0
+), disponibles AS (
+  SELECT f.contrat_id,
+         coalesce((SELECT sum(x.montant) FROM app.encaissements x WHERE x.contrat_id = f.contrat_id), 0)
+         - coalesce((SELECT sum(a.montant) FROM app.avenants_flotte a WHERE a.contrat_id = f.contrat_id AND a.montant < 0), 0)
+           AS disponible
+  FROM fractionnes f
+), cumuls AS (
+  SELECT d.*, p.disponible,
+         sum(d.montant) OVER (PARTITION BY d.contrat_id ORDER BY d.due_le, d.ordre, d.rang, d.id) AS cumul
+  FROM dettes d JOIN disponibles p ON p.contrat_id = d.contrat_id
 )
-SELECT p.id, p.contrat_id, p.rang, p.exigible_le, p.montant, p.paye, (p.montant - p.paye)::bigint AS reste,
-       CASE WHEN p.paye = p.montant THEN 'payee'
-            WHEN p.exigible_le < (now() AT TIME ZONE 'Africa/Abidjan')::date THEN 'en_retard'
-            WHEN p.exigible_le <= (now() AT TIME ZONE 'Africa/Abidjan')::date + 15 THEN 'bientot'
+SELECT c.contrat_id, c.id, c.nature, c.rang, c.due_le, c.montant,
+       least(greatest(c.disponible - (c.cumul - c.montant), 0), c.montant)::bigint AS paye
+FROM cumuls c;
+
+-- Une ligne par échéance. État : payée, en retard (date dépassée), bientôt (dans les 15 jours), à venir.
+-- avenants_impayes : part des avenants déjà en vigueur pas encore payée, due tout de suite (même valeur sur
+-- chaque ligne d'un contrat).
+CREATE VIEW app.v_echeances_paiement WITH (security_invoker = true) AS
+WITH lignes AS (
+  SELECT d.*,
+         coalesce(sum(d.montant - d.paye) FILTER (
+           WHERE d.nature = 'avenant' AND d.due_le <= (now() AT TIME ZONE 'Africa/Abidjan')::date)
+           OVER (PARTITION BY d.contrat_id), 0)::bigint AS avenants_impayes
+  FROM app.v_dettes_fractionnees d
+)
+SELECT l.id, l.contrat_id, l.rang, l.due_le AS exigible_le, l.montant, l.paye, (l.montant - l.paye)::bigint AS reste,
+       CASE WHEN l.paye = l.montant THEN 'payee'
+            WHEN l.due_le < (now() AT TIME ZONE 'Africa/Abidjan')::date THEN 'en_retard'
+            WHEN l.due_le <= (now() AT TIME ZONE 'Africa/Abidjan')::date + 15 THEN 'bientot'
             ELSE 'a_venir' END AS etat,
-       p.exigible_le - (now() AT TIME ZONE 'Africa/Abidjan')::date AS jours,
-       p.avenants_impayes::bigint AS avenants_impayes
-FROM payees p;
+       l.due_le - (now() AT TIME ZONE 'Africa/Abidjan')::date AS jours,
+       l.avenants_impayes
+FROM lignes l
+WHERE l.nature = 'echeance';
+
+-- Avenants (0010) : même colonnes ; sur un contrat payé en plusieurs fois, un avenant est réglé selon la règle
+-- ci-dessus (dette la plus ancienne d'abord) ; sans échéancier, rien ne change (après la prime de départ)
+CREATE OR REPLACE VIEW app.v_avenants_flotte WITH (security_invoker = true) AS
+SELECT a.id, a.numero, a.contrat_id, a.nature, a.date_effet, a.montant, a.motif, a.cree_le, a.cree_par,
+       a.annule_avenant_id, o.numero AS annule_numero, x.id AS annule_par_id, x.numero AS annule_par_numero,
+       CASE WHEN a.nature = 'mouvement' AND a.montant > 0 AND x.id IS NULL THEN
+         coalesce(d.paye = d.montant,
+                  k.prime_ttc + sum(a.montant) OVER (PARTITION BY a.contrat_id ORDER BY a.numero) <= s.total_encaisse)
+       END AS regle
+FROM app.avenants_flotte a
+JOIN app.contrats k ON k.id = a.contrat_id
+JOIN app.v_soldes_contrats s ON s.contrat_id = a.contrat_id
+LEFT JOIN app.avenants_flotte o ON o.id = a.annule_avenant_id
+LEFT JOIN app.avenants_flotte x ON x.annule_avenant_id = a.id
+LEFT JOIN app.v_dettes_fractionnees d ON d.id = a.id;
 
 -- ---------------------------------------------------------------------
 -- Droits : l'échéancier se lit avec le contrat (mêmes droits) ; il ne s'écrit que par app.definir_echeancier
@@ -240,7 +278,11 @@ CREATE POLICY echeances_paiement_portail ON app.echeances_paiement FOR SELECT TO
   USING (EXISTS (SELECT 1 FROM app.contrats k WHERE k.id = contrat_id));
 GRANT SELECT ON app.echeances_paiement TO dbs_api;
 GRANT SELECT (id, contrat_id, rang, exigible_le, montant) ON app.echeances_paiement TO dbs_portail;
-GRANT SELECT ON app.v_echeances_paiement TO dbs_api, dbs_portail;
+GRANT SELECT ON app.v_dettes_fractionnees, app.v_echeances_paiement TO dbs_api, dbs_portail;
+-- Le portail voit la date et le montant des avenants de ses propres contrats : ils comptent dans ce qu'il doit
+CREATE POLICY avenants_flotte_portail ON app.avenants_flotte FOR SELECT TO dbs_portail
+  USING (EXISTS (SELECT 1 FROM app.contrats k WHERE k.id = contrat_id));
+GRANT SELECT (id, contrat_id, date_effet, montant) ON app.avenants_flotte TO dbs_portail;
 
 -- ---------------------------------------------------------------------
 -- Relances : une branche de plus (paiement en plusieurs fois), mêmes colonnes qu'avant (0010)
