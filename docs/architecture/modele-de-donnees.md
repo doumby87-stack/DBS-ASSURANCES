@@ -10,6 +10,7 @@ erDiagram
   CONTRATS ||--o{ CONTRATS_VEHICULES : "couvre"
   VEHICULES ||--o{ CONTRATS_VEHICULES : "est couvert par"
   CONTRATS ||--o{ ENCAISSEMENTS : "est payé par"
+  CONTRATS ||--o{ ECHEANCES_PAIEMENT : "se paie en plusieurs fois"
   ENCAISSEMENTS |o--o| ENCAISSEMENTS : "contre-passe"
   REVERSEMENTS ||--o{ ENCAISSEMENTS : "regroupe"
   CONTRATS ||--o{ SINISTRES : "donne lieu à"
@@ -152,6 +153,12 @@ erDiagram
     canal_echange canal
     text resume
     timestamptz survenu_le
+  }
+  ECHEANCES_PAIEMENT {
+    uuid id
+    smallint rang "1 à 12"
+    date exigible_le "la 1re au plus tard à la date d'effet"
+    bigint montant "total = prime TTC"
   }
   CONSENTEMENTS {
     uuid id
@@ -296,7 +303,9 @@ erDiagram
 | `app.v_echeances_vehicules` | Visite technique, vignette, carte de transport à renouveler dans les 60 jours. |
 | `app.v_sinistres_suivi` | Délai de déclaration et, pour un sinistre corporel, date limite indicative de l'offre. |
 | `app.v_consentements` | Dernier choix de chaque client pour chaque canal de relance. |
-| `app.v_avenants_flotte` | Avenants de flotte avec leur règlement (les encaissements au-delà de la prime de départ règlent les avenants dans l'ordre) et leur annulation éventuelle. |
+| `app.v_avenants_flotte` | Avenants de flotte avec leur règlement (les encaissements au-delà de la prime de départ règlent les avenants dans l'ordre ; sur un contrat payé en plusieurs fois, la dette la plus ancienne d'abord) et leur annulation éventuelle. |
+| `app.v_dettes_fractionnees` | Contrat payé en plusieurs fois : ses échéances et ses avenants dans l'ordre des dates, avec la part payée de chacun ([ADR 0015](adr/0015-paiement-fractionne.md)). |
+| `app.v_echeances_paiement` | Chaque échéance : payée, bientôt (15 jours), à venir ou en retard, le reste à payer, et les avenants impayés dus aussitôt. |
 | `app.v_relances_dues` | Relances dues aujourd'hui (échéance à J-30, J-15, J-7 et le jour même, contrat expiré depuis moins de 7 jours, devis sans réponse depuis 3 jours, avancement d'un sinistre) qui ne sont pas encore planifiées. |
 
 Toutes les vues appliquent les droits de la personne qui les consulte (`security_invoker`).

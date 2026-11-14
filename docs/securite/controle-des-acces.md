@@ -41,6 +41,7 @@ L = lire · C = créer · M = modifier · — = aucun accès
 | Consentements aux relances (ajout seul) | L C | L C | L | L C | ses clients : L | L |
 | Relances | L, annulation avant l'envoi | L, annulation avant l'envoi | — | L | — | L |
 | Avenants de flotte (ajout seul ; une erreur se corrige par un avenant d'annulation) | L C | L C | L | L | ses clients : L | L |
+| Échéancier d'un contrat flotte (défini d'un bloc par `app.definir_echeancier`) | L C, renégociation après paiement | L C tant que rien n'est encaissé | L | L | ses clients : L | L |
 | Demandes reçues par le site (devis, rappels d'échéance, appels d'offres) | L, traitement | L, traitement | — | L, traitement | — | L |
 | Rendez-vous (agenda) | L, fixer, confirmer, clôturer, annuler | L, fixer, confirmer, clôturer, annuler | — | L, fixer, confirmer, clôturer, annuler | — | L |
 | Cartes grises jointes aux demandes | L (téléchargement consigné) | L (téléchargement consigné) | — | L (téléchargement consigné) | — | — |
@@ -72,6 +73,7 @@ Les personnes connectées à l'espace client ne sont pas du personnel : elles n'
 | Données de son client | Titulaire | Collaborateur (entreprise) |
 | --- | --- | --- |
 | Client (nom), véhicules, contrats (sans la prime nette), composition, reste à payer | L | L |
+| Échéancier d'un contrat payé en plusieurs fois, date et montant de ses avenants | L | L |
 | Paiements en ligne (sans les références de l'opérateur ni les motifs de l'agence) | L C (paiement d'une prime) | L C (paiement d'une prime) |
 | Réclamations et réponses de l'agence (sans les auteurs de l'agence) | L C | L C |
 | Sinistres (sans les notes de l'agence) | L C (déclaration) | L C (déclaration) |

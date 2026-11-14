@@ -16,7 +16,7 @@ Les articles du Code des assurances des États membres de la CIMA qui touchent l
 ## Points à faire confirmer par SanlamAllianz
 
 - Texte exact du plafond d'espèces et éventuelles exceptions.
-- Paiement fractionné de la prime : est-il autorisé pour certains contrats ? Si oui, la règle « en vigueur après paiement complet » devra être adaptée par une nouvelle migration (échéancier).
+- Paiement fractionné de la prime : en place pour les contrats flotte, avec la mise en vigueur à la première échéance payée ([ADR 0015](../architecture/adr/0015-paiement-fractionne.md)). À confirmer : les contrats concernés, les frais de fractionnement, la période couverte par les attestations et la procédure de mise en demeure en cas d'échéance impayée.
 - Format des bordereaux de reversement et des relevés de commissions (l'export CSV actuel s'y adaptera).
 - Taux de commission par branche prévus par le traité, et base de calcul (prime nette hors taxes et accessoires ?).
 - Procédure de la compagnie quand l'agence découvre une erreur sur un encaissement déjà reversé.
