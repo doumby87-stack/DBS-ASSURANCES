@@ -66,8 +66,9 @@ code.secret {
 .entete a { color: var(--blanc); text-decoration: none; }
 .entete__marque { font-weight: 800; letter-spacing: 0.02em; }
 .entete__marque span { color: var(--or); font-weight: 600; margin-left: 0.35rem; }
-.entete__nav { display: flex; gap: 1.25rem; flex: 1; }
-.entete__nav a { padding: 0.25rem 0; border-bottom: 2px solid transparent; }
+/* Treize entrées selon le rôle : le menu passe à la ligne plutôt que de déborder de l'écran */
+.entete__nav { display: flex; flex-wrap: wrap; gap: 0.35rem 1.25rem; flex: 1; }
+.entete__nav a { padding: 0.25rem 0; border-bottom: 2px solid transparent; white-space: nowrap; }
 .entete__nav a[aria-current="page"] { border-bottom-color: var(--or); }
 .entete__compte { display: flex; align-items: center; gap: 0.75rem; font-size: 0.9rem; }
 .entete__role { color: #c7d0ea; }

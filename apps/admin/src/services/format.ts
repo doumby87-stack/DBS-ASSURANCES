@@ -69,6 +69,7 @@ export const TYPES_RELANCE: Record<string, string> = {
   devis_sans_reponse: "Devis sans réponse",
   sinistre_avancement: "Avancement d'un sinistre",
   documents_vehicules: "Documents des véhicules",
+  echeance_paiement: "Échéance d'une prime en plusieurs fois",
 };
 
 export const STATUTS_RELANCE: Record<string, string> = {
