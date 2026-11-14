@@ -9,6 +9,7 @@ import {
   AIDE_REFERENCE, BRANCHES, dateCourte, dateHeure, montant, MODES_PAIEMENT, STATUTS_CONTRAT,
 } from "../../services/format";
 import { useSession } from "../../session";
+import { SectionEcheancier, type Echeancier } from "./Echeancier";
 
 export interface SoldeContrat {
   id: string;
@@ -47,7 +48,7 @@ export interface Encaissement {
 
 export function Contrat({ id }: { id: string }) {
   const { peut } = useSession();
-  const [donnees, setDonnees] = useState<{ contrat: SoldeContrat; encaissements: Encaissement[] } | null>(null);
+  const [donnees, setDonnees] = useState<{ contrat: SoldeContrat; encaissements: Encaissement[]; echeancier: Echeancier } | null>(null);
   const [erreur, setErreur] = useState("");
   const [introuvable, setIntrouvable] = useState(false);
 
@@ -65,7 +66,7 @@ export function Contrat({ id }: { id: string }) {
 
   if (introuvable) return <><h1>Contrat introuvable</h1><p><Lien href="/clients">Retour aux clients</Lien></p></>;
   if (!donnees) return erreur ? <Alerte>{erreur}</Alerte> : <Chargement />;
-  const { contrat, encaissements } = donnees;
+  const { contrat, encaissements, echeancier } = donnees;
 
   return (
     <>
@@ -86,7 +87,7 @@ export function Contrat({ id }: { id: string }) {
       </dl>
       <Alerte>{erreur}</Alerte>
 
-      {peut("gerant", "caissier") && contrat.resteAPayer > 0 && <Encaisser contrat={contrat} />}
+      {peut("gerant", "caissier") && contrat.resteAPayer > 0 && <Encaisser contrat={contrat} echeancier={echeancier} />}
       {contrat.resteAPayer === 0 && contrat.aRembourser === 0 && (
         <Alerte type="succes">
           {contrat.primesAvenants === 0 ? "Prime entièrement payée : le contrat est en vigueur." : "Prime et avenants entièrement payés."}
@@ -98,6 +99,13 @@ export function Contrat({ id }: { id: string }) {
       {contrat.resteAPayer > 0 && contrat.statut === "en_vigueur" && contrat.primesAvenants > 0 && (
         <Alerte type="info">Prime de départ payée ; {montant(contrat.resteAPayer)} d'avenant restent à encaisser.</Alerte>
       )}
+
+      <SectionEcheancier
+        contrat={contrat}
+        echeancier={echeancier}
+        modifiable={peut("gerant") || (peut("charge_clientele") && contrat.encaisse === 0)}
+        apres={charger}
+      />
 
       <Section titre="Reçus">
         {encaissements.length === 0 ? <Vide>Aucun paiement enregistré.</Vide> : (
@@ -119,8 +127,15 @@ export function Contrat({ id }: { id: string }) {
   );
 }
 
-function Encaisser({ contrat }: { contrat: SoldeContrat }) {
-  const [saisie, setSaisie] = useState({ montant: String(contrat.resteAPayer), mode: contrat.especesPossibles > 0 ? "especes" : "mobile_money", reference: "", payeurTiers: "" });
+/** Montant proposé : ce qui est dû maintenant, sinon la prochaine échéance, sinon tout le reste à payer. */
+function montantPropose(contrat: SoldeContrat, echeancier: Echeancier): number {
+  if (echeancier.aPayerMaintenant) return Math.min(echeancier.aPayerMaintenant, contrat.resteAPayer);
+  if (echeancier.prochaine) return Math.min(echeancier.prochaine.reste, contrat.resteAPayer);
+  return contrat.resteAPayer;
+}
+
+function Encaisser({ contrat, echeancier }: { contrat: SoldeContrat; echeancier: Echeancier }) {
+  const [saisie, setSaisie] = useState({ montant: String(montantPropose(contrat, echeancier)), mode: contrat.especesPossibles > 0 ? "especes" : "mobile_money", reference: "", payeurTiers: "" });
   const [erreur, setErreur] = useState("");
   const [envoi, setEnvoi] = useState(false);
 

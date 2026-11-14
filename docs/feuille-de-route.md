@@ -21,7 +21,7 @@ Légende : ✅ terminé · 🔜 prochaine · ⏳ plus tard · 🧑‍💼 tâche
 - [ ] Déclarer le traitement des données clients à l'**ARTCI** et demander, si l'hébergement est hors de Côte d'Ivoire, l'autorisation de transfert ([données personnelles](conformite/donnees-personnelles.md)).
 - [ ] Choisir l'**hébergeur** de l'application ([ADR 0006](architecture/adr/0006-hebergement-et-localisation-des-donnees.md)).
 - [ ] Choisir et réserver le **nom de domaine**, puis créer une adresse e-mail professionnelle (fin de l'adresse Gmail) avec protection contre l'usurpation (SPF, DKIM, DMARC).
-- [ ] Demander à **SanlamAllianz** : ce que fournit son extranet, le format de ses états de production et de commissions, sa procédure de lutte contre le blanchiment pour les agents, et son accord sur l'usage du logo ; pour la caisse, le format des bordereaux, les taux de commission par branche et le paiement fractionné de la prime ; pour les flottes, les frais d'avenant éventuels, la ristourne minimale ou la retenue sur un retrait, et le format attendu pour la cotation en lot.
+- [ ] Demander à **SanlamAllianz** : ce que fournit son extranet, le format de ses états de production et de commissions, sa procédure de lutte contre le blanchiment pour les agents, et son accord sur l'usage du logo ; pour la caisse, le format des bordereaux et les taux de commission par branche ; pour le paiement des flottes en plusieurs fois (déjà possible dans l'outil), les contrats concernés, les frais de fractionnement, la période des attestations et la procédure en cas d'échéance impayée ([ADR 0015](architecture/adr/0015-paiement-fractionne.md)) ; pour les flottes, les frais d'avenant éventuels, la ristourne minimale ou la retenue sur un retrait, et le format attendu pour la cotation en lot.
 - [ ] Demander à l'**ASACI** (ou à SanlamAllianz) l'accès à la plateforme des attestations digitales : émission et vérification par l'agence, et s'il existe un moyen de l'interroger depuis l'application (tâche 10).
 - [ ] Confirmer la **source réglementaire du plafond d'espèces** de 1 000 000 F CFA par police, appliqué par la base.
 - [ ] Ouvrir un **compte marchand** de paiement Mobile Money (agrégateur comme CinetPay ou PayDunya, ou contrat direct avec un opérateur) au nom de la société, plutôt que d'utiliser un numéro personnel, et transmettre sa documentation d'intégration (vérification d'un paiement, signature des notifications) pour brancher le paiement en ligne (tâche 9).
@@ -49,7 +49,7 @@ Fiche client unique (contrats, véhicules, devis, échanges), contrats et renouv
 
 Encaissements avec reçus numérotés sans trou et montant en lettres, mise en vigueur automatique du contrat une fois la prime payée, contre-passation par le gérant, clôture de caisse avec billetage et visa, plafond des espèces, bordereaux de reversement validés à deux et exportables, compte à rebours des 30 jours avec alerte à J+25, rapprochement mensuel des commissions ([back-office](../apps/admin/README.md)).
 
-*À confirmer avec SanlamAllianz (tâche 2) :* format des bordereaux et des relevés de commissions (l'export CSV s'y adaptera), taux de commission par branche, paiement fractionné de la prime.
+*À confirmer avec SanlamAllianz (tâche 2) :* format des bordereaux et des relevés de commissions (l'export CSV s'y adaptera), taux de commission par branche. Le paiement fractionné est venu ensuite, avec la tâche 10.
 
 ## ✅ Tâche 6 — Relances automatiques
 
@@ -83,6 +83,7 @@ Le portail devient l'**espace client**, pour les entreprises comme pour les part
 *Avant la mise en service du paiement (tâche 2) :*
 - choisir le **prestataire** et ouvrir le compte marchand, puis ajouter son module dans `apps/api/src/integrations/paiement/` d'après sa documentation officielle (pour l'instant, seul le prestataire simulé existe : `PAIEMENT_PRESTATAIRE=simulation`, refusé en production) ;
 - rendre joignable depuis Internet l'adresse des notifications (`https://<espace client>/api/paiements/notifications/<prestataire>`) ;
+- lire les notifications dans le format du prestataire : beaucoup les envoient en formulaire (`application/x-www-form-urlencoded`), que l'API refuse aujourd'hui (JSON seulement). Le lecteur de ce format sera limité à cette seule route, qui vérifie la signature ;
 - rapprocher chaque jour le relevé du prestataire avec les paiements en ligne (Caisse) ;
 - compléter la déclaration à l'ARTCI (paiements, photos des sinistres).
 
@@ -95,7 +96,12 @@ Nouvelle application `apps/portail`, sur sa propre adresse, pour les entreprises
 - **tableau de bord de la flotte** : véhicules assurés, documents à renouveler, sinistres en cours, reste à payer, contrats ;
 - **attestations** déposées par l'agence (en lot, analysées, chiffrées), téléchargées une à une ou toutes ensemble ;
 - **historique des sinistres par véhicule**, avec leur déclaration et leur suivi au back-office ;
-- **isolement des entreprises par la base** (rôle `dbs_portail`) : une entreprise ne voit jamais les données d'une autre.
+- **isolement des entreprises par la base** (rôle `dbs_portail`) : une entreprise ne voit jamais les données d'une autre ;
+- **paiement de la flotte en plusieurs fois** ([ADR 0015](architecture/adr/0015-paiement-fractionne.md)) :
+  - **à l'agence** : l'échéancier est défini au back-office, de 2 à 12 échéances ;
+  - **mise en vigueur** : le contrat entre en vigueur à la première échéance payée ;
+  - **sur le portail** : l'entreprise voit son échéancier et paie en ligne l'échéance due ;
+  - **retards** : les échéances en retard sont signalées à l'agence, et le client est relancé (J-7, puis une fois en retard).
 
 *Avant la mise en service (tâche 2) :*
 - faire valider par Meta le modèle d'authentification `dbs_code_connexion` ;

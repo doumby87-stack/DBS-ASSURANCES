@@ -18,6 +18,7 @@ Les mots du métier, tels qu'ils sont utilisés dans le code, la base et la docu
 | **Commission** | Rémunération de l'agent général par la compagnie, en pourcentage de la prime nette selon la branche. Rapprochée chaque mois avec le relevé de la compagnie. |
 | **Contre-passation** | Écriture négative qui annule un encaissement erroné, avec un motif. Seule façon de corriger la caisse. Elle compte dans la caisse de la personne qui avait encaissé. |
 | **Échéance** | Date de fin d'un contrat, à laquelle il doit être renouvelé. |
+| **Échéancier** | Découpage de la prime d'un contrat flotte en 2 à 12 échéances datées ; le contrat entre en vigueur à la première payée. Table `app.echeances_paiement`. |
 | **Encaissement** | Paiement reçu par l'agence, avec un numéro de reçu. Table `app.encaissements`. |
 | **Flotte** | Ensemble des véhicules d'une entreprise, assurés dans un même contrat. |
 | **FNE** | Facture normalisée électronique de la Direction générale des impôts. |

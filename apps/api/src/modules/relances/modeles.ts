@@ -8,7 +8,7 @@ import type { ModeleWhatsApp } from "../../integrations/whatsapp/whatsapp.js";
 
 export const TYPES_RELANCE = [
   "echeance_j30", "echeance_j15", "echeance_j7", "echeance_jour", "contrat_expire", "devis_sans_reponse", "sinistre_avancement",
-  "documents_vehicules",
+  "documents_vehicules", "echeance_paiement",
 ] as const;
 export type TypeRelance = (typeof TYPES_RELANCE)[number];
 
@@ -25,6 +25,8 @@ export interface ParametresRelance {
   nombre?: number;
   premiereEcheance?: string;
   documents?: { immatriculation: string; document: string; echeance: string }[];
+  /** Paiement en plusieurs fois : reste de l'échéance, en F CFA (étape j7 ou retard, date dans dateEcheance) */
+  montant?: number;
 }
 
 const TELEPHONE_AGENCE = AGENCE.telephone.replace(/^\+225\s*/, "");
@@ -46,6 +48,9 @@ export const MODELES = {
   dbs_documents_vehicules:
     "Bonjour {{1}}, {{2}} : {{3}}. Pour rouler en règle, pensez à les renouveler à temps. Pour toute question, "
     + `répondez à ce message ou appelez DBS-ASSURANCES au ${TELEPHONE_AGENCE}.`,
+  dbs_echeance_paiement:
+    "Bonjour {{1}}, l'échéance de {{2}} de votre assurance {{3}} {{4}}. Vous pouvez la régler à l'agence ou par Mobile Money. "
+    + `Pour toute question, répondez à ce message ou appelez DBS-ASSURANCES au ${TELEPHONE_AGENCE}.`,
 } as const;
 export type NomModele = keyof typeof MODELES;
 
@@ -63,6 +68,7 @@ const MODELE_PAR_TYPE: Record<TypeRelance, NomModele> = {
   devis_sans_reponse: "dbs_devis_sans_reponse",
   sinistre_avancement: "dbs_sinistre_avancement",
   documents_vehicules: "dbs_documents_vehicules",
+  echeance_paiement: "dbs_echeance_paiement",
 };
 
 const DOCUMENTS: Record<string, string> = {
@@ -154,9 +160,25 @@ function listeDocuments(p: ParametresRelance): string {
   return autres > 0 ? `${cites.join(", ")} et ${autres} ${autres > 1 ? "autres" : "autre"}` : cites.join(", ");
 }
 
+/** « 312 500 F CFA », avec des espaces ordinaires (WhatsApp et SMS) */
+function montantEnClair(valeur: number | undefined): string {
+  if (valeur === undefined || !Number.isInteger(valeur) || valeur <= 0) throw new ErreurRedaction("montant");
+  return `${String(valeur).replace(/\B(?=(\d{3})+(?!\d))/g, " ")} F CFA`;
+}
+
+/** « est à payer au plus tard le 01/02/2027 », « n'est pas encore réglée : elle était due le 01/02/2027 » */
+function etapePaiement(p: ParametresRelance): string {
+  const jour = date(p.dateEcheance, "date de l'échéance");
+  if (p.etape === "j7") return `est à payer au plus tard le ${jour}`;
+  if (p.etape === "retard") return `n'est pas encore réglée : elle était due le ${jour}`;
+  throw new ErreurRedaction("étape");
+}
+
 function parametresDe(type: TypeRelance, p: ParametresRelance): string[] {
   const nom = exiger(p.nom, "nom");
   switch (type) {
+    case "echeance_paiement":
+      return [nom, montantEnClair(p.montant), assurance(p), etapePaiement(p)];
     case "documents_vehicules":
       return [nom, annonceDocuments(p), listeDocuments(p)];
     case "devis_sans_reponse":
