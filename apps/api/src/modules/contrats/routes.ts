@@ -9,6 +9,7 @@ import { BRANCHES, date, montant, parametreId, texteCourt, type Branche } from "
 import type { Gardes } from "../../securite/gardes.js";
 import { utilisateurDe } from "../../securite/gardes.js";
 import { exigerClientVisible } from "../clients/visibilite.js";
+import { lireEcheancesPaiementAgence } from "./echeancier.js";
 
 const STATUTS = ["en_attente_paiement", "en_vigueur", "suspendu", "resilie", "expire"] as const;
 const COLONNES = `k.id, k.client_id AS "clientId", k.numero_police AS "numeroPolice", k.branche,
@@ -185,7 +186,10 @@ export async function routesContrats(app: FastifyInstance, options: { pool: Pool
 
   // Tableau des échéances : contrats à renouveler et documents de véhicules à renouveler, dans les 60 jours
   app.get("/echeances", { preHandler: gardes.sessionComplete() }, async (requete) => {
-    const { contrats, vehicules } = await transactionUtilisateur(pool, utilisateurDe(requete).id, async (client) => {
+    const utilisateur = utilisateurDe(requete);
+    // Paiements en plusieurs fois : seulement pour qui voit la caisse (ailleurs, la base masque les encaissements)
+    const voitLaCaisse = ["gerant", "caissier", "charge_clientele", "auditeur"].includes(utilisateur.role);
+    const { contrats, vehicules, paiements } = await transactionUtilisateur(pool, utilisateur.id, async (client) => {
       const contrats = await client.query<{ joursRestants: number }>(
         `SELECT e.contrat_id AS "contratId", e.client_id AS "clientId", c.nom AS "clientNom", c.telephone,
                 e.numero_police AS "numeroPolice", e.branche, e.date_echeance AS "dateEcheance",
@@ -199,7 +203,8 @@ export async function routesContrats(app: FastifyInstance, options: { pool: Pool
          FROM app.v_echeances_vehicules e JOIN app.clients c ON c.id = e.client_id
          ORDER BY e.echeance, c.nom`,
       );
-      return { contrats: contrats.rows, vehicules: vehicules.rows };
+      const paiements = voitLaCaisse ? await lireEcheancesPaiementAgence(client) : [];
+      return { contrats: contrats.rows, vehicules: vehicules.rows, paiements };
     });
     const avecCategorie = <T extends { joursRestants: number }>(lignes: T[]) =>
       lignes.map((ligne) => ({ ...ligne, categorie: categorieEcheance(ligne.joursRestants) }));
@@ -209,6 +214,7 @@ export async function routesContrats(app: FastifyInstance, options: { pool: Pool
       resume: { expire: compter("expire"), j7: compter("j7"), j15: compter("j15"), j30: compter("j30"), j60: compter("j60") },
       contrats: lignes,
       vehicules: avecCategorie(vehicules),
+      paiements,
     };
   });
 }
