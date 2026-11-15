@@ -3,12 +3,14 @@
 // l'assistant lui dit quoi préparer et pour quand, puis transmet la demande à l'agence.
 import EntetePage from "../composants/EntetePage.astro";
 import EnvoiOutil from "../composants/EnvoiOutil.astro";
+import PiecesJointes from "../composants/PiecesJointes.astro";
 import Icone from "../composants/Icone.astro";
 import { AGENCE, LIEN_TELEPHONE, lienWhatsApp } from "../donnees/agence";
 import { ACCORD_TRAITEMENT } from "../donnees/formulaire";
 import {
   ADRESSE_APPELS_OFFRES, DELAI_DOSSIER_APPEL_OFFRES, DOSSIER_APPEL_OFFRES, FETES_FIXES, GARANTIES_APPEL_OFFRES, TYPES_MARCHE,
 } from "../donnees/outils";
+import { PIECES_APPEL_OFFRES } from "../donnees/pieces";
 import Base from "../mises-en-page/Base.astro";
 
 const enregistre = ADRESSE_APPELS_OFFRES !== null;
@@ -98,6 +100,7 @@ const reglages = {
             <label for="champ-besoin">Précisions <span class="champ__facultatif">(facultatif)</span></label>
             <textarea class="saisie" id="champ-besoin" name="besoin" rows="4" maxlength="1500" placeholder="Montants de garantie demandés, lot concerné, groupement…"></textarea>
           </div>
+          {enregistre && <PiecesJointes natures={PIECES_APPEL_OFFRES} titre="Votre dossier" />}
           <EnvoiOutil
             profils={[
               { id: "entreprise", titre: "Une entreprise", icone: "immeuble" },

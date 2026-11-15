@@ -2,7 +2,8 @@
 # Applique les migrations de database/migrations dans l'ordre, une seule fois chacune.
 #
 # Connexion : variables standard de PostgreSQL (PGHOST, PGPORT, PGDATABASE, PGUSER, PGPASSWORD
-# ou fichier ~/.pgpass), avec le compte dbs_proprietaire. Jamais avec le compte de l'application.
+# ou fichier ~/.pgpass), ou l'adresse complète dans DATABASE_URL_PROPRIETAIRE (production, infra/production),
+# avec le compte dbs_proprietaire. Jamais avec le compte de l'application.
 #
 # Une migration déjà appliquée ne doit plus jamais être modifiée : son empreinte SHA-256 est
 # enregistrée et le script s'arrête si le fichier a changé. Pour corriger, écrivez une nouvelle migration.
@@ -10,6 +11,9 @@ set -euo pipefail
 
 DOSSIER="$(cd "$(dirname "$0")" && pwd)/migrations"
 PSQL=(psql -X -q -v ON_ERROR_STOP=1)
+if [[ -n "${DATABASE_URL_PROPRIETAIRE:-}" ]]; then
+  PSQL+=(-d "$DATABASE_URL_PROPRIETAIRE")
+fi
 
 "${PSQL[@]}" <<'SQL'
 SET client_min_messages = warning;

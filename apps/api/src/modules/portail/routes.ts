@@ -19,6 +19,7 @@ import { parametreId, texteCourt } from "../../commun/schemas.js";
 import { creerZip, nomDeFichier } from "../../commun/zip.js";
 import { genererJeton } from "../../securite/jetons.js";
 import { dechiffrerAttestation } from "./attestations.js";
+import { lireEcheanciers } from "../contrats/echeancier.js";
 import {
   creerEmpreinteCode, DUREE_CODE, DUREE_SESSION_PORTAIL, effacerCookiePortail, type EnvoiCodes, gardePortail,
   genererCode, gestionnaireDe, INACTIVITE_PORTAIL, lireSessionPortail, poserCookiePortail,
@@ -179,7 +180,7 @@ export async function routesPortail(
     const moi = gestionnaireDe(requete);
     return transactionPortail(pool, moi.gestionnaireId, async (client) => {
       const vehicules = await lireVehicules(client, moi.clientId);
-      const { rows: contrats } = await client.query<{ statut: string; resteAPayer: number }>(
+      const { rows: lignesContrats } = await client.query<{ id: string; statut: string; resteAPayer: number }>(
         `SELECT s.contrat_id AS id, s.numero_police AS "numeroPolice", s.branche, s.statut, k.date_effet AS "dateEffet",
                 k.date_echeance AS "dateEcheance", s.prime_due AS "primeDue", s.reste_a_payer AS "resteAPayer",
                 (SELECT count(*)::int FROM app.contrats_vehicules cv WHERE cv.contrat_id = k.id AND cv.retire_le IS NULL) AS vehicules,
@@ -191,6 +192,9 @@ export async function routesPortail(
          ORDER BY k.date_echeance DESC`,
         [moi.clientId],
       );
+      // Paiement en plusieurs fois : l'échéancier, ce qui est dû maintenant et la prochaine échéance
+      const echeanciers = await lireEcheanciers(client, lignesContrats.map((k) => k.id));
+      const contrats = lignesContrats.map((k) => ({ ...k, echeancier: echeanciers.get(k.id) ?? null }));
       const aujourdHui = Date.parse(new Date().toISOString().slice(0, 10));
       const documentsARenouveler = vehicules.reduce((total, v) => total + [v.echeanceVisiteTechnique, v.echeanceVignette, v.echeanceCarteTransport]
         .filter((date) => date !== null && (Date.parse(date) - aujourdHui) / 86_400_000 <= 30).length, 0);

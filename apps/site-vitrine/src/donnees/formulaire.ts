@@ -30,6 +30,3 @@ export const ORIGINE_API = API?.origin ?? null;
 export const ACCORD_TRAITEMENT = "J'accepte que DBS-ASSURANCES utilise ces informations pour répondre à ma demande.";
 export const ACCORD_WHATSAPP =
   "J'accepte de recevoir sur WhatsApp les rappels de l'agence (échéances, suivi de mon dossier). Je pourrai répondre STOP à tout moment.";
-
-/** Assurances pour lesquelles on peut joindre la carte grise (comme l'API). */
-export const ASSURANCES_AVEC_CARTE_GRISE = ["automobile", "deux_roues", "flotte"];

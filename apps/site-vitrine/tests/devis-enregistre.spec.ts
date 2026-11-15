@@ -59,10 +59,14 @@ test("la demande est enregistrée avec la carte grise et l'accord WhatsApp, puis
 
   await page.locator('[data-etape="1"] [data-suivant]').click();
   await expect(page.getByLabel(/Carte grise/)).toBeVisible();
+  await expect(page.getByLabel(/Attestation ou contrat/)).toBeVisible();
+  await expect(page.getByLabel(/Photos du bien/)).toBeHidden();
   await page.getByLabel("Votre besoin").fill("Toyota Corolla 2019");
   await page.getByLabel(/Carte grise/).setInputFiles({ name: "carte-grise.png", mimeType: "image/png", buffer: PNG });
+  await expect(page.locator("[data-pieces-total]")).toHaveText(/1 document/);
   await page.locator('[data-etape="2"] [data-suivant]').click();
 
+  await expect(page.locator("[data-recapitulatif]")).toContainText("Carte grise : carte-grise.png");
   await remplirCoordonnees(page);
   await page.getByRole("checkbox", { name: /rappels de l'agence/ }).check();
   await page.getByRole("button", { name: "Envoyer ma demande" }).click();
@@ -83,7 +87,7 @@ test("la demande est enregistrée avec la carte grise et l'accord WhatsApp, puis
     besoin: "Toyota Corolla 2019",
     accordTraitement: ACCORD,
     accordWhatsApp: expect.stringMatching(/^J'accepte de recevoir sur WhatsApp les rappels de l'agence/),
-    piece: { type: "image/png", contenu: PNG.toString("base64") },
+    pieces: [{ nature: "carte_grise", type: "image/png", contenu: PNG.toString("base64") }],
   });
 
   const analyse = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
@@ -91,21 +95,50 @@ test("la demande est enregistrée avec la carte grise et l'accord WhatsApp, puis
   expect(erreurs).toEqual([]);
 });
 
-test("la carte grise n'est proposée que pour un véhicule, et vérifiée avant l'envoi", async ({ page }) => {
+test("les documents proposés dépendent de l'assurance, et sont vérifiés avant l'envoi", async ({ page }) => {
   await remplirJusquAuxCoordonnees(page, "habitation");
   await expect(page.getByLabel(/Carte grise/)).toBeHidden();
+  await expect(page.getByLabel(/Photos du bien/)).toBeVisible();
 
   await remplirJusquAuxCoordonnees(page, "deux_roues");
   await page.getByLabel(/Carte grise/).setInputFiles({ name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("texte") });
-  await expect(page.locator("#erreur-carte-grise")).toHaveText("Choisissez une photo (JPEG ou PNG) ou un PDF.");
+  await expect(page.locator("#erreur-piece-carte_grise")).toHaveText("Choisissez une photo (JPEG ou PNG) ou un PDF.");
   await page.locator('[data-etape="2"] [data-suivant]').click();
   await expect(page.locator('[data-etape="2"]')).toBeVisible();
 
   await page.getByLabel(/Carte grise/).setInputFiles({ name: "lourde.jpg", mimeType: "image/jpeg", buffer: Buffer.alloc(5 * 1024 * 1024 + 1) });
-  await expect(page.locator("#erreur-carte-grise")).toContainText("dépasse 5 Mo");
+  await expect(page.locator("#erreur-piece-carte_grise")).toContainText("dépasse 5 Mo");
+  // Un classeur Excel ne vaut pas une carte grise
+  await page.getByLabel(/Carte grise/).setInputFiles({ name: "liste.xlsx", mimeType: "", buffer: Buffer.from("PK") });
+  await expect(page.locator("#erreur-piece-carte_grise")).toHaveText("Choisissez une photo (JPEG ou PNG) ou un PDF.");
   await page.getByLabel(/Carte grise/).setInputFiles([]);
   await page.locator('[data-etape="2"] [data-suivant]').click();
   await expect(page.locator('[data-etape="3"]')).toBeVisible();
+});
+
+test("une flotte joint sa liste de véhicules en Excel, 4 documents au plus", async ({ page, context }) => {
+  const recues = await simulerApi(context);
+  await remplirJusquAuxCoordonnees(page, "flotte");
+  await expect(page.getByLabel(/Liste des véhicules/)).toBeVisible();
+  const png = (nom: string) => ({ name: nom, mimeType: "image/png", buffer: PNG });
+  await page.getByLabel(/Liste des véhicules/).setInputFiles({ name: "parc.xlsx", mimeType: "", buffer: Buffer.from("PK\u0003\u0004") });
+  await page.getByLabel(/Carte grise/).setInputFiles([png("a.png"), png("b.png"), png("c.png"), png("d.png")]);
+  await expect(page.locator("#erreur-pieces")).toHaveText("4 documents au plus par demande : retirez-en 1.");
+  await page.locator('[data-etape="2"] [data-suivant]').click();
+  await expect(page.locator('[data-etape="2"]')).toBeVisible();
+
+  await page.getByLabel(/Carte grise/).setInputFiles([png("a.png"), png("b.png")]);
+  await expect(page.locator("#erreur-pieces")).toBeEmpty();
+  await expect(page.locator("[data-pieces-total]")).toHaveText(/3 documents/);
+  await page.locator('[data-etape="2"] [data-suivant]').click();
+  await remplirCoordonnees(page);
+  await page.getByRole("button", { name: "Envoyer ma demande" }).click();
+  await expect(page.locator("[data-confirmation]")).toBeVisible();
+  expect(recues[0]?.pieces).toEqual([
+    { nature: "liste_vehicules", type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", contenu: Buffer.from("PK\u0003\u0004").toString("base64") },
+    { nature: "carte_grise", type: "image/png", contenu: PNG.toString("base64") },
+    { nature: "carte_grise", type: "image/png", contenu: PNG.toString("base64") },
+  ]);
 });
 
 test("refus de l'API : le message est affiché, avec WhatsApp en repli", async ({ page, context }) => {
@@ -149,6 +182,6 @@ test("les mentions légales décrivent l'enregistrement des demandes", async ({ 
   const donnees = page.locator("#donnees + p + dl");
   await expect(donnees).toContainText("enregistrée dans l'outil de gestion de l'agence");
   await expect(donnees).toContainText("empreinte de votre adresse IP");
-  await expect(donnees).toContainText("supprimée, avec sa carte grise, 12 mois après son classement");
+  await expect(donnees).toContainText("supprimée, avec ses documents joints, 12 mois après son classement");
   await expect(donnees).not.toContainText("n'enregistre rien");
 });

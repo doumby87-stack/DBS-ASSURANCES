@@ -55,7 +55,7 @@ npm run build -w @dbs/site-vitrine && node scripts/verifier-site.mjs   # liens, 
 npm run test:navigateur -w @dbs/site-vitrine                           # chaque page dans Chromium
 ```
 
-Le premier contrôle lit les pages construites. Le second construit deux versions du site (telle quelle, et reliée à une API fictive) et les ouvre dans un vrai navigateur, sur ordinateur et sur téléphone, avec les en-têtes de sécurité : erreurs, accessibilité (WCAG 2.1 AA), débordement sur petit écran, menu mobile, parcours complet du devis par WhatsApp et par enregistrement (carte grise, refus, coupure de connexion). Au premier lancement : `npx playwright install chromium`.
+Le premier contrôle lit les pages construites. Le second construit deux versions du site (telle quelle, et reliée à une API fictive) et les ouvre dans un vrai navigateur, sur ordinateur et sur téléphone, avec les en-têtes de sécurité : erreurs, accessibilité (WCAG 2.1 AA), débordement sur petit écran, menu mobile, parcours complet du devis par WhatsApp et par enregistrement (documents joints, refus, coupure de connexion). Au premier lancement : `npx playwright install chromium`.
 
 ## À compléter avant la mise en ligne
 
@@ -66,12 +66,12 @@ Le premier contrôle lit les pages construites. Le second construit deux version
 
 ## Activer l'enregistrement des demandes de devis (tâche 7)
 
-Par défaut, le formulaire prépare un message que le visiteur envoie lui-même sur WhatsApp ou par e-mail : rien n'est enregistré. Le formulaire peut aussi **enregistrer la demande** dans l'outil de l'agence, avec la carte grise et l'accord pour les rappels WhatsApp ([ADR 0009](../../docs/architecture/adr/0009-demandes-de-devis-du-site.md)). À faire **seulement après la déclaration à l'ARTCI** :
+Par défaut, le formulaire prépare un message que le visiteur envoie lui-même sur WhatsApp ou par e-mail : rien n'est enregistré. Le formulaire peut aussi **enregistrer la demande** dans l'outil de l'agence, avec les documents joints (carte grise, attestation actuelle, liste des véhicules… selon l'assurance, `src/donnees/pieces.ts`) et l'accord pour les rappels WhatsApp ([ADR 0009](../../docs/architecture/adr/0009-demandes-de-devis-du-site.md)). À faire **seulement après la déclaration à l'ARTCI** :
 
 1. Dans l'API, définir `URL_SITE_VITRINE` avec l'adresse du site (par exemple `https://www.votre-domaine.ci`).
 2. Dans Netlify (Site configuration > Environment variables), définir `URL_API` avec l'adresse de l'API (par exemple `https://gestion.votre-domaine.ci/api`), puis relancer la mise en ligne.
 
-La construction ajoute alors l'API aux en-têtes de sécurité (`connect-src`), affiche le champ de la carte grise et la case des rappels, et met à jour les textes du formulaire et des mentions légales. Les outils (rappel d'échéance, appel d'offres, rendez-vous) enregistrent alors eux aussi leurs demandes ([ADR 0014](../../docs/architecture/adr/0014-outils-du-site.md)) : les rappels et appels d'offres arrivent dans « Demandes du site », les rendez-vous dans « Rendez-vous ». Les demandes arrivent dans l'écran « Demandes du site » du back-office. Pour revenir en arrière, il suffit de retirer `URL_API` et de relancer la mise en ligne.
+La construction ajoute alors l'API aux en-têtes de sécurité (`connect-src`), affiche les champs des documents à joindre et la case des rappels, et met à jour les textes du formulaire et des mentions légales. Les outils (rappel d'échéance, appel d'offres, rendez-vous) enregistrent alors eux aussi leurs demandes ([ADR 0014](../../docs/architecture/adr/0014-outils-du-site.md)) : les rappels et appels d'offres arrivent dans « Demandes du site », les rendez-vous dans « Rendez-vous ». Les demandes arrivent dans l'écran « Demandes du site » du back-office. Pour revenir en arrière, il suffit de retirer `URL_API` et de relancer la mise en ligne.
 
 ## Mettre le site en ligne
 

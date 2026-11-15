@@ -5,6 +5,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Alerte, Badge, Chargement, Champ, Section, Vide } from "../../composants/communs";
+import { DOCUMENT_PAR_NATURE, LectureAutomatique, type PieceLisible } from "../../composants/LectureAutomatique";
 import { Lien, naviguer } from "../../routeur";
 import { api, ErreurApi, messageErreur } from "../../services/api";
 import {
@@ -51,17 +52,28 @@ interface Demande {
   traiteeLe: string | null;
   traiteePar: string | null;
   aUnePiece?: boolean;
+  /** Pièces jointes non infectées (0 pour l'auditeur, qui ne les voit pas) */
+  nombrePieces?: number;
+}
+
+interface Piece {
+  id: string;
+  rang: number;
+  nature: string;
+  libelle: string;
+  type: string;
+  taille: number;
+  etatAnalyse: "a_analyser" | "saine" | "infectee";
+  analyseeLe: string | null;
+  signatureDetectee: string | null;
 }
 
 interface Detail {
   demande: Demande;
-  piece: {
-    type: string;
-    taille: number;
-    etatAnalyse: "a_analyser" | "saine" | "infectee";
-    analyseeLe: string | null;
-    signatureDetectee: string | null;
-  } | null;
+  /** Dans l'ordre où le visiteur les a jointes */
+  pieces: Piece[];
+  /** La carte grise, s'il y en a une (lecture automatique, tâche 14) */
+  piece: Piece | null;
   clientsMemeNumero: { id: string; nom: string; type: string }[];
 }
 
@@ -78,7 +90,10 @@ const STATUTS: Record<Statut, { libelle: string; ton: "bleu" | "vert" | "gris" }
   sans_suite: { libelle: "Sans suite", ton: "gris" },
 };
 
-const FORMATS_PIECE: Record<string, string> = { "image/jpeg": "photo JPEG", "image/png": "image PNG", "application/pdf": "PDF" };
+const FORMATS_PIECE: Record<string, string> = {
+  "image/jpeg": "photo JPEG", "image/png": "image PNG", "application/pdf": "PDF",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "classeur Excel",
+};
 
 function taille(octets: number): string {
   return octets >= 1024 * 1024 ? `${(octets / 1024 / 1024).toFixed(1).replace(".", ",")} Mo` : `${Math.max(1, Math.round(octets / 1024))} Ko`;
@@ -163,7 +178,7 @@ export function DemandesSite() {
                   <td>
                     {BRANCHES[d.branche] ?? d.branche}
                     {d.nature !== "devis" && <><br /><Badge ton="bleu">{NATURES_DEMANDE_SITE[d.nature]}</Badge></>}
-                    {d.aUnePiece && <><br /><Badge ton="bleu">Carte grise jointe</Badge></>}
+                    {(d.nombrePieces ?? 0) > 0 && <><br /><Badge ton="bleu">{d.nombrePieces === 1 ? "1 pièce jointe" : `${d.nombrePieces} pièces jointes`}</Badge></>}
                   </td>
                   <td>
                     {statut === "nouvelle" || statut === "a_venir" ? (
@@ -195,7 +210,7 @@ export function DemandeSite({ id }: { id: string }) {
   const [doublons, setDoublons] = useState<{ id: string; nom: string }[] | null>(null);
   const [motif, setMotif] = useState("");
   const [envoi, setEnvoi] = useState(false);
-  const [telechargement, setTelechargement] = useState(false);
+  const [telechargement, setTelechargement] = useState<string | null>(null);
 
   const charger = useCallback(async () => {
     try {
@@ -236,18 +251,18 @@ export function DemandeSite({ id }: { id: string }) {
 
   // L'API analyse la pièce de nouveau avant de la remettre : un refus (menace trouvée, antivirus indisponible)
   // doit s'afficher comme un message, pas se télécharger comme un fichier
-  async function telecharger() {
+  async function telecharger(piece: Piece) {
     setErreur("");
-    setTelechargement(true);
+    setTelechargement(piece.id);
     try {
-      const reponse = await fetch(`/api/demandes-site/${id}/piece`, { credentials: "same-origin" });
+      const reponse = await fetch(`/api/demandes-site/${id}/pieces/${piece.id}`, { credentials: "same-origin" });
       if (!reponse.ok) {
         const donnees = (await reponse.json().catch(() => ({}))) as { message?: string };
         setErreur(donnees.message ?? "Téléchargement impossible. Réessayez.");
         await charger();
         return;
       }
-      const nom = /filename="([^"]+)"/.exec(reponse.headers.get("content-disposition") ?? "")?.[1] ?? "carte-grise";
+      const nom = /filename="([^"]+)"/.exec(reponse.headers.get("content-disposition") ?? "")?.[1] ?? "document";
       const adresse = URL.createObjectURL(await reponse.blob());
       const lien = document.createElement("a");
       lien.href = adresse;
@@ -258,7 +273,7 @@ export function DemandeSite({ id }: { id: string }) {
     } catch (e) {
       setErreur(messageErreur(e));
     } finally {
-      setTelechargement(false);
+      setTelechargement(null);
     }
   }
 
@@ -275,9 +290,13 @@ export function DemandeSite({ id }: { id: string }) {
   }
 
   if (!detail) return erreur ? <Alerte>{erreur}</Alerte> : <Chargement />;
-  const { demande: d, piece } = detail;
+  const { demande: d, pieces } = detail;
   const peutTraiter = d.statut === "nouvelle" && peut("gerant", "charge_clientele", "commercial");
   const memeNumero = doublons ?? detail.clientsMemeNumero;
+  // Pièces que l'outil sait lire, chacune selon sa nature (« autre » : reconnue automatiquement)
+  const piecesLisibles: PieceLisible[] = pieces
+    .filter((p) => p.etatAnalyse === "saine" && (p.nature in DOCUMENT_PAR_NATURE || p.nature === "autre"))
+    .map((p) => ({ id: p.id, libelle: p.libelle, source: "pieceDemandeSiteId", document: DOCUMENT_PAR_NATURE[p.nature] ?? "auto" }));
   const optionsBranches = Object.entries(BRANCHES).map(([valeur, libelle]) => <option key={valeur} value={valeur}>{libelle}</option>);
 
   return (
@@ -321,31 +340,45 @@ export function DemandeSite({ id }: { id: string }) {
           {d.appelOffres && d.dateLimiteOffre && <DetailsMarche m={d.appelOffres} dateLimite={d.dateLimiteOffre} />}
           <div><dt>Besoin</dt><dd className="texte-libre">{d.besoin ?? "Non précisé"}</dd></div>
           <div>
-            <dt>Carte grise</dt>
+            <dt>Documents joints</dt>
             <dd>
-              {!piece ? (
-                peut("auditeur") ? "Non consultable avec votre rôle" : "Aucune"
-              ) : piece.etatAnalyse === "infectee" ? (
-                <span className="texte-libre">
-                  <Badge ton="rouge">Supprimée</Badge> L'antivirus y a trouvé une menace ({piece.signatureDetectee}) le {piece.analyseeLe && dateHeure(piece.analyseeLe)}.
-                  Demandez une autre photo au client.
-                </span>
+              {pieces.length === 0 ? (
+                peut("auditeur") ? "Non consultables avec votre rôle" : "Aucun"
               ) : (
-                <>
-                  <button type="button" className="bouton bouton--petit" disabled={telechargement} onClick={() => void telecharger()}>
-                    {telechargement ? "Analyse et téléchargement…" : `Télécharger (${FORMATS_PIECE[piece.type] ?? piece.type}, ${taille(piece.taille)})`}
-                  </button>
-                  <br />
-                  <span className="note">
-                    {piece.etatAnalyse === "saine" && piece.analyseeLe
-                      ? `Aucune menace trouvée par l'antivirus (dernière analyse le ${dateHeure(piece.analyseeLe)}) ; analysée de nouveau à chaque téléchargement.`
-                      : "En attente d'analyse antivirus : elle ne peut pas être ouverte avant."}
-                  </span>
-                </>
+                <ul className="liste-simple">
+                  {pieces.map((piece) => (
+                    <li key={piece.id}>
+                      <strong>{piece.libelle}</strong>
+                      {piece.etatAnalyse === "infectee" ? (
+                        <span className="texte-libre">
+                          {" "}<Badge ton="rouge">Supprimé</Badge> L'antivirus y a trouvé une menace ({piece.signatureDetectee}) le {piece.analyseeLe && dateHeure(piece.analyseeLe)}.
+                          Demandez un autre fichier au client.
+                        </span>
+                      ) : (
+                        <>
+                          <br />
+                          <button type="button" className="bouton bouton--petit" disabled={telechargement !== null} onClick={() => void telecharger(piece)}>
+                            {telechargement === piece.id ? "Analyse et téléchargement…" : `Télécharger (${FORMATS_PIECE[piece.type] ?? piece.type}, ${taille(piece.taille)})`}
+                          </button>
+                          <br />
+                          <span className="note">
+                            {piece.etatAnalyse === "saine" && piece.analyseeLe
+                              ? `Aucune menace trouvée par l'antivirus (dernière analyse le ${dateHeure(piece.analyseeLe)}) ; analysé de nouveau à chaque téléchargement.`
+                              : "En attente d'analyse antivirus : il ne peut pas être ouvert avant."}
+                          </span>
+                        </>
+                      )}
+                    </li>
+                  ))}
+                </ul>
               )}
             </dd>
           </div>
         </dl>
+        {piecesLisibles.length > 0 && peut("gerant", "charge_clientele", "commercial") && (
+          <LectureAutomatique document="auto" pieces={piecesLisibles} clientId={d.clientId ?? undefined}
+            titre="Lire les documents joints automatiquement" />
+        )}
         <h3>Accords donnés sur le site</h3>
         <ul className="liste-simple">
           <li>{d.accordTraitement}</li>

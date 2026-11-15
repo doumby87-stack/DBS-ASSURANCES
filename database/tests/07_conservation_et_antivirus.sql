@@ -24,7 +24,8 @@ BEGIN;
 SET LOCAL ROLE dbs_api;
 SELECT app.enregistrer_demande_site('automobile', 'particulier', 'Pièce ' || n, '+225071300000' || n, NULL, NULL, NULL,
   'J''accepte que DBS-ASSURANCES utilise ces informations.', NULL, sha256(convert_to('analyse-' || n, 'UTF8')),
-  ('80000000-0000-4000-8000-00000000080' || n)::uuid, 'application/pdf', 3, ('\x01' || repeat('00', 31))::bytea, sha256('pdf'))
+  ARRAY[('80000000-0000-4000-8000-00000000080' || n)::uuid], ARRAY['carte_grise'], ARRAY['application/pdf'], ARRAY[3],
+  ARRAY[('\x01' || repeat('00', 31))::bytea], ARRAY[sha256('pdf')])
 FROM generate_series(1, 3) AS n;
 COMMIT;
 
@@ -82,9 +83,9 @@ BEGIN;
 SET LOCAL ROLE dbs_api;
 SELECT app.enregistrer_demande_site('habitation', 'particulier', 'Ancienne ' || n, '+225071400000' || n, NULL, NULL, NULL,
   'J''accepte que DBS-ASSURANCES utilise ces informations.', NULL, sha256(convert_to('purge-' || n, 'UTF8')),
-  CASE WHEN n = 1 THEN '80000000-0000-4000-8000-000000000901'::uuid END, CASE WHEN n = 1 THEN 'image/png' END,
-  CASE WHEN n = 1 THEN 3 END, CASE WHEN n = 1 THEN ('\x01' || repeat('00', 31))::bytea END,
-  CASE WHEN n = 1 THEN sha256('png') END)
+  CASE WHEN n = 1 THEN ARRAY['80000000-0000-4000-8000-000000000901'::uuid] END, CASE WHEN n = 1 THEN ARRAY['carte_grise'] END,
+  CASE WHEN n = 1 THEN ARRAY['image/png'] END, CASE WHEN n = 1 THEN ARRAY[3] END,
+  CASE WHEN n = 1 THEN ARRAY[('\x01' || repeat('00', 31))::bytea] END, CASE WHEN n = 1 THEN ARRAY[sha256('png')] END)
 FROM generate_series(1, 5) AS n;
 COMMIT;
 

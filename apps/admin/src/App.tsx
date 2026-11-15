@@ -9,6 +9,7 @@ import { ListeClients } from "./pages/clients/ListeClients";
 import { Commissions } from "./pages/commissions/Commissions";
 import { DemandeSite, DemandesSite } from "./pages/demandes-site/DemandesSite";
 import { Flotte } from "./pages/flottes/Flotte";
+import { LireDocument } from "./pages/lecture/LireDocument";
 import { Contrat } from "./pages/contrats/Contrat";
 import { Personnel } from "./pages/parametres/Personnel";
 import { Relances } from "./pages/relances/Relances";
@@ -76,6 +77,7 @@ function Page() {
   if (chemin === "/conformite") return <Conformite />;
   if (chemin === "/statistiques") return <Statistiques />;
   if (chemin === "/rendez-vous") return <RendezVousPage />;
+  if (chemin === "/lire-un-document") return <LireDocument />;
   if (chemin === "/demandes-site") return <DemandesSite />;
   const demande = /^\/demandes-site\/([0-9a-f-]{36})$/.exec(chemin);
   if (demande) return <DemandeSite key={demande[1]} id={demande[1]!} />;
@@ -107,6 +109,7 @@ function MiseEnPage({ children }: { children: ReactNode }) {
           <nav aria-label="Navigation principale" className="entete__nav">
             <Lien href="/" aria-current={actif("/")}>Échéances</Lien>
             <Lien href="/clients" aria-current={actif("/clients")}>Clients</Lien>
+            {peut("gerant", "charge_clientele", "commercial") && <Lien href="/lire-un-document" aria-current={actif("/lire-un-document")}>Lire un document</Lien>}
             {peut("gerant", "charge_clientele", "commercial", "auditeur") && <Lien href="/demandes-site" aria-current={actif("/demandes-site")}>Demandes du site</Lien>}
             {peut("gerant", "charge_clientele", "commercial", "auditeur") && <Lien href="/rendez-vous" aria-current={actif("/rendez-vous")}>Rendez-vous</Lien>}
             {peut("gerant", "charge_clientele", "commercial", "auditeur") && <Lien href="/sinistres" aria-current={actif("/sinistres")}>Sinistres</Lien>}

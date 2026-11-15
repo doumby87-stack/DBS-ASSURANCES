@@ -18,14 +18,15 @@ SELECT tests.doit_echouer($q$INSERT INTO app.pieces_demandes_site (id, demande_i
   VALUES (gen_random_uuid(), gen_random_uuid(), 'image/png', 1, '\x00', sha256('x'))$q$, 'permission denied');
 ROLLBACK;
 
--- Demande avec carte grise (contenu chiffré simulé : 29 octets d'en-tête + 3 octets)
+-- Demande avec carte grise (contenu chiffré simulé : 29 octets d'en-tête + 3 octets ; plusieurs pièces : test 16)
 BEGIN;
 SET LOCAL ROLE dbs_api;
 SELECT tests.verifier((SELECT numero >= 1 FROM app.enregistrer_demande_site(
   'automobile', 'particulier', '  Awa Koné  ', '+2250712000001', ' Awa@Exemple.CI ', 'Yopougon',
   'Toyota Corolla 2019, usage personnel', 'J''accepte que DBS-ASSURANCES utilise ces informations pour répondre à ma demande.',
   'J''accepte de recevoir sur WhatsApp les rappels de l''agence.', sha256('adresse-a'),
-  '80000000-0000-4000-8000-000000000701', 'image/jpeg', 3, ('\x01' || repeat('00', 31))::bytea, sha256('abc'))),
+  ARRAY['80000000-0000-4000-8000-000000000701'::uuid], ARRAY['carte_grise'], ARRAY['image/jpeg'], ARRAY[3],
+  ARRAY[('\x01' || repeat('00', 31))::bytea], ARRAY[sha256('abc')])),
   'la demande reçoit un numéro, à communiquer au visiteur');
 COMMIT;
 
@@ -43,30 +44,31 @@ BEGIN;
 SET LOCAL ROLE dbs_api;
 SELECT tests.verifier((SELECT count(*) FROM app.enregistrer_demande_site(
   'autre', 'entreprise', 'Société Test', '+2250712000002', NULL, NULL, NULL,
-  'J''accepte que DBS-ASSURANCES utilise ces informations pour répondre à ma demande.', NULL, sha256('adresse-b'),
-  NULL, NULL, NULL, NULL, NULL)) = 1, 'demande sans pièce jointe ni e-mail');
+  'J''accepte que DBS-ASSURANCES utilise ces informations pour répondre à ma demande.', NULL, sha256('adresse-b'))) = 1, 'demande sans pièce jointe ni e-mail');
 COMMIT;
 
 -- Contrôles de format et de taille
 BEGIN;
 SET LOCAL ROLE dbs_api;
 SELECT tests.doit_echouer($q$SELECT app.enregistrer_demande_site('automobile', 'particulier', 'Test', '0712000003', NULL, NULL, NULL,
-  'J''accepte que DBS-ASSURANCES utilise ces informations.', NULL, sha256('adresse-c'), NULL, NULL, NULL, NULL, NULL)$q$,
+  'J''accepte que DBS-ASSURANCES utilise ces informations.', NULL, sha256('adresse-c'))$q$,
   'demandes_site_telephone_format');
 SELECT tests.doit_echouer($q$SELECT app.enregistrer_demande_site('automobile', 'particulier', 'Test', '+2250712000003', NULL, NULL, NULL,
-  'oui', NULL, sha256('adresse-c'), NULL, NULL, NULL, NULL, NULL)$q$, 'demandes_site_accords_longueur');
+  'oui', NULL, sha256('adresse-c'))$q$, 'demandes_site_accords_longueur');
 SELECT tests.doit_echouer($q$SELECT app.enregistrer_demande_site('automobile', 'particulier', 'Test', '+2250712000003', NULL, NULL, NULL,
   'J''accepte que DBS-ASSURANCES utilise ces informations.', NULL, sha256('adresse-c'),
-  gen_random_uuid(), 'text/html', 3, ('\x01' || repeat('00', 31))::bytea, sha256('abc'))$q$, 'pieces_demandes_site_type');
+  ARRAY[gen_random_uuid()], ARRAY['carte_grise'], ARRAY['text/html'], ARRAY[3], ARRAY[('\x01' || repeat('00', 31))::bytea],
+  ARRAY[sha256('abc')])$q$, 'pieces_demandes_site_type');
 SELECT tests.doit_echouer($q$SELECT app.enregistrer_demande_site('automobile', 'particulier', 'Test', '+2250712000003', NULL, NULL, NULL,
   'J''accepte que DBS-ASSURANCES utilise ces informations.', NULL, sha256('adresse-c'),
-  gen_random_uuid(), 'application/pdf', 6000000, decode(repeat('00', 6000029), 'hex'), sha256('abc'))$q$,
-  'pieces_demandes_site_taille');
+  ARRAY[gen_random_uuid()], ARRAY['carte_grise'], ARRAY['application/pdf'], ARRAY[6000000],
+  ARRAY[decode(repeat('00', 6000029), 'hex')], ARRAY[sha256('abc')])$q$, 'pieces_demandes_site_taille');
 SELECT tests.doit_echouer($q$SELECT app.enregistrer_demande_site('automobile', 'particulier', 'Test', '+2250712000003', NULL, NULL, NULL,
   'J''accepte que DBS-ASSURANCES utilise ces informations.', NULL, sha256('adresse-c'),
-  gen_random_uuid(), 'application/pdf', 3, '\x0102', sha256('abc'))$q$, 'pieces_demandes_site_chiffre');
+  ARRAY[gen_random_uuid()], ARRAY['carte_grise'], ARRAY['application/pdf'], ARRAY[3], ARRAY['\x0102'::bytea],
+  ARRAY[sha256('abc')])$q$, 'pieces_demandes_site_chiffre');
 SELECT tests.doit_echouer($q$SELECT app.enregistrer_demande_site('automobile', 'particulier', 'Test', '+2250712000003', NULL, NULL, NULL,
-  'J''accepte que DBS-ASSURANCES utilise ces informations.', NULL, '\x01', NULL, NULL, NULL, NULL, NULL)$q$,
+  'J''accepte que DBS-ASSURANCES utilise ces informations.', NULL, '\x01')$q$,
   'demandes_site_empreinte_ip');
 ROLLBACK;
 
@@ -74,25 +76,22 @@ ROLLBACK;
 BEGIN;
 SET LOCAL ROLE dbs_api;
 SELECT app.enregistrer_demande_site('habitation', 'particulier', 'Visiteur ' || n, '+225071200010' || n, NULL, NULL, NULL,
-  'J''accepte que DBS-ASSURANCES utilise ces informations.', NULL, sha256('adresse-d'), NULL, NULL, NULL, NULL, NULL)
+  'J''accepte que DBS-ASSURANCES utilise ces informations.', NULL, sha256('adresse-d'))
 FROM generate_series(1, 5) AS n;
 SELECT tests.doit_echouer($q$SELECT app.enregistrer_demande_site('habitation', 'particulier', 'Visiteur 6', '+2250712000106',
-  NULL, NULL, NULL, 'J''accepte que DBS-ASSURANCES utilise ces informations.', NULL, sha256('adresse-d'),
-  NULL, NULL, NULL, NULL, NULL)$q$, 'Trop de demandes envoyées depuis cette adresse');
+  NULL, NULL, NULL, 'J''accepte que DBS-ASSURANCES utilise ces informations.', NULL, sha256('adresse-d'))$q$, 'Trop de demandes envoyées depuis cette adresse');
 SELECT tests.verifier((SELECT count(*) FROM app.enregistrer_demande_site('habitation', 'particulier', 'Voisin', '+2250712000107',
-  NULL, NULL, NULL, 'J''accepte que DBS-ASSURANCES utilise ces informations.', NULL, sha256('adresse-e'),
-  NULL, NULL, NULL, NULL, NULL)) = 1, 'une autre adresse peut toujours envoyer sa demande');
+  NULL, NULL, NULL, 'J''accepte que DBS-ASSURANCES utilise ces informations.', NULL, sha256('adresse-e'))) = 1, 'une autre adresse peut toujours envoyer sa demande');
 ROLLBACK;
 
 -- Plafond du jour, toutes adresses confondues (rafale venue de nombreuses adresses)
 BEGIN;
 SET LOCAL ROLE dbs_api;
 SELECT app.enregistrer_demande_site('habitation', 'particulier', 'Robot', '+2250712009999', NULL, NULL, NULL,
-  'J''accepte que DBS-ASSURANCES utilise ces informations.', NULL, sha256(convert_to('robot-' || n, 'UTF8')), NULL, NULL, NULL, NULL, NULL)
+  'J''accepte que DBS-ASSURANCES utilise ces informations.', NULL, sha256(convert_to('robot-' || n, 'UTF8')))
 FROM generate_series(1, app.demandes_site_par_jour_max() - 2) AS n;
 SELECT tests.doit_echouer($q$SELECT app.enregistrer_demande_site('habitation', 'particulier', 'Robot', '+2250712009999',
-  NULL, NULL, NULL, 'J''accepte que DBS-ASSURANCES utilise ces informations.', NULL, sha256('robot-dernier'),
-  NULL, NULL, NULL, NULL, NULL)$q$, 'Nombre de demandes du jour atteint');
+  NULL, NULL, NULL, 'J''accepte que DBS-ASSURANCES utilise ces informations.', NULL, sha256('robot-dernier'))$q$, 'Nombre de demandes du jour atteint');
 ROLLBACK;
 
 \echo

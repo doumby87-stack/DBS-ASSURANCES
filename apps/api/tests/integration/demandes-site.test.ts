@@ -1,8 +1,10 @@
 // Demandes de devis du site (tâche 7) : route publique (origine, CORS, contrôles, limites, piège à robots,
-// carte grise chiffrée), puis traitement au back-office rôle par rôle.
+// pièces jointes chiffrées selon l'assurance), puis traitement au back-office rôle par rôle.
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { executerMaintenance } from "../../src/modules/demandes-site/maintenance.js";
+import { TYPE_CLASSEUR } from "../../src/modules/demandes-site/piece.js";
+import { classeurAvecMacro, classeurMinimal } from "../fixtures/zip.js";
 import { connecter, creerCompte, demarrer, envoyer, ORIGINE, type Contexte } from "./outils.js";
 
 const SITE = "https://www.site.test.ci";
@@ -18,6 +20,9 @@ const PNG = Buffer.from(
 
 const EICAR = "X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*";
 const PDF_PIEGE = Buffer.from(`%PDF-1.4\n${EICAR}\n%%EOF\n`, "latin1");
+const PDF = Buffer.from("%PDF-1.4\n1 0 obj << >> endobj\n%%EOF\n", "latin1");
+const base64 = (contenu: Buffer) => contenu.toString("base64");
+const carteGrise = () => ({ nature: "carte_grise", type: "image/png", contenu: base64(PNG) });
 
 let ctx: Contexte;
 const cookies: Record<string, string> = {};
@@ -92,7 +97,7 @@ describe("route publique du site", () => {
     const telephone = telephoneUnique();
     const reponse = await envoyerDemande(demande({
       telephone, email: " Visiteur@Exemple.CI ", commune: "Yopougon", besoin: "Toyota Corolla 2019",
-      accordWhatsApp: ACCORD_WHATSAPP, piece: { type: "image/png", contenu: PNG.toString("base64") },
+      accordWhatsApp: ACCORD_WHATSAPP, pieces: [carteGrise()],
     }), { ip: "203.0.113.200" });
     expect(reponse.statusCode).toBe(201);
     expect(reponse.headers["access-control-allow-origin"]).toBe(SITE);
@@ -112,6 +117,55 @@ describe("route publique du site", () => {
     expect(ligne.taille).toBe(PNG.length);
     expect(ligne.type_contenu).toBe("image/png");
     expect(ligne.contenu_chiffre.includes(PNG.subarray(0, 8))).toBe(false);
+  });
+
+  it("accepte plusieurs pièces selon l'assurance : une flotte joint sa liste de véhicules en Excel", async () => {
+    const reponse = await envoyerDemande(demande({
+      assurance: "flotte", profil: "entreprise",
+      pieces: [
+        { nature: "liste_vehicules", type: TYPE_CLASSEUR, contenu: base64(classeurMinimal()) },
+        carteGrise(),
+        { nature: "attestation_precedente", type: "application/pdf", contenu: base64(PDF) },
+      ],
+    }));
+    expect(reponse.statusCode).toBe(201);
+    const { rows } = await ctx.base.query(
+      `SELECT p.nature, p.type_contenu AS type, p.taille, p.etat_analyse AS etat
+       FROM app.pieces_demandes_site p JOIN app.demandes_site d ON d.id = p.demande_id WHERE d.numero = $1 ORDER BY p.rang`,
+      [reponse.json().numero],
+    );
+    expect(rows).toEqual([
+      { nature: "liste_vehicules", type: TYPE_CLASSEUR, taille: classeurMinimal().length, etat: "saine" },
+      { nature: "carte_grise", type: "image/png", taille: PNG.length, etat: "saine" },
+      { nature: "attestation_precedente", type: "application/pdf", taille: PDF.length, etat: "saine" },
+    ]);
+  });
+
+  it("refuse une pièce qui n'a pas sa place, un classeur hors des listes, un classeur à macros, trop de pièces ou trop lourdes", async () => {
+    const code = async (champs: Record<string, unknown>) => {
+      const reponse = await envoyerDemande(demande(champs));
+      return `${reponse.statusCode} ${reponse.json().code ?? ""}`.trim();
+    };
+    // Une carte grise ne se joint pas à une assurance habitation ; une liste de véhicules pas à une auto
+    expect(await code({ assurance: "habitation", pieces: [carteGrise()] })).toBe("422 piece_inattendue");
+    expect(await code({ pieces: [{ nature: "liste_vehicules", type: "application/pdf", contenu: base64(PDF) }] })).toBe("422 piece_inattendue");
+    // Classeur : seulement pour une liste, et jamais avec des macros
+    expect(await code({ pieces: [{ nature: "carte_grise", type: TYPE_CLASSEUR, contenu: base64(classeurMinimal()) }] })).toBe("422 piece_invalide");
+    const macro = await envoyerDemande(demande({
+      assurance: "flotte", pieces: [{ nature: "liste_vehicules", type: TYPE_CLASSEUR, contenu: base64(classeurAvecMacro()) }],
+    }));
+    expect(macro.statusCode).toBe(422);
+    expect(macro.json().message).toContain("sans macro");
+    // Nature inconnue : refusée par le schéma
+    expect(await code({ pieces: [{ nature: "passeport", type: "image/png", contenu: base64(PNG) }] })).toBe("400 requete_invalide");
+    // Cinq pièces (dont l'ancien champ « piece »)
+    expect(await code({ pieces: [carteGrise(), carteGrise(), carteGrise(), carteGrise(), carteGrise()] })).toBe("400 requete_invalide");
+    expect(await code({ piece: { type: "image/png", contenu: base64(PNG) }, pieces: [carteGrise(), carteGrise(), carteGrise(), carteGrise()] }))
+      .toBe("422 trop_de_pieces");
+    // Trois photos de 4,5 Mo : 13,5 Mo en tout
+    const lourde = Buffer.concat([PNG, Buffer.alloc(4.5 * 1024 * 1024 - PNG.length)]);
+    const grosse = { nature: "carte_grise", type: "image/png", contenu: base64(lourde) };
+    expect(await code({ pieces: [grosse, grosse, grosse] })).toBe("422 pieces_trop_volumineuses");
   });
 
   it("refuse les données invalides, avec un message lisible par le site", async () => {
@@ -139,6 +193,16 @@ describe("route publique du site", () => {
     expect(habitation.json().code).toBe("piece_inattendue");
   });
 
+  it("l'ancien champ « piece » vaut toujours une carte grise", async () => {
+    const reponse = await envoyerDemande(demande({ piece: { type: "image/png", contenu: base64(PNG) } }));
+    expect(reponse.statusCode).toBe(201);
+    const { rows } = await ctx.base.query(
+      "SELECT p.nature FROM app.pieces_demandes_site p JOIN app.demandes_site d ON d.id = p.demande_id WHERE d.numero = $1",
+      [reponse.json().numero],
+    );
+    expect(rows).toEqual([{ nature: "carte_grise" }]);
+  });
+
   it("fait semblant d'accepter une demande de robot, sans l'enregistrer", async () => {
     const telephone = telephoneUnique();
     const reponse = await envoyerDemande(demande({ telephone, siteWeb: "https://spam.exemple" }));
@@ -161,30 +225,44 @@ describe("route publique du site", () => {
 });
 
 describe("traitement au back-office", () => {
-  it("liste et détail : réservés à qui traite les demandes, pièce jointe exclue pour l'auditeur", async () => {
-    const recue = await envoyerDemande(demande({ piece: { type: "image/png", contenu: PNG.toString("base64") } }));
+  it("liste et détail : réservés à qui traite les demandes, pièces jointes exclues pour l'auditeur", async () => {
+    const recue = await envoyerDemande(demande({
+      pieces: [carteGrise(), { nature: "attestation_precedente", type: "application/pdf", contenu: base64(PDF) }],
+    }));
     const id = await idDe(recue.json().numero);
 
     expect((await envoyer(ctx, { url: "/demandes-site", cookie: cookies.caissier })).statusCode).toBe(403);
     const liste = await envoyer(ctx, { url: "/demandes-site", cookie: cookies.auditeur });
     expect(liste.statusCode).toBe(200);
     expect(liste.json().nouvelles).toBeGreaterThan(0);
-    expect(liste.json().demandes.some((d: { id: string }) => d.id === id)).toBe(true);
+    const ligne = liste.json().demandes.find((d: { id: string }) => d.id === id);
+    expect(ligne).toMatchObject({ nombrePieces: 0, aUnePiece: false });
 
     const vueAuditeur = await envoyer(ctx, { url: `/demandes-site/${id}`, cookie: cookies.auditeur });
     expect(vueAuditeur.json().piece).toBeNull();
+    expect(vueAuditeur.json().pieces).toEqual([]);
     expect((await envoyer(ctx, { url: `/demandes-site/${id}/piece`, cookie: cookies.auditeur })).statusCode).toBe(403);
 
     const vueCommercial = await envoyer(ctx, { url: `/demandes-site/${id}`, cookie: cookies.commercial });
-    expect(vueCommercial.json().piece).toMatchObject({ type: "image/png", taille: PNG.length, etatAnalyse: "saine", signatureDetectee: null });
+    expect(vueCommercial.json().piece).toMatchObject({ nature: "carte_grise", type: "image/png", taille: PNG.length, etatAnalyse: "saine", signatureDetectee: null });
+    expect(vueCommercial.json().pieces).toEqual([
+      expect.objectContaining({ id: expect.any(String), nature: "carte_grise", libelle: "Carte grise", type: "image/png", taille: PNG.length, etatAnalyse: "saine" }),
+      expect.objectContaining({ nature: "attestation_precedente", libelle: "Attestation ou contrat d'assurance actuel", type: "application/pdf", taille: PDF.length }),
+    ]);
     expect(vueCommercial.json().demande).not.toHaveProperty("empreinteIp");
+    const listeCommercial = await envoyer(ctx, { url: "/demandes-site", cookie: cookies.commercial });
+    expect(listeCommercial.json().demandes.find((d: { id: string }) => d.id === id)).toMatchObject({ nombrePieces: 2, aUnePiece: true });
+    expect((await envoyer(ctx, { url: `/demandes-site/${id}/pieces/${vueCommercial.json().pieces[1].id}`, cookie: cookies.auditeur })).statusCode).toBe(403);
   });
 
-  it("la carte grise se télécharge intacte, en pièce jointe, et chaque téléchargement est consigné", async () => {
-    const recue = await envoyerDemande(demande({ piece: { type: "image/png", contenu: PNG.toString("base64") } }));
+  it("chaque pièce se télécharge intacte, en pièce jointe, et chaque téléchargement est consigné", async () => {
+    const recue = await envoyerDemande(demande({
+      pieces: [carteGrise(), { nature: "attestation_precedente", type: "application/pdf", contenu: base64(PDF) }],
+    }));
     const numero = recue.json().numero as number;
     const id = await idDe(numero);
 
+    // La carte grise, par l'ancienne route
     const fichier = await envoyer(ctx, { url: `/demandes-site/${id}/piece`, cookie: cookies.commercial });
     expect(fichier.statusCode).toBe(200);
     expect(fichier.headers["content-type"]).toBe("image/png");
@@ -192,11 +270,26 @@ describe("traitement au back-office", () => {
     expect(fichier.headers["x-content-type-options"]).toBe("nosniff");
     expect(fichier.rawPayload.equals(PNG)).toBe(true);
 
+    // L'attestation, par la route de la pièce
+    const detail = await envoyer(ctx, { url: `/demandes-site/${id}`, cookie: cookies.commercial });
+    const attestation = detail.json().pieces.find((p: { nature: string }) => p.nature === "attestation_precedente");
+    const pdf = await envoyer(ctx, { url: `/demandes-site/${id}/pieces/${attestation.id}`, cookie: cookies.commercial });
+    expect(pdf.statusCode).toBe(200);
+    expect(pdf.headers["content-type"]).toBe("application/pdf");
+    expect(pdf.headers["content-disposition"]).toBe(`attachment; filename="attestation-ou-contrat-d-assurance-actuel-demande-${numero}.pdf"`);
+    expect(pdf.rawPayload.equals(PDF)).toBe(true);
+    // Une pièce d'une autre demande ne sort pas par cette demande
+    const autre = await idDe((await envoyerDemande(demande({ pieces: [carteGrise()] }))).json().numero);
+    expect((await envoyer(ctx, { url: `/demandes-site/${autre}/pieces/${attestation.id}`, cookie: cookies.commercial })).statusCode).toBe(404);
+
     const { rows } = await ctx.base.query(
-      "SELECT count(*)::int AS n FROM securite.evenements WHERE type = 'piece_telechargee' AND objet = $1",
-      [`Carte grise, demande du site n° ${numero}`],
+      "SELECT objet FROM securite.evenements WHERE type = 'piece_telechargee' AND objet LIKE $1 ORDER BY objet",
+      [`%demande du site n° ${numero}`],
     );
-    expect(rows[0].n).toBe(1);
+    expect(rows.map((r) => r.objet)).toEqual([
+      `Attestation ou contrat d'assurance actuel, demande du site n° ${numero}`,
+      `Carte grise, demande du site n° ${numero}`,
+    ]);
   });
 
   it("conversion : nouveau client, devis « site » et accord WhatsApp avec sa preuve, une seule fois", async () => {

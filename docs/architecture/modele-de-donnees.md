@@ -10,6 +10,7 @@ erDiagram
   CONTRATS ||--o{ CONTRATS_VEHICULES : "couvre"
   VEHICULES ||--o{ CONTRATS_VEHICULES : "est couvert par"
   CONTRATS ||--o{ ENCAISSEMENTS : "est payé par"
+  CONTRATS ||--o{ ECHEANCES_PAIEMENT : "se paie en plusieurs fois"
   ENCAISSEMENTS |o--o| ENCAISSEMENTS : "contre-passe"
   REVERSEMENTS ||--o{ ENCAISSEMENTS : "regroupe"
   CONTRATS ||--o{ SINISTRES : "donne lieu à"
@@ -43,7 +44,7 @@ erDiagram
   RELANCES ||--o{ ANNONCES_DOCUMENTS : "annonce"
   DEMANDES_SITE |o--o| DEVIS : "devient"
   DEMANDES_SITE }o--o| CLIENTS : "rattachée à"
-  DEMANDES_SITE ||--o| PIECES_DEMANDES_SITE : "carte grise jointe"
+  DEMANDES_SITE ||--o{ PIECES_DEMANDES_SITE : "pièces jointes"
   RENDEZ_VOUS }o--o| CLIENTS : "rattaché à"
   RENDEZ_VOUS }o--o| UTILISATEURS : "avec"
   CONTRATS |o--o{ RELANCES : "échéance"
@@ -152,6 +153,12 @@ erDiagram
     canal_echange canal
     text resume
     timestamptz survenu_le
+  }
+  ECHEANCES_PAIEMENT {
+    uuid id
+    smallint rang "1 à 12"
+    date exigible_le "la 1re au plus tard à la date d'effet"
+    bigint montant "total = prime TTC"
   }
   CONSENTEMENTS {
     uuid id
@@ -265,8 +272,10 @@ erDiagram
   }
   PIECES_DEMANDES_SITE {
     uuid id "entre dans le contexte du chiffrement"
-    text type_contenu "JPEG, PNG ou PDF, d'après le contenu"
-    integer taille "5 Mo au plus"
+    smallint rang "ordre d'envoi, 4 pièces au plus"
+    text nature "carte grise, attestation, liste de véhicules, registre de commerce, photos…"
+    text type_contenu "JPEG, PNG ou PDF d'après le contenu ; classeur .xlsx pour les listes"
+    integer taille "5 Mo au plus, 12 Mo par demande"
     bytea contenu_chiffre "AES-256-GCM"
     bytea empreinte "SHA-256 du fichier"
     analyse_piece etat_analyse "à analyser, saine, infectée (contenu effacé)"
@@ -296,7 +305,9 @@ erDiagram
 | `app.v_echeances_vehicules` | Visite technique, vignette, carte de transport à renouveler dans les 60 jours. |
 | `app.v_sinistres_suivi` | Délai de déclaration et, pour un sinistre corporel, date limite indicative de l'offre. |
 | `app.v_consentements` | Dernier choix de chaque client pour chaque canal de relance. |
-| `app.v_avenants_flotte` | Avenants de flotte avec leur règlement (les encaissements au-delà de la prime de départ règlent les avenants dans l'ordre) et leur annulation éventuelle. |
+| `app.v_avenants_flotte` | Avenants de flotte avec leur règlement (les encaissements au-delà de la prime de départ règlent les avenants dans l'ordre ; sur un contrat payé en plusieurs fois, la dette la plus ancienne d'abord) et leur annulation éventuelle. |
+| `app.v_dettes_fractionnees` | Contrat payé en plusieurs fois : ses échéances et ses avenants dans l'ordre des dates, avec la part payée de chacun ([ADR 0016](adr/0016-paiement-fractionne.md)). |
+| `app.v_echeances_paiement` | Chaque échéance : payée, bientôt (15 jours), à venir ou en retard, le reste à payer, et les avenants impayés dus aussitôt. |
 | `app.v_relances_dues` | Relances dues aujourd'hui (échéance à J-30, J-15, J-7 et le jour même, contrat expiré depuis moins de 7 jours, devis sans réponse depuis 3 jours, avancement d'un sinistre) qui ne sont pas encore planifiées. |
 
 Toutes les vues appliquent les droits de la personne qui les consulte (`security_invoker`).
@@ -309,11 +320,13 @@ Les paiements en ligne sont préparés et conclus par la base (`portail.preparer
 
 Les rappels d'échéance et les appels d'offres sont des demandes du site d'une autre nature, enregistrées par `app.enregistrer_rappel_echeance` et `app.enregistrer_appel_offres`. Les demandes de rendez-vous passent par `app.demander_rendez_vous`. Toutes partagent les limites de `app.controler_limites_site`. L'agenda avance par `app.fixer_rendez_vous` et `app.traiter_rendez_vous`, qui refusent les chevauchements et datent chaque étape ; `app.purger_rendez_vous` supprime les rendez-vous de prospects 12 mois après leur clôture ([ADR 0014](adr/0014-outils-du-site.md)).
 
+Chaque lecture automatique d'un document ajoute un événement `lecture_automatique` à `securite.evenements` (qui, quand, quel document de quel client, jamais les valeurs lues) ; l'index `evenements_lectures_idx` sert à compter les lectures de la dernière heure ([ADR 0015](adr/0015-lecture-automatique.md)).
+
 ## À venir
 
-Documents des contrats (stockage de fichiers, tâche 11) ; purge des fiches d'identification à la fin de la durée légale de conservation, une fois celle-ci confirmée.
+Documents des contrats (gardés chiffrés dans la base, comme les autres pièces, [ADR 0017](adr/0017-mise-en-production.md)) ; purge des fiches d'identification à la fin de la durée légale de conservation, une fois celle-ci confirmée.
 
-Les demandes du site n'entrent que par la fonction `app.enregistrer_demande_site`, appelée sans utilisateur connecté par la route publique du formulaire : elle limite les envois par adresse (5 par heure) et par jour (300), et range la carte grise chiffrée dans `app.pieces_demandes_site`, en ajout seul et hors du journal d'audit. Le verdict de l'antivirus ne s'enregistre que par `app.enregistrer_analyse_piece` ; la maintenance de l'API retrouve les pièces à analyser par `app.pieces_a_analyser` et supprime les demandes sans suite depuis 12 mois par `app.purger_demandes_site`, seule à pouvoir supprimer dans ces tables ([ADR 0009](adr/0009-demandes-de-devis-du-site.md)).
+Les demandes du site n'entrent que par la fonction `app.enregistrer_demande_site`, appelée sans utilisateur connecté par la route publique du formulaire : elle limite les envois par adresse (5 par heure) et par jour (300), et range les pièces jointes chiffrées (4 au plus, 12 Mo en tout, chacune avec sa nature et son rang) dans `app.pieces_demandes_site`, en ajout seul et hors du journal d'audit ; les rappels d'échéance et les appels d'offres en reçoivent aussi par leurs fonctions. Le verdict de l'antivirus ne s'enregistre que par `app.enregistrer_analyse_piece` ; la maintenance de l'API retrouve les pièces à analyser par `app.pieces_a_analyser` et supprime les demandes sans suite depuis 12 mois par `app.purger_demandes_site`, seule à pouvoir supprimer dans ces tables ([ADR 0009](adr/0009-demandes-de-devis-du-site.md)).
 
 Les relances ne sont créées que par le planificateur de l'API, au moyen des fonctions `app.planifier_relances`, `app.prendre_relances_a_envoyer`, `app.enregistrer_envoi`, `app.enregistrer_statut_fournisseur` et `app.enregistrer_desinscription` ([ADR 0007](adr/0007-relances-whatsapp-et-sms.md)).
 

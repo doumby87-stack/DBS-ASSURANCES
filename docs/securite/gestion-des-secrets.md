@@ -20,6 +20,10 @@ Un secret est tout ce qui donne un accès : mot de passe, clé d'API, clé de ch
 | Clés du prestataire de paiement | API | Gestionnaire de secrets |
 | Jeton WhatsApp Business (`WHATSAPP_JETON`), secret de l'application Meta qui signe les notifications (`WHATSAPP_SECRET_APPLICATION`), jeton de vérification des notifications (`WHATSAPP_JETON_VERIFICATION`) | API | Gestionnaire de secrets ; jeton d'un utilisateur système Meta, réservé à l'envoi de messages |
 | Accès FNE (DGI) | API | Gestionnaire de secrets |
+| Clé privée des sauvegardes (`age`) | Tests de restauration, reprise après incident | Serveur (`infra/production/secrets/`, droits 600), coffre-fort, copie scellée hors ligne. Sa perte rend toutes les sauvegardes illisibles. |
+| Accès au stockage hors site (`rclone.conf`) | Copie des sauvegardes | Serveur (`secrets/`), coffre-fort ; clé limitée à l'écriture si le fournisseur le permet |
+| Mots de passe de la base sur le serveur (`POSTGRES_PASSWORD`, `MDP_PROPRIETAIRE`, `MDP_APPLICATION`) | Base locale, migrations, sauvegardes | `.env` du serveur (droits 600), coffre-fort |
+| Sujet ou jeton du canal des alertes (`ALERTE_COMMANDE`) | Surveillance | `.env` du serveur |
 | Comptes hébergeur, GitHub, domaine | Personnes | Coffre-fort d'équipe, deuxième facteur obligatoire |
 
 ## Protections automatiques

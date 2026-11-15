@@ -1,8 +1,8 @@
 // Demandes reçues par le site, au back-office (tâches 7 et 13) : devis, rappels d'échéance, appels d'offres.
 // Liste (un rappel n'est à traiter qu'un mois avant l'échéance), détail avec les clients qui ont déjà ce numéro,
-// carte grise à télécharger, conversion en client et devis, ou classement sans suite.
+// pièces jointes à télécharger une par une, conversion en client et devis, ou classement sans suite.
 
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { Pool } from "../../base-de-donnees/connexion.js";
 import { transactionUtilisateur } from "../../base-de-donnees/connexion.js";
 import { ErreurApi, erreurs } from "../../commun/erreurs.js";
@@ -14,6 +14,13 @@ import { consignerEvenement } from "../../securite/limitation.js";
 import { exigerClientVisible } from "../clients/visibilite.js";
 import { GARANTIES_APPEL_OFFRES, TYPES_MARCHE, type Marche } from "./outils-site.js";
 import { dechiffrerPiece, EXTENSIONS, type TypePiece } from "./piece.js";
+import { LIBELLES_NATURE, slugNature, type NaturePiece } from "./pieces-site.js";
+
+const parametresPiece = {
+  type: "object",
+  required: ["id", "pieceId"],
+  properties: { id: { type: "string", format: "uuid" }, pieceId: { type: "string", format: "uuid" } },
+} as const;
 
 // « a_venir » : rappels d'échéance reçus, pas encore à traiter
 const STATUTS = ["nouvelle", "a_venir", "convertie", "sans_suite"] as const;
@@ -52,7 +59,9 @@ export async function routesDemandesSiteBackOffice(
       const statut = requete.query.statut ?? "nouvelle";
       return transactionUtilisateur(pool, utilisateurDe(requete).id, async (client) => {
         const { rows: demandes } = await client.query(
-          `SELECT ${COLONNES}, EXISTS (SELECT 1 FROM app.pieces_demandes_site p WHERE p.demande_id = d.id AND p.etat_analyse <> 'infectee') AS "aUnePiece"
+          `SELECT ${COLONNES},
+                  (SELECT count(*) FROM app.pieces_demandes_site p WHERE p.demande_id = d.id AND p.etat_analyse <> 'infectee')::int AS "nombrePieces",
+                  EXISTS (SELECT 1 FROM app.pieces_demandes_site p WHERE p.demande_id = d.id AND p.etat_analyse <> 'infectee') AS "aUnePiece"
            FROM app.demandes_site d LEFT JOIN app.utilisateurs u ON u.id = d.traitee_par
            WHERE CASE $1::text
                    WHEN 'nouvelle' THEN d.statut = 'nouvelle' AND d.a_traiter_le <= app.aujourdhui()
@@ -86,11 +95,11 @@ export async function routesDemandesSiteBackOffice(
         );
         const demande = rows[0] as { telephone: string } | undefined;
         if (!demande) return null;
-        // Invisible pour l'auditeur (droits de la base) : la pièce apparaît alors absente
-        const piece = await client.query(
-          `SELECT type_contenu AS type, taille, etat_analyse AS "etatAnalyse", analysee_le AS "analyseeLe",
-                  signature_detectee AS "signatureDetectee"
-           FROM app.pieces_demandes_site WHERE demande_id = $1`,
+        // Invisibles pour l'auditeur (droits de la base) : les pièces apparaissent alors absentes
+        const pieces = await client.query<{ nature: NaturePiece; type: TypePiece }>(
+          `SELECT id, rang, nature, type_contenu AS type, taille, etat_analyse AS "etatAnalyse", analysee_le AS "analyseeLe",
+                  signature_detectee AS "signatureDetectee", recue_le AS "recueLe"
+           FROM app.pieces_demandes_site WHERE demande_id = $1 ORDER BY rang`,
           [requete.params.id],
         );
         // Même numéro déjà enregistré : probablement le même client, à rattacher plutôt qu'à recréer
@@ -98,62 +107,79 @@ export async function routesDemandesSiteBackOffice(
           "SELECT id, nom, type FROM app.clients WHERE telephone = $1 ORDER BY nom LIMIT 5",
           [demande.telephone],
         );
-        return { demande, piece: piece.rows[0] ?? null, clientsMemeNumero: clients.rows };
+        return {
+          demande,
+          pieces: pieces.rows.map((p) => ({ ...p, libelle: LIBELLES_NATURE[p.nature] })),
+          // La carte grise, comme avant les pièces multiples (lecture automatique, tâche 14)
+          piece: pieces.rows.find((p) => p.nature === "carte_grise") ?? null,
+          clientsMemeNumero: clients.rows,
+        };
       });
       if (!resultat) throw erreurs.introuvable();
       return resultat;
     },
   );
 
-  // Carte grise : déchiffrée à la demande, analysée de nouveau par l'antivirus (signatures du jour), téléchargée
+  // Pièce jointe : déchiffrée à la demande, analysée de nouveau par l'antivirus (signatures du jour), téléchargée
   // (jamais affichée par le navigateur), et consignée. Sans analyse réussie, elle ne sort pas.
+  const telechargerPiece = async (requete: FastifyRequest, reponse: FastifyReply, demandeId: string, pieceId: string | null) => {
+    const moi = utilisateurDe(requete);
+    const piece = await transactionUtilisateur(pool, moi.id, async (client) => {
+      const { rows } = await client.query<{
+        id: string; nature: NaturePiece; type: TypePiece; contenu: Buffer | null; empreinte: Buffer; numero: number; etat: string;
+      }>(
+        `SELECT p.id, p.nature, p.type_contenu AS type, p.contenu_chiffre AS contenu, p.empreinte, d.numero, p.etat_analyse AS etat
+         FROM app.pieces_demandes_site p JOIN app.demandes_site d ON d.id = p.demande_id
+         WHERE p.demande_id = $1 AND ($2::uuid IS NULL AND p.nature = 'carte_grise' OR p.id = $2)
+         ORDER BY p.rang LIMIT 1`,
+        [demandeId, pieceId],
+      );
+      return rows[0] ?? null;
+    });
+    if (!piece) throw erreurs.introuvable();
+    if (piece.etat === "infectee" || !piece.contenu) throw pieceInfectee();
+    const contenu = dechiffrerPiece(cleChiffrement, piece.id, piece.contenu, piece.empreinte);
+    const libelle = LIBELLES_NATURE[piece.nature];
+
+    const verdict = await antivirus.analyser(contenu);
+    if (verdict.etat === "indisponible") {
+      requete.log.warn({ raison: verdict.raison }, "analyse antivirus impossible au téléchargement");
+      // Déjà déclarée saine : elle peut sortir, l'antivirus la reverra au prochain téléchargement
+      if (piece.etat !== "saine") throw analyseEnAttente();
+    }
+    await transactionUtilisateur(pool, moi.id, async (client) => {
+      if (verdict.etat !== "indisponible") {
+        await client.query("SELECT app.enregistrer_analyse_piece($1, $2, $3)", [
+          piece.id, verdict.etat === "saine", verdict.etat === "infectee" ? verdict.signature : null,
+        ]);
+      }
+      if (verdict.etat !== "infectee") {
+        await consignerEvenement(client, "piece_telechargee", {
+          utilisateurId: moi.id, ip: requete.ip, objet: `${libelle}, demande du site n° ${piece.numero}`,
+        });
+      }
+    });
+    if (verdict.etat === "infectee") {
+      requete.log.warn({ signature: verdict.signature, nature: piece.nature }, "pièce infectée découverte au téléchargement");
+      throw pieceInfectee();
+    }
+    return reponse
+      .type(piece.type)
+      .header("Content-Disposition", `attachment; filename="${slugNature(piece.nature)}-demande-${piece.numero}.${EXTENSIONS[piece.type]}"`)
+      .send(contenu);
+  };
+
+  app.get<{ Params: { id: string; pieceId: string } }>(
+    "/demandes-site/:id/pieces/:pieceId",
+    { preHandler: gardes.roles("gerant", "charge_clientele", "commercial"), schema: { params: parametresPiece } },
+    (requete, reponse) => telechargerPiece(requete, reponse, requete.params.id, requete.params.pieceId),
+  );
+
+  // La carte grise de la demande, comme avant les pièces multiples
   app.get<{ Params: { id: string } }>(
     "/demandes-site/:id/piece",
     { preHandler: gardes.roles("gerant", "charge_clientele", "commercial"), schema: { params: parametreId } },
-    async (requete, reponse) => {
-      const moi = utilisateurDe(requete);
-      const piece = await transactionUtilisateur(pool, moi.id, async (client) => {
-        const { rows } = await client.query<{
-          id: string; type: TypePiece; contenu: Buffer | null; empreinte: Buffer; numero: number; etat: string;
-        }>(
-          `SELECT p.id, p.type_contenu AS type, p.contenu_chiffre AS contenu, p.empreinte, d.numero, p.etat_analyse AS etat
-           FROM app.pieces_demandes_site p JOIN app.demandes_site d ON d.id = p.demande_id
-           WHERE p.demande_id = $1`,
-          [requete.params.id],
-        );
-        return rows[0] ?? null;
-      });
-      if (!piece) throw erreurs.introuvable();
-      if (piece.etat === "infectee" || !piece.contenu) throw pieceInfectee();
-      const contenu = dechiffrerPiece(cleChiffrement, piece.id, piece.contenu, piece.empreinte);
-
-      const verdict = await antivirus.analyser(contenu);
-      if (verdict.etat === "indisponible") {
-        requete.log.warn({ raison: verdict.raison }, "analyse antivirus impossible au téléchargement");
-        // Déjà déclarée saine : elle peut sortir, l'antivirus la reverra au prochain téléchargement
-        if (piece.etat !== "saine") throw analyseEnAttente();
-      }
-      await transactionUtilisateur(pool, moi.id, async (client) => {
-        if (verdict.etat !== "indisponible") {
-          await client.query("SELECT app.enregistrer_analyse_piece($1, $2, $3)", [
-            piece.id, verdict.etat === "saine", verdict.etat === "infectee" ? verdict.signature : null,
-          ]);
-        }
-        if (verdict.etat !== "infectee") {
-          await consignerEvenement(client, "piece_telechargee", {
-            utilisateurId: moi.id, ip: requete.ip, objet: `Carte grise, demande du site n° ${piece.numero}`,
-          });
-        }
-      });
-      if (verdict.etat === "infectee") {
-        requete.log.warn({ signature: verdict.signature }, "carte grise infectée découverte au téléchargement");
-        throw pieceInfectee();
-      }
-      return reponse
-        .type(piece.type)
-        .header("Content-Disposition", `attachment; filename="carte-grise-demande-${piece.numero}.${EXTENSIONS[piece.type]}"`)
-        .send(contenu);
-    },
+    (requete, reponse) => telechargerPiece(requete, reponse, requete.params.id, null),
   );
 
   // Conversion : client existant (même numéro) ou nouveau client, devis « site », et accord WhatsApp

@@ -3,8 +3,9 @@
 //   · aucune session, aucune lecture : la route ne fait qu'enregistrer, par la seule fonction que la base
 //     lui ouvre (app.enregistrer_demande_site), qui limite les envois par adresse et par jour ;
 //   · l'adresse IP n'est pas gardée : seule son empreinte HMAC, avec une clé dérivée de la clé de l'API ;
-//   · la carte grise éventuelle est vérifiée (type réel, taille), analysée par l'antivirus (refusée si elle est
-//     infectée ; gardée « à analyser » si l'antivirus ne répond pas), puis chiffrée avant d'entrer en base ;
+//   · les pièces jointes (carte grise, attestation actuelle, liste des véhicules… selon l'assurance, pieces-site.ts)
+//     sont vérifiées (type réel, taille, nombre, poids total), analysées par l'antivirus (refusées si elles sont
+//     infectées ; gardées « à analyser » si l'antivirus ne répond pas), puis chiffrées avant d'entrer en base ;
 //   · un champ invisible pour les visiteurs (« siteWeb ») piège les robots : rempli, la demande est
 //     acceptée en apparence et n'est pas enregistrée.
 
@@ -17,14 +18,15 @@ import type { Antivirus } from "../../integrations/antivirus/clamav.js";
 import { normaliserTelephone } from "../../commun/formats.js";
 import { BRANCHES, texteCourt, type Branche } from "../../commun/schemas.js";
 import { routesOutilsSite } from "./outils-site.js";
-import { chiffrerPiece, LONGUEUR_BASE64_MAX, TYPES_PIECE, verifierPiece, type TypePiece } from "./piece.js";
+import { LONGUEUR_BASE64_MAX, TYPES_PIECE, type TypePiece } from "./piece.js";
+import {
+  PIECES_PAR_BRANCHE, preparerPieces, schemaPieces, TAILLE_CORPS_MAX, tableauxPourLaBase, type PieceEnvoyee,
+} from "./pieces-site.js";
 
 export const CHEMIN_DEMANDE = "/site/demandes-devis";
 const PROFILS = ["particulier", "professionnel", "entreprise"] as const;
-/** Assurances pour lesquelles une carte grise a un sens */
+/** Assurances pour lesquelles une carte grise a un sens (ancien champ « piece », gardé pour les pages déjà ouvertes) */
 export const BRANCHES_AVEC_CARTE_GRISE: readonly Branche[] = ["automobile", "deux_roues", "flotte"];
-/** Corps maximal : la pièce en base64 et les champs du formulaire */
-const TAILLE_CORPS_MAX = LONGUEUR_BASE64_MAX + 16 * 1024;
 
 export interface CorpsDemande {
   assurance: Branche;
@@ -36,15 +38,12 @@ export interface CorpsDemande {
   besoin?: string;
   accordTraitement: string;
   accordWhatsApp?: string;
+  /** Documents joints, chacun avec sa nature (pieces-site.ts) */
+  pieces?: PieceEnvoyee[];
+  /** Ancienne forme : la seule carte grise (site publié avant les pièces multiples) */
   piece?: { type: TypePiece; contenu: string };
   siteWeb?: string;
 }
-
-const MESSAGES_PIECE = {
-  illisible: "La carte grise n'a pas pu être lue. Envoyez une photo (JPEG ou PNG) ou un PDF.",
-  trop_volumineuse: "La carte grise dépasse 5 Mo. Envoyez une photo moins lourde.",
-  type_refuse: "La carte grise doit être une photo (JPEG ou PNG) ou un PDF.",
-} as const;
 
 export async function routesDemandesSite(
   app: FastifyInstance,
@@ -94,6 +93,7 @@ export async function routesDemandesSite(
             besoin: texteCourt(1500, 0),
             accordTraitement: texteCourt(300, 10),
             accordWhatsApp: texteCourt(300, 10),
+            pieces: schemaPieces(LONGUEUR_BASE64_MAX),
             piece: {
               type: "object",
               required: ["type", "contenu"],
@@ -126,42 +126,30 @@ export async function routesDemandesSite(
         throw new ErreurApi(422, "email_invalide", "Cette adresse e-mail semble incomplète.");
       }
 
-      let piece: ReturnType<typeof chiffrerPiece> & { type: TypePiece; taille: number; saine: boolean } | null = null;
-      if (d.piece) {
-        if (!BRANCHES_AVEC_CARTE_GRISE.includes(d.assurance)) {
-          throw new ErreurApi(422, "piece_inattendue", "Une carte grise ne se joint qu'à une demande pour un véhicule.");
-        }
-        const verifiee = verifierPiece(d.piece.type, d.piece.contenu);
-        if (!verifiee.ok) throw new ErreurApi(422, "piece_invalide", MESSAGES_PIECE[verifiee.raison]);
-        const verdict = await antivirus.analyser(verifiee.contenu);
-        if (verdict.etat === "infectee") {
-          requete.log.warn({ signature: verdict.signature }, "carte grise refusée par l'antivirus");
-          throw new ErreurApi(422, "piece_infectee",
-            "Ce fichier a été refusé par notre antivirus. Envoyez une autre photo de la carte grise, ou envoyez votre demande sans elle.");
-        }
-        if (verdict.etat === "indisponible") requete.log.warn({ raison: verdict.raison }, "carte grise gardée en attente d'analyse antivirus");
-        piece = {
-          ...chiffrerPiece(cleChiffrement, verifiee.contenu), type: verifiee.type, taille: verifiee.contenu.length,
-          saine: verdict.etat === "saine",
-        };
-      }
+      // L'ancienne carte grise seule vaut une pièce « carte grise » de plus
+      const envoyees: PieceEnvoyee[] = [
+        ...(d.piece ? [{ nature: "carte_grise" as const, type: d.piece.type, contenu: d.piece.contenu }] : []),
+        ...(d.pieces ?? []),
+      ];
+      const pieces = await preparerPieces(envoyees, PIECES_PAR_BRANCHE[d.assurance], { antivirus, cleChiffrement, journal: requete.log });
 
       const empreinteIp = empreinte(requete.ip);
       const { rows } = await transactionSysteme(pool, async (client) => {
         const resultat = await client.query<{ numero: number }>(
-          `SELECT numero FROM app.enregistrer_demande_site($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+          `SELECT numero FROM app.enregistrer_demande_site($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
           [d.assurance, d.profil, d.nom, telephone, email, d.commune ?? null, d.besoin ?? null,
-           d.accordTraitement.trim(), d.accordWhatsApp?.trim() ?? null, empreinteIp,
-           piece?.id ?? null, piece?.type ?? null, piece?.taille ?? null, piece?.contenuChiffre ?? null, piece?.empreinte ?? null],
+           d.accordTraitement.trim(), d.accordWhatsApp?.trim() ?? null, empreinteIp, ...tableauxPourLaBase(pieces)],
         );
-        if (piece?.saine) await client.query("SELECT app.enregistrer_analyse_piece($1, true, NULL)", [piece.id]);
+        for (const piece of pieces) {
+          if (piece.saine) await client.query("SELECT app.enregistrer_analyse_piece($1, true, NULL)", [piece.id]);
+        }
         return resultat;
       });
-      requete.log.info({ numero: rows[0]?.numero, piece: piece !== null }, "demande de devis reçue du site");
+      requete.log.info({ numero: rows[0]?.numero, pieces: pieces.length }, "demande de devis reçue du site");
       return reponse.status(201).send({ numero: rows[0]?.numero ?? null });
     },
   );
 
   // Rappel d'échéance, appel d'offres, rendez-vous (tâche 13) : dans ce même contexte, pour les mêmes en-têtes
-  await routesOutilsSite(app, { pool, empreinte });
+  await routesOutilsSite(app, { pool, empreinte, antivirus, cleChiffrement });
 }

@@ -3,6 +3,8 @@
 // contexte : origine du site seule (en-têtes CORS compris), aucune session, empreinte HMAC de l'adresse IP,
 // champ piège pour les robots, et limites par adresse et par jour communes à toutes les demandes, tenues par la base.
 // Les règles de dates (échéance, date limite, jour ouvré) sont celles de la base : ses messages reviennent tels quels.
+// Le rappel d'échéance et l'appel d'offres acceptent des pièces jointes (attestation actuelle, cahier des charges… :
+// pieces-site.ts), traitées comme celles de la demande de devis.
 
 import type { FastifyInstance } from "fastify";
 import type { Pool } from "../../base-de-donnees/connexion.js";
@@ -10,6 +12,12 @@ import { transactionSysteme } from "../../base-de-donnees/connexion.js";
 import { ErreurApi } from "../../commun/erreurs.js";
 import { normaliserTelephone } from "../../commun/formats.js";
 import { BRANCHES, date, texteCourt, type Branche } from "../../commun/schemas.js";
+import type { Antivirus } from "../../integrations/antivirus/clamav.js";
+import { LONGUEUR_BASE64_MAX } from "./piece.js";
+import {
+  PIECES_APPEL_OFFRES, PIECES_RAPPEL, preparerPieces, schemaPieces, TAILLE_CORPS_MAX, tableauxPourLaBase,
+  type PieceEnvoyee, type PiecePrete,
+} from "./pieces-site.js";
 
 export const CHEMIN_RAPPEL = "/site/rappels-echeance";
 export const CHEMIN_APPEL_OFFRES = "/site/appels-offres";
@@ -57,6 +65,7 @@ interface Coordonnees {
   email?: string;
   accordTraitement: string;
   accordWhatsApp?: string;
+  pieces?: PieceEnvoyee[];
   siteWeb?: string;
 }
 
@@ -90,8 +99,19 @@ export function brancheAppelOffres(garanties: readonly Garantie[]): Branche {
   return premiere ? GARANTIES_APPEL_OFFRES[premiere].branche : "autre";
 }
 
-export async function routesOutilsSite(app: FastifyInstance, options: { pool: Pool; empreinte: (ip: string) => Buffer }): Promise<void> {
-  const { pool, empreinte } = options;
+export async function routesOutilsSite(
+  app: FastifyInstance,
+  options: { pool: Pool; empreinte: (ip: string) => Buffer; antivirus: Antivirus; cleChiffrement: Buffer },
+): Promise<void> {
+  const { pool, empreinte, antivirus, cleChiffrement } = options;
+  const preparer = (pieces: PieceEnvoyee[] | undefined, permises: readonly PiecePrete["nature"][], journal: Pick<typeof app.log, "warn">) =>
+    preparerPieces(pieces, permises, { antivirus, cleChiffrement, journal });
+  // Les pièces déclarées saines à la réception le sont aussitôt dans la base
+  const noterSaines = async (client: { query: (texte: string, valeurs: unknown[]) => Promise<unknown> }, pieces: PiecePrete[]) => {
+    for (const piece of pieces) {
+      if (piece.saine) await client.query("SELECT app.enregistrer_analyse_piece($1, true, NULL)", [piece.id]);
+    }
+  };
 
   // Requêtes préalables du navigateur avant chaque envoi en JSON depuis le site
   for (const chemin of [CHEMIN_RAPPEL, CHEMIN_APPEL_OFFRES, CHEMIN_RENDEZ_VOUS]) {
@@ -110,13 +130,16 @@ export async function routesOutilsSite(app: FastifyInstance, options: { pool: Po
     CHEMIN_RAPPEL,
     {
       config: { appeleeParLeSite: true },
-      bodyLimit: 16 * 1024,
+      bodyLimit: TAILLE_CORPS_MAX,
       schema: {
         body: {
           type: "object",
           required: [...requisCoordonnees, "assurance", "echeance"],
           additionalProperties: false,
-          properties: { ...proprietesCoordonnees, assurance: { type: "string", enum: BRANCHES }, echeance: date },
+          properties: {
+            ...proprietesCoordonnees, assurance: { type: "string", enum: BRANCHES }, echeance: date,
+            pieces: schemaPieces(LONGUEUR_BASE64_MAX),
+          },
         },
       },
     },
@@ -124,15 +147,18 @@ export async function routesOutilsSite(app: FastifyInstance, options: { pool: Po
       const d = requete.body;
       if (d.siteWeb) return reponse.status(201).send({ numero: null, aTraiterLe: null });
       const { telephone, email } = verifierCoordonnees(d);
-      const { rows } = await transactionSysteme(pool, (client) =>
-        client.query<{ numero: number; a_traiter_le: string }>(
+      const pieces = await preparer(d.pieces, PIECES_RAPPEL, requete.log);
+      const { rows } = await transactionSysteme(pool, async (client) => {
+        const resultat = await client.query<{ numero: number; a_traiter_le: string }>(
           `SELECT numero, to_char(a_traiter_le, 'YYYY-MM-DD') AS a_traiter_le
-           FROM app.enregistrer_rappel_echeance($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+           FROM app.enregistrer_rappel_echeance($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
           [d.assurance, d.profil, d.nom, telephone, email, d.echeance, d.accordTraitement.trim(), d.accordWhatsApp?.trim() ?? null,
-           empreinte(requete.ip)],
-        ),
-      );
-      requete.log.info({ numero: rows[0]?.numero }, "rappel d'échéance reçu du site");
+           empreinte(requete.ip), ...tableauxPourLaBase(pieces)],
+        );
+        await noterSaines(client, pieces);
+        return resultat;
+      });
+      requete.log.info({ numero: rows[0]?.numero, pieces: pieces.length }, "rappel d'échéance reçu du site");
       return reponse.status(201).send({ numero: rows[0]?.numero ?? null, aTraiterLe: rows[0]?.a_traiter_le ?? null });
     },
   );
@@ -142,7 +168,7 @@ export async function routesOutilsSite(app: FastifyInstance, options: { pool: Po
     CHEMIN_APPEL_OFFRES,
     {
       config: { appeleeParLeSite: true },
-      bodyLimit: 16 * 1024,
+      bodyLimit: TAILLE_CORPS_MAX,
       schema: {
         body: {
           type: "object",
@@ -168,6 +194,7 @@ export async function routesOutilsSite(app: FastifyInstance, options: { pool: Po
               },
             },
             garanties: { type: "array", minItems: 1, maxItems: GARANTIES.length, uniqueItems: true, items: { type: "string", enum: GARANTIES } },
+            pieces: schemaPieces(LONGUEUR_BASE64_MAX),
           },
         },
       },
@@ -176,6 +203,7 @@ export async function routesOutilsSite(app: FastifyInstance, options: { pool: Po
       const d = requete.body;
       if (d.siteWeb) return reponse.status(201).send({ numero: null });
       const { telephone, email } = verifierCoordonnees(d);
+      const pieces = await preparer(d.pieces, PIECES_APPEL_OFFRES, requete.log);
       const marche: Marche = {
         typeMarche: d.marche.typeMarche,
         maitreOuvrage: d.marche.maitreOuvrage.trim(),
@@ -185,14 +213,18 @@ export async function routesOutilsSite(app: FastifyInstance, options: { pool: Po
         ...(d.marche.dureeMois !== undefined ? { dureeMois: d.marche.dureeMois } : {}),
         garanties: GARANTIES.filter((g) => d.garanties.includes(g)),
       };
-      const { rows } = await transactionSysteme(pool, (client) =>
-        client.query<{ numero: number }>(
-          "SELECT numero FROM app.enregistrer_appel_offres($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
+      const { rows } = await transactionSysteme(pool, async (client) => {
+        const resultat = await client.query<{ numero: number }>(
+          `SELECT numero FROM app.enregistrer_appel_offres($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
+                                                           $13, $14, $15, $16, $17, $18)`,
           [brancheAppelOffres(marche.garanties), d.profil, d.nom, telephone, email, d.commune ?? null, d.besoin ?? null, d.dateLimite,
-           JSON.stringify(marche), d.accordTraitement.trim(), d.accordWhatsApp?.trim() ?? null, empreinte(requete.ip)],
-        ),
-      );
-      requete.log.info({ numero: rows[0]?.numero }, "appel d'offres reçu du site");
+           JSON.stringify(marche), d.accordTraitement.trim(), d.accordWhatsApp?.trim() ?? null, empreinte(requete.ip),
+           ...tableauxPourLaBase(pieces)],
+        );
+        await noterSaines(client, pieces);
+        return resultat;
+      });
+      requete.log.info({ numero: rows[0]?.numero, pieces: pieces.length }, "appel d'offres reçu du site");
       return reponse.status(201).send({ numero: rows[0]?.numero ?? null });
     },
   );

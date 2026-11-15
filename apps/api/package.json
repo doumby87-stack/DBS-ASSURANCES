@@ -18,6 +18,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "1.6.0",
     "@fastify/cookie": "11.1.5",
     "@node-rs/argon2": "2.2.2",
     "fastify": "5.12.8",

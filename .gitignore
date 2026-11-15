@@ -45,3 +45,8 @@ desktop.ini
 .e2e/
 test-results/
 playwright-report/
+
+# Production (infra/production) : variables et secrets du serveur, jamais dans le dépôt
+infra/production/.env
+infra/production/secrets/*
+!infra/production/secrets/.gitkeep

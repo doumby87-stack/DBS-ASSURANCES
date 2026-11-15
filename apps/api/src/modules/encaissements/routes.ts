@@ -12,6 +12,7 @@ import { montantEnLettres } from "../../commun/montant-en-lettres.js";
 import { date, montant, parametreId, texteCourt } from "../../commun/schemas.js";
 import type { Gardes } from "../../securite/gardes.js";
 import { utilisateurDe } from "../../securite/gardes.js";
+import { lireEcheancier } from "../contrats/echeancier.js";
 
 export const MODES = ["especes", "cheque", "mobile_money", "virement"] as const;
 export type Mode = (typeof MODES)[number];
@@ -88,7 +89,7 @@ export async function routesEncaissements(app: FastifyInstance, options: { pool:
            WHERE e.contrat_id = $1 ORDER BY e.numero_recu`,
           [requete.params.id],
         );
-        return { contrat, encaissements: rows };
+        return { contrat, encaissements: rows, echeancier: await lireEcheancier(client, requete.params.id) };
       }),
   );
 

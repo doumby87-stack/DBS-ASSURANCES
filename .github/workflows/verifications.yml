@@ -81,6 +81,11 @@ jobs:
           persist-credentials: false
       - name: Migrations et tests de sécurité
         run: ./database/tests/executer.sh
+      - name: Sauvegarde chiffrée, restauration et surveillance, dans l'image de production des sauvegardes
+        run: |
+          docker build -f infra/sauvegardes/Dockerfile -t dbs-sauvegarde infra
+          docker run --rm --network host -e PGHOST -e PGPORT -e PGUSER -e PGPASSWORD -e OUTILS=/outils \
+            -v "$PWD/infra/tests:/tests:ro" dbs-sauvegarde bash /tests/sauvegarde-restauration.sh
 
   api:
     name: API
@@ -226,6 +231,17 @@ jobs:
       - name: Arrêt
         if: always()
         run: docker compose -f demo/compose.yml down -v
+
+  production:
+    name: Mise en production (essai)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Pile de production complète (Caddy, API, base, sauvegardes) sur des domaines .localhost
+        run: infra/tests/production.sh
 
   secrets:
     name: Recherche de secrets

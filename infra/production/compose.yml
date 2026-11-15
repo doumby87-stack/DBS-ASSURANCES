@@ -1,0 +1,197 @@
+# Production de DBS-ASSURANCES sur un serveur (ADR 0017, mise en service : infra/production/mise-en-service.md) :
+# serveur web (HTTPS, back-office, espace client, API derrière /api), API, antivirus, migrations au démarrage,
+# sauvegardes chiffrées et surveillance. La base PostgreSQL est celle de l'hébergeur (gérée, en TLS, jamais
+# exposée sur Internet) ; à défaut, celle de compose.base-locale.yml, sur ce même serveur.
+#
+#   cd infra/production && cp .env.exemple .env       puis remplir .env et secrets/ (mise-en-service.md)
+#   docker compose up -d --build                       base de l'hébergeur
+#   docker compose -f compose.yml -f compose.base-locale.yml up -d --build      base sur ce serveur
+#
+# Seuls les ports 80 et 443 du serveur web sont ouverts. Les conteneurs tournent sans privilège (l'API sous un
+# utilisateur sans droit, en lecture seule), et le réseau interne « prive » n'a aucun accès à Internet.
+name: dbs
+
+x-journal: &journal
+  logging:
+    driver: json-file
+    options:
+      max-size: "50m"
+      max-file: "20"
+
+x-durci: &durci
+  restart: unless-stopped
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+
+services:
+  # Schéma de la base, appliqué par le compte propriétaire avant chaque démarrage de l'API (database/migrer.sh :
+  # seules les migrations nouvelles sont appliquées ; une migration déjà appliquée puis modifiée arrête tout)
+  migrations:
+    image: postgres:16-alpine
+    environment:
+      DATABASE_URL_PROPRIETAIRE: ${DATABASE_URL_PROPRIETAIRE:-}
+      PGOPTIONS: "-c client_min_messages=warning"
+    volumes:
+      - ../../database:/depot/database:ro
+    networks:
+      - prive
+      - sortie
+    entrypoint:
+      - bash
+      - -c
+      - |
+        set -eu
+        : "$${DATABASE_URL_PROPRIETAIRE:?DATABASE_URL_PROPRIETAIRE manque dans .env}"
+        for essai in $$(seq 1 60); do
+          psql "$$DATABASE_URL_PROPRIETAIRE" -X -Atc 'SELECT 1' >/dev/null 2>&1 && break
+          echo "Base pas encore joignable ($$essai/60)"; sleep 5
+        done
+        exec bash /depot/database/migrer.sh
+    restart: "no"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    <<: *journal
+
+  api:
+    build:
+      context: ../..
+      dockerfile: infra/production/Dockerfile
+      target: api
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "3000"
+      # Intermédiaires devant l'API : le serveur web de ce fichier (1), plus un pare-feu applicatif éventuel (2)
+      PROXYS_DE_CONFIANCE: ${PROXYS_DE_CONFIANCE:-1}
+      DATABASE_URL: ${DATABASE_URL:-}
+      CLE_CHIFFREMENT_DONNEES: ${CLE_CHIFFREMENT_DONNEES:-}
+      URL_BACK_OFFICE: https://${DOMAINE_GESTION:?DOMAINE_GESTION manque dans .env}
+      # https://<DOMAINE_PORTAIL>, une fois WhatsApp Business prêt : l'espace client envoie ses codes par WhatsApp
+      URL_PORTAIL: ${URL_PORTAIL:-}
+      URL_SITE_VITRINE: ${URL_SITE_VITRINE:-}
+      ANTIVIRUS_ADRESSE: antivirus:3310
+      NIVEAU_JOURNAL: ${NIVEAU_JOURNAL:-info}
+      VERIFIER_MOTS_DE_PASSE_DIVULGUES: ${VERIFIER_MOTS_DE_PASSE_DIVULGUES:-}
+      RELANCES_ACTIVES: ${RELANCES_ACTIVES:-}
+      RELANCES_HEURES_ENVOI: ${RELANCES_HEURES_ENVOI:-}
+      WHATSAPP_JETON: ${WHATSAPP_JETON:-}
+      WHATSAPP_IDENTIFIANT_NUMERO: ${WHATSAPP_IDENTIFIANT_NUMERO:-}
+      WHATSAPP_SECRET_APPLICATION: ${WHATSAPP_SECRET_APPLICATION:-}
+      WHATSAPP_JETON_VERIFICATION: ${WHATSAPP_JETON_VERIFICATION:-}
+      WHATSAPP_VERSION_API: ${WHATSAPP_VERSION_API:-}
+      SMS_CLE_API: ${SMS_CLE_API:-}
+      PAIEMENT_PRESTATAIRE: ${PAIEMENT_PRESTATAIRE:-}
+      PAIEMENT_CLE_API: ${PAIEMENT_CLE_API:-}
+      PAIEMENT_IDENTIFIANT_SITE: ${PAIEMENT_IDENTIFIANT_SITE:-}
+      PAIEMENT_SECRET_NOTIFICATIONS: ${PAIEMENT_SECRET_NOTIFICATIONS:-}
+      PAIEMENT_MONTANT_MAX: ${PAIEMENT_MONTANT_MAX:-}
+      FNE_CLE_API: ${FNE_CLE_API:-}
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+      antivirus:
+        condition: service_started
+    networks:
+      - prive
+      # WhatsApp, paiement, FNE, liste des mots de passe divulgués
+      - sortie
+    read_only: true
+    tmpfs:
+      - /tmp
+    <<: [*durci, *journal]
+
+  # ClamAV : analyse des pièces reçues (cartes grises, attestations, sinistres) ; signatures mises à jour par
+  # freshclam plusieurs fois par jour. L'image démarre en root puis passe sous son propre utilisateur.
+  antivirus:
+    image: clamav/clamav:1.4
+    environment:
+      CLAMD_STARTUP_TIMEOUT: "1800"
+    volumes:
+      - signatures:/var/lib/clamav
+    networks:
+      - prive
+      - sortie
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    <<: *journal
+
+  web:
+    build:
+      context: ../..
+      dockerfile: infra/production/Dockerfile
+      target: web
+    environment:
+      DOMAINE_GESTION: ${DOMAINE_GESTION:?DOMAINE_GESTION manque dans .env}
+      DOMAINE_PORTAIL: ${DOMAINE_PORTAIL:?DOMAINE_PORTAIL manque dans .env}
+      ADRESSE_ACME: ${ADRESSE_ACME:?ADRESSE_ACME manque dans .env}
+      PROXYS_AMONT: ${PROXYS_AMONT:-}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - certificats:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+    networks:
+      - prive
+      - sortie
+    cap_add:
+      - NET_BIND_SERVICE
+    <<: [*durci, *journal]
+
+  # Sauvegarde chiffrée chaque nuit, test de restauration chaque mois, surveillance (infra/sauvegardes/README.md,
+  # infra/surveillance/README.md). Tourne en root sans aucune capacité : il lit ses secrets (fichiers root, 600)
+  # et écrit dans son volume, rien d'autre.
+  sauvegarde:
+    build:
+      context: ..
+      dockerfile: sauvegardes/Dockerfile
+    environment:
+      TZ: Africa/Abidjan
+      DATABASE_URL_SAUVEGARDE: ${DATABASE_URL_SAUVEGARDE:-}
+      SAUVEGARDE_CLE_PUBLIQUE: ${SAUVEGARDE_CLE_PUBLIQUE:-}
+      SAUVEGARDE_DISTANT: ${SAUVEGARDE_DISTANT:-}
+      SAUVEGARDE_HORAIRES: ${SAUVEGARDE_HORAIRES:-01:30}
+      SAUVEGARDE_CLE_PRIVEE: /run/secrets/age_identite
+      RCLONE_CONFIG: /run/secrets/rclone_conf
+      DOMAINE_GESTION: ${DOMAINE_GESTION:?}
+      DOMAINE_PORTAIL: ${DOMAINE_PORTAIL:?}
+      ALERTE_COMMANDE: ${ALERTE_COMMANDE:-}
+    secrets:
+      - rclone_conf
+      - age_identite
+    volumes:
+      - sauvegardes:/sauvegardes
+    networks:
+      - prive
+      - sortie
+    read_only: true
+    tmpfs:
+      - /tmp
+    <<: [*durci, *journal]
+
+networks:
+  # Entre les conteneurs seulement : aucun accès à Internet
+  prive:
+    internal: true
+  sortie:
+
+volumes:
+  certificats:
+  caddy_config:
+  signatures:
+  sauvegardes:
+
+secrets:
+  # Accès au stockage hors site (configuration rclone), et clé privée age pour les tests de restauration
+  rclone_conf:
+    file: ${DOSSIER_SECRETS:-./secrets}/rclone.conf
+  age_identite:
+    file: ${DOSSIER_SECRETS:-./secrets}/age-identite.txt

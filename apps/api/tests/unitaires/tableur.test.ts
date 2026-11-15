@@ -3,49 +3,12 @@
 // un autre logiciel que le nôtre, pour ne pas tester notre lecteur contre notre propre écriture.
 
 import { readFileSync } from "node:fs";
-import { deflateRawSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { dateExcel, ErreurTableur, lireCsv, lireTableau } from "../../src/commun/tableur.js";
+import { archive } from "../fixtures/zip.js";
 import { analyserTableau, lireDate, lireEntier, normaliserEntete } from "../../src/modules/flottes/import.js";
 
 const XLSX_LIBREOFFICE = readFileSync(new URL("../fixtures/flotte-libreoffice.xlsx", import.meta.url));
-
-/** Archive ZIP minimale (éléments compressés), pour fabriquer des classeurs piégés */
-function archive(elements: Record<string, Buffer>, options: { chiffre?: boolean } = {}): Buffer {
-  const locaux: Buffer[] = [];
-  const centraux: Buffer[] = [];
-  let decalage = 0;
-  for (const [nom, contenu] of Object.entries(elements)) {
-    const compresse = deflateRawSync(contenu);
-    const nomOctets = Buffer.from(nom);
-    const local = Buffer.alloc(30);
-    local.writeUInt32LE(0x04034b50, 0);
-    local.writeUInt16LE(options.chiffre ? 1 : 0, 6);
-    local.writeUInt16LE(8, 8);
-    local.writeUInt32LE(compresse.length, 18);
-    local.writeUInt32LE(contenu.length, 22);
-    local.writeUInt16LE(nomOctets.length, 26);
-    const central = Buffer.alloc(46);
-    central.writeUInt32LE(0x02014b50, 0);
-    central.writeUInt16LE(options.chiffre ? 1 : 0, 8);
-    central.writeUInt16LE(8, 10);
-    central.writeUInt32LE(compresse.length, 20);
-    central.writeUInt32LE(contenu.length, 24);
-    central.writeUInt16LE(nomOctets.length, 28);
-    central.writeUInt32LE(decalage, 42);
-    locaux.push(local, nomOctets, compresse);
-    centraux.push(central, nomOctets);
-    decalage += 30 + nomOctets.length + compresse.length;
-  }
-  const repertoire = Buffer.concat(centraux);
-  const fin = Buffer.alloc(22);
-  fin.writeUInt32LE(0x06054b50, 0);
-  fin.writeUInt16LE(Object.keys(elements).length, 8);
-  fin.writeUInt16LE(Object.keys(elements).length, 10);
-  fin.writeUInt32LE(repertoire.length, 12);
-  fin.writeUInt32LE(decalage, 16);
-  return Buffer.concat([...locaux, repertoire, fin]);
-}
 
 describe("Lecture d'un classeur Excel (.xlsx)", () => {
   it("lit un vrai classeur LibreOffice : textes partagés, accents, nombres, dates en série, cellules vides", () => {

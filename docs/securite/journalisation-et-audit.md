@@ -12,7 +12,7 @@ Deux journaux distincts, aux usages différents.
 - l'application n'a aucun accès au schéma `audit`, ni en lecture ni en écriture ;
 - chaque ligne contient l'empreinte SHA-256 de la précédente : `audit.verifier_chaine()` signale la première ligne modifiée ou supprimée.
 
-**Limite et parade** : un administrateur qui supprimerait les *dernières* lignes ne casse pas la chaîne. C'est pourquoi la dernière empreinte (`derniere_empreinte`, renvoyée par `audit.verifier_chaine()`) est copiée **chaque jour hors de la base** (e-mail au gérant et stockage hors site). Si la chaîne du lendemain ne prolonge pas l'empreinte de la veille, il y a eu suppression.
+**Limite et parade** : un administrateur qui supprimerait les *dernières* lignes ne casse pas la chaîne. C'est pourquoi la dernière empreinte (`derniere_empreinte`, renvoyée par `audit.verifier_chaine()`) est notée **à chaque sauvegarde hors de la base**, dans un fichier copié hors site et jamais supprimé (`infra/sauvegardes`). Chaque matin, la surveillance vérifie que cette empreinte existe toujours dans le journal ; chaque test de restauration la recherche dans la base restaurée. Si elle a disparu, il y a eu suppression.
 
 **Qui le lit** : le rôle `dbs_audit` (gérant via un outil dédié, expert-comptable, contrôleur). Le back-office affichera l'historique d'une fiche au gérant (tâche 4).
 
@@ -20,7 +20,7 @@ Deux journaux distincts, aux usages différents.
 
 **Données personnelles des prospects** : une table peut demander que certaines colonnes ne soient pas recopiées dans le journal. Les demandes reçues par le site l'utilisent (nom, téléphone, e-mail, commune, besoin, empreinte de l'adresse IP) : elles sont supprimées 12 mois après leur classement sans suite, et le journal, conservé bien plus longtemps, ne doit pas les garder à leur place. Il garde qui a reçu, traité ou purgé quelle demande, et quand ([ADR 0009](../architecture/adr/0009-demandes-de-devis-du-site.md)).
 
-Les événements de sécurité sont aussi enregistrés dans la base, dans `securite.evenements`, en ajout seul : connexions et échecs, blocages, comptes, deuxième facteur, exports de données, téléchargements des cartes grises jointes aux demandes du site.
+Les événements de sécurité sont aussi enregistrés dans la base, dans `securite.evenements`, en ajout seul : connexions et échecs, blocages, comptes, deuxième facteur, exports de données, téléchargements des cartes grises jointes aux demandes du site, lectures automatiques de documents (qui, quel document de quel client ; jamais les valeurs lues).
 
 ## 2. Journal technique (de l'API)
 
@@ -30,7 +30,8 @@ Les événements de sécurité sont aussi enregistrés dans la base, dans `secur
 - création, désactivation, changement de rôle d'un compte ;
 - activation ou réinitialisation d'un deuxième facteur ;
 - exports de données (bordereaux exportés pour Excel : qui, quand, lequel, depuis quelle adresse) ;
-- notifications de paiement rejetées (signature invalide, doublon).
+- notifications de paiement rejetées (signature invalide, doublon) ;
+- lectures automatiques de documents : document, issue (lu, refusé, illisible, indisponible) et durée, sans les valeurs lues.
 
 **Ce qu'il ne contient jamais** : mots de passe, codes de connexion, jetons, numéros de pièce d'identité, contenu des messages clients, données médicales.
 
@@ -40,6 +41,6 @@ Les événements de sécurité sont aussi enregistrés dans la base, dans `secur
 
 | Fréquence | Contrôle | Qui |
 | --- | --- | --- |
-| Chaque jour (automatique) | `audit.verifier_chaine()` et copie de la dernière empreinte | Script programmé, alerte au gérant |
+| Chaque jour (automatique) | `audit.verifier_chaine()` et copie de la dernière empreinte | Sauvegarde et surveillance (`infra/surveillance`), alerte au gérant |
 | Chaque semaine | Échecs de connexion, comptes bloqués, exports | Gérant |
 | Chaque trimestre | Revue des comptes et des rôles ([contrôle des accès](controle-des-acces.md)) | Gérant |

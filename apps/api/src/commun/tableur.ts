@@ -45,6 +45,26 @@ export function lireTableau(contenu: Buffer): Tableau {
   return { lignes: lireCsv(contenu), format: "csv", calendrier1904: false };
 }
 
+/**
+ * Le fichier est-il un classeur .xlsx lisible et sans macro ? Pour les pièces jointes reçues du site : un classeur
+ * à macros (.xlsm renommé, ou projet VBA glissé dans l'archive) est refusé avant même l'antivirus.
+ */
+export function verifierClasseur(contenu: Buffer): boolean {
+  try {
+    if (contenu.length < 4 || contenu.readUInt32LE(0) !== SIGNATURE_ZIP) return false;
+    const elements = lireArchive(contenu);
+    for (const nom of elements.keys()) {
+      if (/vbaProject|\.bin$/i.test(nom)) return false;
+    }
+    const types = elements.get("[Content_Types].xml");
+    if (types && /macroEnabled|ms-excel\.sheet\.binary/i.test(extraire(contenu, types, { restant: TAILLE_TOTALE_MAX }))) return false;
+    lireXlsx(contenu);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /* ---------- CSV ---------- */
 
 /** CSV en UTF-8 (avec ou sans BOM), séparé par des points-virgules, des virgules ou des tabulations. */

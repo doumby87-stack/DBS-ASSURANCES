@@ -13,6 +13,7 @@ export const MESSAGES_PIECE_SINISTRE = {
   illisible: "Le fichier n'a pas pu être lu. Réessayez.",
   trop_volumineuse: "Fichier trop lourd (5 Mo au plus). Envoyez une photo moins lourde.",
   type_refuse: "Envoyez une photo (JPEG ou PNG) ou un PDF.",
+  classeur_illisible: "Envoyez une photo (JPEG ou PNG) ou un PDF.",
 } as const;
 
 const contexte = (id: string) => `piece-sinistre:${id}`;

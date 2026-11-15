@@ -4,8 +4,10 @@
 import EntetePage from "../composants/EntetePage.astro";
 import EnvoiOutil from "../composants/EnvoiOutil.astro";
 import Icone from "../composants/Icone.astro";
+import PiecesJointes from "../composants/PiecesJointes.astro";
 import { AGENCE, LIEN_TELEPHONE, lienWhatsApp } from "../donnees/agence";
 import { ACCORD_RAPPEL, ADRESSE_RAPPELS, ASSURANCES_RAPPEL, AVANCE_RAPPEL_JOURS, FETES_FIXES } from "../donnees/outils";
+import { PIECES_RAPPEL } from "../donnees/pieces";
 import Base from "../mises-en-page/Base.astro";
 
 const enregistre = ADRESSE_RAPPELS !== null;
@@ -56,6 +58,7 @@ const reglages = {
             <Icone nom="calendrier" />
             <span>Vous préférez un simple pense-bête ? <button class="lien-bouton" type="button" data-agenda>Ajouter le rappel à mon agenda</button> (un fichier pour votre téléphone, rien n'est envoyé).</span>
           </p>
+          {enregistre && <PiecesJointes natures={PIECES_RAPPEL} titre="Votre contrat actuel" />}
 
           <h2 class="sous-titre-formulaire">Qui rappeler ?</h2>
           <EnvoiOutil

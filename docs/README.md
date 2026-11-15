@@ -25,6 +25,13 @@
 - [Sauvegardes et reprise](securite/sauvegardes-et-reprise.md)
 - [Réponse aux incidents](securite/reponse-aux-incidents.md)
 - [Paramètres GitHub](securite/parametres-github.md)
+- [Test d'intrusion : cahier des charges](securite/test-d-intrusion.md)
+- [Formation du personnel](securite/formation-du-personnel.md)
+
+## Exploitation
+
+- [Mise en service de la production](../infra/production/mise-en-service.md) — installation, mise à jour, reprise après incident.
+- [Sauvegardes](../infra/sauvegardes/README.md) et [surveillance](../infra/surveillance/README.md).
 
 ## Conformité
 

@@ -21,7 +21,7 @@ Légende : ✅ terminé · 🔜 prochaine · ⏳ plus tard · 🧑‍💼 tâche
 - [ ] Déclarer le traitement des données clients à l'**ARTCI** et demander, si l'hébergement est hors de Côte d'Ivoire, l'autorisation de transfert ([données personnelles](conformite/donnees-personnelles.md)).
 - [ ] Choisir l'**hébergeur** de l'application ([ADR 0006](architecture/adr/0006-hebergement-et-localisation-des-donnees.md)).
 - [ ] Choisir et réserver le **nom de domaine**, puis créer une adresse e-mail professionnelle (fin de l'adresse Gmail) avec protection contre l'usurpation (SPF, DKIM, DMARC).
-- [ ] Demander à **SanlamAllianz** : ce que fournit son extranet, le format de ses états de production et de commissions, sa procédure de lutte contre le blanchiment pour les agents, et son accord sur l'usage du logo ; pour la caisse, le format des bordereaux, les taux de commission par branche et le paiement fractionné de la prime ; pour les flottes, les frais d'avenant éventuels, la ristourne minimale ou la retenue sur un retrait, et le format attendu pour la cotation en lot.
+- [ ] Demander à **SanlamAllianz** : ce que fournit son extranet, le format de ses états de production et de commissions, sa procédure de lutte contre le blanchiment pour les agents, et son accord sur l'usage du logo ; pour la caisse, le format des bordereaux et les taux de commission par branche ; pour le paiement des flottes en plusieurs fois (déjà possible dans l'outil), les contrats concernés, les frais de fractionnement, la période des attestations et la procédure en cas d'échéance impayée ([ADR 0016](architecture/adr/0016-paiement-fractionne.md)) ; pour les flottes, les frais d'avenant éventuels, la ristourne minimale ou la retenue sur un retrait, et le format attendu pour la cotation en lot.
 - [ ] Demander à l'**ASACI** (ou à SanlamAllianz) l'accès à la plateforme des attestations digitales : émission et vérification par l'agence, et s'il existe un moyen de l'interroger depuis l'application (tâche 10).
 - [ ] Confirmer la **source réglementaire du plafond d'espèces** de 1 000 000 F CFA par police, appliqué par la base.
 - [ ] Ouvrir un **compte marchand** de paiement Mobile Money (agrégateur comme CinetPay ou PayDunya, ou contrat direct avec un opérateur) au nom de la société, plutôt que d'utiliser un numéro personnel, et transmettre sa documentation d'intégration (vérification d'un paiement, signature des notifications) pour brancher le paiement en ligne (tâche 9).
@@ -33,7 +33,10 @@ Légende : ✅ terminé · 🔜 prochaine · ⏳ plus tard · 🧑‍💼 tâche
 - [ ] Activer les **protections GitHub** ([paramètres GitHub](securite/parametres-github.md)).
 - [ ] Préparer la **reprise des données** : liste des clients, contrats en cours (n° de police, dates, primes, véhicules) et encaissements non encore reversés, sous forme d'export de l'extranet ou de classeur Excel ; un outil d'import contrôlé, sur le modèle de celui des flottes, sera fait à partir d'un fichier réel.
 - [ ] Désigner le **personnel** qui aura un compte et son rôle (gérant, chargé de clientèle, caissier, commercial, apporteur, auditeur) ; chacun installe une application d'authentification (deuxième facteur) sur son téléphone.
-- [ ] Une fois l'hébergeur choisi : installer le démon **ClamAV** à côté de l'API, renseigner les variables (`URL_SITE_VITRINE`, `ANTIVIRUS_ADRESSE`, clés WhatsApp et SMS) dans l'API et `URL_API` dans Netlify, puis **tester une restauration** de sauvegarde ([sauvegardes](securite/sauvegardes-et-reprise.md)).
+- [ ] Choisir un **stockage hors site** pour les sauvegardes, chez un second fournisseur, en écriture unique (verrouillage des objets), le **canal des alertes** et une **surveillance extérieure** du site ([ADR 0017](architecture/adr/0017-mise-en-production.md)).
+- [ ] Une fois l'hébergeur choisi : faire installer la production par le prestataire technique, en suivant la [procédure de mise en service](../infra/production/mise-en-service.md), jusqu'à la première **restauration réussie** ; ranger la clé privée des sauvegardes au coffre-fort et sous pli scellé.
+- [ ] Choisir le prestataire du **test d'intrusion** sur [cahier des charges](securite/test-d-intrusion.md), le faire intervenir avant l'arrivée des données réelles, et signer son autorisation.
+- [ ] **Former le personnel** avant l'ouverture des comptes (une demi-journée, [plan de formation](securite/formation-du-personnel.md)), et enregistrer chaque session au back-office.
 
 ## ✅ Tâche 3 — API : socle sécurisé
 
@@ -49,7 +52,7 @@ Fiche client unique (contrats, véhicules, devis, échanges), contrats et renouv
 
 Encaissements avec reçus numérotés sans trou et montant en lettres, mise en vigueur automatique du contrat une fois la prime payée, contre-passation par le gérant, clôture de caisse avec billetage et visa, plafond des espèces, bordereaux de reversement validés à deux et exportables, compte à rebours des 30 jours avec alerte à J+25, rapprochement mensuel des commissions ([back-office](../apps/admin/README.md)).
 
-*À confirmer avec SanlamAllianz (tâche 2) :* format des bordereaux et des relevés de commissions (l'export CSV s'y adaptera), taux de commission par branche, paiement fractionné de la prime.
+*À confirmer avec SanlamAllianz (tâche 2) :* format des bordereaux et des relevés de commissions (l'export CSV s'y adaptera), taux de commission par branche. Le paiement fractionné est venu ensuite, avec la tâche 10.
 
 ## ✅ Tâche 6 — Relances automatiques
 
@@ -60,6 +63,8 @@ Messages WhatsApp (modèles validés par Meta, [textes](metier/modeles-de-messag
 ## ✅ Tâche 7 — Demandes de devis enregistrées
 
 Le formulaire du site enregistre la demande, avec la carte grise (photo ou PDF, vérifiée puis chiffrée) et l'accord éventuel pour les rappels WhatsApp ; le visiteur reçoit un numéro de demande, WhatsApp et l'e-mail restent proposés. Écran « Demandes du site » au back-office : carte grise à télécharger (consigné), conversion en client et devis d'origine « site » (ou rattachement à la fiche qui a déjà ce numéro), classement sans suite avec un motif. Envois limités par adresse et par jour, champ piège pour les robots. Carte grise analysée par l'antivirus ClamAV à la réception et à chaque téléchargement ; demandes sans suite supprimées automatiquement après 12 mois, sans trace de leurs données personnelles dans le journal d'audit ([ADR 0009](architecture/adr/0009-demandes-de-devis-du-site.md)).
+
+*Complément :* chaque formulaire (devis, rappel d'échéance, appel d'offres) accepte jusqu'à quatre documents selon l'assurance (carte grise, attestation actuelle, liste des véhicules en Excel, carte de transport, registre de commerce, photos du bien, devis de travaux, liste du matériel, cahier des charges, autre), avec les mêmes protections pour chacun ; le back-office les télécharge un par un ([ADR 0009, complément](architecture/adr/0009-demandes-de-devis-du-site.md)).
 
 *Avant la mise en service (🧑‍💼) :* déclaration à l'ARTCI faite, hébergeur choisi, démon ClamAV installé à côté de l'API, puis `URL_SITE_VITRINE` et `ANTIVIRUS_ADRESSE` dans l'API et `URL_API` dans Netlify ; les textes du formulaire et des mentions légales basculent alors d'eux-mêmes.
 
@@ -83,6 +88,7 @@ Le portail devient l'**espace client**, pour les entreprises comme pour les part
 *Avant la mise en service du paiement (tâche 2) :*
 - choisir le **prestataire** et ouvrir le compte marchand, puis ajouter son module dans `apps/api/src/integrations/paiement/` d'après sa documentation officielle (pour l'instant, seul le prestataire simulé existe : `PAIEMENT_PRESTATAIRE=simulation`, refusé en production) ;
 - rendre joignable depuis Internet l'adresse des notifications (`https://<espace client>/api/paiements/notifications/<prestataire>`) ;
+- lire les notifications dans le format du prestataire : beaucoup les envoient en formulaire (`application/x-www-form-urlencoded`), que l'API refuse aujourd'hui (JSON seulement). Le lecteur de ce format sera limité à cette seule route, qui vérifie la signature ;
 - rapprocher chaque jour le relevé du prestataire avec les paiements en ligne (Caisse) ;
 - compléter la déclaration à l'ARTCI (paiements, photos des sinistres).
 
@@ -95,16 +101,31 @@ Nouvelle application `apps/portail`, sur sa propre adresse, pour les entreprises
 - **tableau de bord de la flotte** : véhicules assurés, documents à renouveler, sinistres en cours, reste à payer, contrats ;
 - **attestations** déposées par l'agence (en lot, analysées, chiffrées), téléchargées une à une ou toutes ensemble ;
 - **historique des sinistres par véhicule**, avec leur déclaration et leur suivi au back-office ;
-- **isolement des entreprises par la base** (rôle `dbs_portail`) : une entreprise ne voit jamais les données d'une autre.
+- **isolement des entreprises par la base** (rôle `dbs_portail`) : une entreprise ne voit jamais les données d'une autre ;
+- **paiement de la flotte en plusieurs fois** ([ADR 0016](architecture/adr/0016-paiement-fractionne.md)) :
+  - **à l'agence** : l'échéancier est défini au back-office, de 2 à 12 échéances ;
+  - **mise en vigueur** : le contrat entre en vigueur à la première échéance payée ;
+  - **sur le portail** : l'entreprise voit son échéancier et paie en ligne l'échéance due ;
+  - **retards** : les échéances en retard sont signalées à l'agence, et le client est relancé (J-7, puis une fois en retard).
 
 *Avant la mise en service (tâche 2) :*
 - faire valider par Meta le modèle d'authentification `dbs_code_connexion` ;
 - relancer `database/initialisation/01_roles_et_base.sql` sur la base installée (nouveau rôle) ;
 - servir le portail sur sa propre adresse, avec l'API derrière `/api`, et la renseigner dans `URL_PORTAIL`.
 
-## ⏳ Tâche 11 — Mise en production
+## ✅ Tâche 11 — Mise en production
 
-Hébergement, sauvegardes testées, surveillance, test d'intrusion par un prestataire indépendant, formation du personnel (hameçonnage, mots de passe, procédure d'incident).
+Tout est prêt pour installer la production sur le serveur que l'agence choisira ([ADR 0017](architecture/adr/0017-mise-en-production.md)) :
+
+- **Pile** : Docker Compose sur un serveur Linux ; Caddy en façade (HTTPS automatique, en-têtes de sécurité, back-office et espace client) ; API sans privilège et en lecture seule ; antivirus ; migrations au démarrage ; base gérée par l'hébergeur, ou base sur le serveur.
+- **Sauvegardes** : chiffrées, copiées hors site sur un stockage immuable, restaurées et vérifiées automatiquement chaque mois, avec un registre ([sauvegardes](../infra/sauvegardes/README.md)).
+- **Surveillance** : contrôles tous les quarts d'heure et chaque matin, alertes au gérant et au prestataire ([surveillance](../infra/surveillance/README.md)).
+- **Procédures** : mise en service, ouverture des autres portes (site, espace client, paiement), mise à jour, reprise après incident ([mise en service](../infra/production/mise-en-service.md)).
+- **Essais** : à chaque modification, l'intégration continue démarre toute la pile, installe un premier gérant, vérifie HTTPS, en-têtes et isolement, puis sauvegarde et restaure.
+- **Test d'intrusion** : [cahier des charges](securite/test-d-intrusion.md) prêt pour consulter un prestataire indépendant.
+- **Formation** : [plan en quatre modules](securite/formation-du-personnel.md) (hameçonnage, mots de passe, incident, données personnelles), avec leurs questions, enregistré au back-office.
+
+*Avant l'ouverture (🧑‍💼, tâche 2) :* hébergeur, stockage hors site et canal des alertes choisis ; production installée et première restauration réussie ; test d'intrusion fait et ses corrections appliquées ; personnel formé.
 
 ## ✅ Tâche 12 — Conformité et pilotage
 
@@ -130,6 +151,22 @@ Hébergement, sauvegardes testées, surveillance, test d'intrusion par un presta
 
 *Reste à faire :* l'**estimation indicative**, dès que SanlamAllianz aura fourni sa grille et son accord écrit pour afficher un prix. *À faire par l'agence :* confirmer le délai de 10 jours ouvrés conseillé pour un dossier d'appel d'offres et les jours d'ouverture.
 
-## ⏳ Tâche 14 — Assistance par lecture automatique
+## ✅ Tâche 14 — Assistance par lecture automatique
 
-Lecture de la carte grise, de la pièce d'identité et du constat amiable pour pré-remplir les fiches, toujours validée par une personne.
+([ADR 0015](architecture/adr/0015-lecture-automatique.md))
+
+- **carte grise** : sur la fiche d'un client, « Ajouter un véhicule » se pré-remplit (immatriculation, marque, modèle, genre, énergie, puissance fiscale, places, châssis, première mise en circulation) ; aussi pour lire la carte grise jointe à une demande du site ;
+- **pièce d'identité** : la fiche d'identification se pré-remplit depuis le justificatif enregistré ; pour un passeport ou une carte à zone lisible par machine, ses chiffres de contrôle confirment ou contredisent le numéro et les dates ;
+- **constat amiable** : un résumé (date, lieu, véhicules, cases cochées, blessés) s'ajoute à la note interne du sinistre ;
+- **rien n'est enregistré sans la personne** : les champs pré-remplis sont surlignés jusqu'à l'enregistrement ; contrôles affichés (pièce expirée, numéro de châssis, dates) ; antivirus avant toute lecture ; 30 lectures par heure et par personne ; chaque lecture consignée, sans les valeurs ;
+- en démonstration et dans les tests, un lecteur simulé donne des valeurs d'exemple.
+
+**Étendue à tout l'outil** ([ADR 0018](architecture/adr/0018-lecture-intelligente.md)) :
+
+- **huit documents** : en plus des trois premiers, l'attestation d'assurance (compagnie, échéance, garanties, prime), le registre de commerce (forme juridique, siège, dirigeants), la carte de transport, la visite technique et la liste des véhicules d'une flotte ;
+- **reconnaissance automatique** : on dépose un document sans dire ce que c'est (page « Lire un document », pièce « autre » d'une demande du site) ;
+- **rapprochement avec les fiches** : véhicule déjà enregistré et chez qui, déjà assuré par l'agence, titulaire différent du client, client existant (même nom, même RCCM), contrat d'une autre compagnie et jours avant son échéance ; échéance de visite technique ou de carte de transport à reporter sur le véhicule, d'un clic ;
+- **valeurs douteuses surlignées** ; liste des véhicules en photo passée à l'aperçu contrôlé de l'import des flottes ; liste en Excel lue sur le serveur, sans modèle ;
+- **partout** : fiche client, identification (RCCM et dirigeants pour une entreprise), sinistres, demandes du site (chaque pièce selon sa nature), flotte.
+
+*À faire par l'agence :* obtenir l'autorisation de l'ARTCI pour le transfert des images chez Anthropic (hors de Côte d'Ivoire), accepter les conditions commerciales d'Anthropic et son avenant de protection des données, créer la clé de l'API et choisir le modèle (`LECTURE_*`), prévoir le budget, et rappeler au personnel de toujours vérifier avec le document.
