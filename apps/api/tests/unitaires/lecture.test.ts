@@ -1,11 +1,20 @@
-// Lecture automatique (tâche 14) : zone lisible par machine (spécimens de la norme ICAO 9303), nettoyage des
-// valeurs reçues, contrôles proposés à la personne, et appel à l'API d'Anthropic (réseau simulé).
+// Lecture automatique (tâche 14, ADR 0018) : zone lisible par machine (spécimens de la norme ICAO 9303), catalogue
+// des documents (schémas stricts, nettoyage, contrôles), reconnaissance, rapprochement des noms, et appel à l'API
+// d'Anthropic (réseau simulé, réponse simple ou en flux).
 
 import { describe, expect, it } from "vitest";
 import { controler } from "../../src/integrations/lecture/controles.js";
-import { nettoyer, type ChampsCarteGrise, type ChampsConstat, type ChampsPieceIdentite } from "../../src/integrations/lecture/documents.js";
+import {
+  CATALOGUE, DOCUMENTS, nettoyer, nettoyerReconnaissance, schemaReconnaissance,
+  type ChampsCarteGrise, type ChampsConstat, type ChampsPieceIdentite,
+} from "../../src/integrations/lecture/documents.js";
 import { creerLecteur } from "../../src/integrations/lecture/lecteur.js";
 import { analyserMrz, chiffreControle } from "../../src/integrations/lecture/mrz.js";
+import { TYPE_CLASSEUR } from "../../src/modules/demandes-site/piece.js";
+import { memeNom, motsDuNom } from "../../src/modules/lecture/rapprochements.js";
+import { classeurMinimal } from "../fixtures/zip.js";
+
+const EXEMPLE_LISTE = CATALOGUE.liste_vehicules.exemple;
 
 // Spécimens publiés dans la norme ICAO 9303 (pays fictif « UTO »)
 const PASSEPORT = ["P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<", "L898902C36UTO7408122F1204159ZE184226B<<<<<10"];
@@ -94,6 +103,84 @@ describe("contrôles proposés à la personne", () => {
   });
 });
 
+describe("catalogue des documents", () => {
+  /** Sortie structurée : chaque objet du schéma exige tous ses champs et n'en admet aucun autre */
+  function verifierStrict(schema: Record<string, unknown>, chemin: string): void {
+    if (schema.type === "object") {
+      const proprietes = schema.properties as Record<string, Record<string, unknown>>;
+      expect(schema.additionalProperties, chemin).toBe(false);
+      expect(schema.required, chemin).toEqual(Object.keys(proprietes));
+      for (const [nom, sous] of Object.entries(proprietes)) verifierStrict(sous, `${chemin}.${nom}`);
+    }
+    if (schema.items) verifierStrict(schema.items as Record<string, unknown>, `${chemin}[]`);
+    for (const variante of (schema.anyOf as Record<string, unknown>[] | undefined) ?? []) verifierStrict(variante, chemin);
+  }
+
+  it("chaque document a un schéma strict, une demande, des signes de reconnaissance et un exemple qui se nettoie sans perte", () => {
+    for (const document of DOCUMENTS) {
+      const definition = CATALOGUE[document];
+      verifierStrict(definition.schema, document);
+      expect(definition.libelle && definition.demande && definition.signes).toBeTruthy();
+      const champs = nettoyer(document, structuredClone(definition.exemple));
+      // L'exemple de simulation passe le nettoyage tel quel : aucune valeur perdue
+      expect(champs, document).toEqual(definition.exemple);
+    }
+    expect(schemaReconnaissance(["carte_grise"])).toMatchObject({ required: ["document", "confiance", "description"], additionalProperties: false });
+    expect(nettoyerReconnaissance({ document: "piece_identite", confiance: "certaine" }, ["carte_grise"])).toEqual({ document: null, confiance: "faible", description: null });
+  });
+
+  it("champs incertains : seuls les noms de champs du document sont gardés, chacun devient un point à vérifier", () => {
+    const champs = nettoyer("carte_transport", { documentReconnu: true, lisibilite: "bonne", champsIncertains: ["numero", "numero", "inconnu", 3, "documentReconnu"] });
+    expect(champs.champsIncertains).toEqual(["numero"]);
+    expect(controler("carte_transport", champs, AUJOURDHUI)).toEqual([
+      { champ: "numero", niveau: "attention", message: "Lecture douteuse : vérifiez cette valeur sur le document." },
+    ]);
+  });
+
+  it("nettoie les nouveaux documents : garanties sans doublon, dirigeants nommés, lignes de véhicules identifiables", () => {
+    expect(nettoyer("attestation_assurance", { garanties: ["Vol", " Vol ", 4, "Incendie"], primeTtc: 285000.5, dateEcheance: "2026-02-30" }))
+      .toMatchObject({ garanties: ["Vol", "Incendie"], primeTtc: null, dateEcheance: null });
+    expect(nettoyer("registre_commerce", { numeroRccm: "ci-abj-2019-b-12345", dirigeants: [{ nom: "Bamba Issouf", fonction: "Gérant" }, { fonction: "Associé" }, "x"] }))
+      .toMatchObject({ numeroRccm: "CI-ABJ-2019-B-12345", dirigeants: [{ nom: "Bamba Issouf", fonction: "Gérant" }] });
+    const liste = nettoyer("liste_vehicules", { vehicules: [{ immatriculation: "1234 ab 01", valeurVenale: 12_000_000 }, { marque: "Isuzu" }, { numeroChassis: "jhd 123" }] });
+    expect(liste.vehicules.map((v) => [v.immatriculation, v.numeroChassis])).toEqual([["1234 AB 01", null], [null, "JHD123"]]);
+    expect(nettoyer("visite_technique", { resultat: "passable" }).resultat).toBeNull();
+  });
+
+  it("contrôles des nouveaux documents : échéance passée, dates inversées, visite refusée, RCCM inhabituel, liste incomplète", () => {
+    const attestation = nettoyer("attestation_assurance", { documentReconnu: true, lisibilite: "bonne", dateEffet: "2026-01-01", dateEcheance: "2025-12-31" });
+    expect(controler("attestation_assurance", attestation, AUJOURDHUI).map((c) => c.message)).toEqual([
+      expect.stringContaining("Attestation échue"), expect.stringContaining("Date d'échéance avant la date d'effet"),
+    ]);
+    const visite = nettoyer("visite_technique", { documentReconnu: true, lisibilite: "bonne", dateValidite: "2027-01-01", resultat: "contre_visite" });
+    expect(controler("visite_technique", visite, AUJOURDHUI)).toEqual([expect.objectContaining({ champ: "resultat", message: expect.stringContaining("Contre-visite") })]);
+    const rccm = nettoyer("registre_commerce", { documentReconnu: true, lisibilite: "bonne", numeroRccm: "RC 1234/2019" });
+    expect(controler("registre_commerce", rccm, AUJOURDHUI).map((c) => c.champ)).toEqual(["numeroRccm"]);
+    expect(controler("registre_commerce", { ...rccm, numeroRccm: "CI-ABJ-03-2019-B12-01234" }, AUJOURDHUI)).toEqual([]);
+    const liste = nettoyer("liste_vehicules", {
+      documentReconnu: true, lisibilite: "bonne", nombreVehiculesDocument: 5,
+      vehicules: [{ immatriculation: "1234 AB 01" }, { immatriculation: "1234-AB-01" }, { numeroChassis: "VF1ABC" }],
+    });
+    expect(controler("liste_vehicules", liste, AUJOURDHUI).map((c) => c.message)).toEqual([
+      "3 véhicule(s) lu(s) sur 5 : complétez la liste, ou envoyez le classeur Excel.",
+      "Immatriculation(s) en double : 1234-AB-01.",
+      "1 ligne(s) sans immatriculation : complétez-les avant l'import.",
+      "1 numéro(s) de châssis à revoir (un VIN compte 17 caractères, sans I, O ni Q).",
+    ]);
+  });
+});
+
+describe("rapprochement des noms", () => {
+  it("même personne ou même entreprise, quels que soient l'ordre, les accents, la civilité et la forme juridique", () => {
+    expect(memeNom("KONÉ Mariam", "Mariam Kone")).toBe(true);
+    expect(memeNom("Koné Mariam", "Mme Mariam KONE épouse Traoré")).toBe(true);
+    expect(memeNom("Transports Exemple Lagunaires SARL", "TRANSPORTS EXEMPLE LAGUNAIRES")).toBe(true);
+    expect(memeNom("Koné Mariam", "Koné Awa")).toBe(false);
+    expect(memeNom("SARL", "SARL")).toBe(false);
+    expect(motsDuNom("Ets N'Guessan & Fils")).toEqual(["NGUESSAN", "FILS"]);
+  });
+});
+
 describe("lecteur Claude (API d'Anthropic, réseau simulé)", () => {
   type Appel = { url: string; entetes: Headers; corps: Record<string, unknown> };
   function reseau(reponse: { statut: number; corps: object }) {
@@ -156,6 +243,50 @@ describe("lecteur Claude (API d'Anthropic, réseau simulé)", () => {
       expect(await creerLecteur(config, { fetch: recuperer, maxRetries: 0 })!.lire("piece_identite", { contenu: PNG, type: "image/png" }))
         .toMatchObject({ ok: false, raison });
     }
+  });
+
+  it("reconnaissance : demande courte (effort faible), choix limité aux candidats ; « autre » n'est aucun document", async () => {
+    const { appels, recuperer } = reseau({ statut: 200, corps: message(JSON.stringify({ document: "autre", confiance: "haute", description: "Facture d'un garage" })) });
+    const resultat = await creerLecteur(config, { fetch: recuperer, maxRetries: 0 })!.reconnaitre({ contenu: PNG, type: "image/png" }, ["carte_grise", "visite_technique"]);
+    expect(resultat).toEqual({ ok: true, reconnaissance: { document: null, confiance: "haute", description: "Facture d'un garage" } });
+    const corps = appels[0]!.corps as { output_config: { effort: string; format: { schema: { properties: { document: { enum: string[] } } } } }; messages: { content: { text?: string }[] }[] };
+    expect(corps.output_config.effort).toBe("low");
+    expect(corps.output_config.format.schema.properties.document.enum).toEqual(["carte_grise", "visite_technique", "autre"]);
+    const demande = corps.messages[0]!.content[1]!.text!;
+    expect(demande).toContain("visite_technique :");
+    expect(demande).not.toContain("piece_identite");
+  });
+
+  it("une liste de véhicules se lit en flux (réponse longue) ; un classeur Excel se lit sans appel au modèle", async () => {
+    const json = JSON.stringify({ ...EXEMPLE_LISTE, vehicules: [{ immatriculation: "7310 hj 01" }, { marque: "sans plaque ni châssis" }] });
+    const evenements = [
+      { type: "message_start", message: { ...message(""), content: [], stop_reason: null } },
+      { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
+      { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: json.slice(0, 40) } },
+      { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: json.slice(40) } },
+      { type: "content_block_stop", index: 0 },
+      { type: "message_delta", delta: { stop_reason: "end_turn", stop_sequence: null }, usage: { output_tokens: 120 } },
+      { type: "message_stop" },
+    ];
+    const appels: Record<string, unknown>[] = [];
+    const recuperer = (async (_url: string | URL | Request, init?: RequestInit) => {
+      appels.push(JSON.parse(String(init?.body)));
+      const flux = evenements.map((e) => `event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`).join("");
+      return new Response(flux, { status: 200, headers: { "content-type": "text/event-stream" } });
+    }) as typeof fetch;
+    const lecteur = creerLecteur(config, { fetch: recuperer, maxRetries: 0 })!;
+    const resultat = await lecteur.lire("liste_vehicules", { contenu: PNG, type: "image/png" });
+    expect(resultat).toMatchObject({ ok: true, champs: { vehicules: [{ immatriculation: "7310 HJ 01", marque: null }] } });
+    expect(appels[0]).toMatchObject({ stream: true, fallbacks: "default", output_config: { effort: "medium" } });
+    expect((appels[0]!.max_tokens as number) > 16_000).toBe(true);
+
+    const classeur = classeurMinimal([["Immatriculation", "Puissance fiscale"], ["1234 AB 01", "12"]]);
+    const lu = await lecteur.lire("liste_vehicules", { contenu: classeur, type: TYPE_CLASSEUR });
+    expect(lu).toMatchObject({ ok: true, classeur: true, champs: { vehicules: [{ immatriculation: "1234 AB 01", puissanceFiscale: 12 }] } });
+    expect(await lecteur.lire("carte_grise", { contenu: classeur, type: TYPE_CLASSEUR })).toMatchObject({ ok: false, raison: "illisible" });
+    expect(await lecteur.reconnaitre({ contenu: classeur, type: TYPE_CLASSEUR }, ["carte_grise", "liste_vehicules"]))
+      .toMatchObject({ ok: true, reconnaissance: { document: "liste_vehicules" } });
+    expect(appels).toHaveLength(1);
   });
 
   it("la simulation rend des valeurs d'exemple, dont une zone lisible par machine juste", async () => {

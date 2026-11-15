@@ -1,23 +1,39 @@
-// Lecteur de documents (tâche 14, ADR 0015) : il reçoit l'image ou le PDF d'un document et rend ses champs, que le
-// back-office propose ensuite à une personne. Deux lecteurs :
+// Lecteur de documents (tâche 14, ADR 0015 ; étendu par l'ADR 0018) : il reçoit l'image ou le PDF d'un document et
+// rend ses champs, que le back-office propose ensuite à une personne. Il sait aussi reconnaître de quel document du
+// catalogue il s'agit, quand la personne ne le dit pas. Deux lecteurs :
 //   · « anthropic » : un modèle Claude par l'API d'Anthropic (SDK officiel), sortie structurée selon le schéma du
 //     document, repli automatique sur un autre modèle si le premier refuse ;
 //   · « simulation » : valeurs d'exemple fixes, pour la démonstration et les tests (refusé en production).
+// Une liste de véhicules en classeur Excel se lit sans modèle (classeur.ts), quel que soit le lecteur.
 // Rien d'autre que le fichier et des consignes générales ne part : ni nom de client, ni numéro de dossier. Les
 // valeurs reçues ne sont ni journalisées ni enregistrées ici.
 
 import Anthropic from "@anthropic-ai/sdk";
 import type { Configuration } from "../../config/configuration.js";
 import { TYPE_CLASSEUR, type TypePiece } from "../../modules/demandes-site/piece.js";
-import { CONSIGNES, DEMANDES, nettoyer, SCHEMAS, type Champs, type TypeDocument } from "./documents.js";
+import { lireClasseurVehicules } from "./classeur.js";
+import {
+  CATALOGUE, CONSIGNES, DOCUMENTS, demandeReconnaissance, nettoyer, nettoyerReconnaissance, schemaReconnaissance,
+  type Champs, type Reconnaissance, type TypeDocument,
+} from "./documents.js";
 
+type Echec = { ok: false; raison: "refus" | "illisible" | "indisponible" | "configuration"; message: string };
 export type ResultatLecture =
-  | { ok: true; champs: Champs }
-  | { ok: false; raison: "refus" | "illisible" | "indisponible" | "configuration"; message: string };
+  /** `classeur` : liste lue cellule par cellule dans un classeur Excel, sans modèle */
+  | { ok: true; champs: Champs; classeur?: true }
+  | Echec;
+export type ResultatReconnaissance = { ok: true; reconnaissance: Reconnaissance } | Echec;
+
+export interface Fichier {
+  contenu: Buffer;
+  type: TypePiece;
+}
 
 export interface LecteurDocuments {
   nom: "anthropic" | "simulation";
-  lire(document: TypeDocument, fichier: { contenu: Buffer; type: TypePiece }): Promise<ResultatLecture>;
+  lire(document: TypeDocument, fichier: Fichier): Promise<ResultatLecture>;
+  /** Quel document du catalogue est-ce, parmi les candidats ? */
+  reconnaitre(fichier: Fichier, candidats: readonly TypeDocument[]): Promise<ResultatReconnaissance>;
 }
 
 const MESSAGES = {
@@ -26,15 +42,36 @@ const MESSAGES = {
   indisponible: "Le service de lecture ne répond pas pour l'instant. Réessayez dans quelques minutes, ou saisissez les champs à la main.",
   configuration: "La lecture automatique est mal configurée (clé de l'API refusée). Prévenez la personne qui administre l'outil.",
 } as const;
-const echec = (raison: keyof typeof MESSAGES): ResultatLecture => ({ ok: false, raison, message: MESSAGES[raison] });
+const echec = (raison: keyof typeof MESSAGES): Echec => ({ ok: false, raison, message: MESSAGES[raison] });
 
 /** `fetch` et `maxRetries` : remplaçables dans les tests (aucun appel réseau, pas d'attente entre les essais) */
 export function creerLecteur(
   config: Configuration["lecture"], options: { fetch?: typeof fetch; maxRetries?: number } = {},
 ): LecteurDocuments | null {
   if (!config) return null;
-  if (config.prestataire === "simulation") return lecteurSimulation();
-  return lecteurAnthropic(config.cleApi, config.modele, options);
+  return avecClasseurs(config.prestataire === "simulation" ? lecteurSimulation() : lecteurAnthropic(config.cleApi, config.modele, options));
+}
+
+/** Un classeur Excel n'est pas une image : une liste de véhicules s'y lit cellule par cellule, rien d'autre ne s'y lit */
+function avecClasseurs(lecteur: LecteurDocuments): LecteurDocuments {
+  return {
+    nom: lecteur.nom,
+    async lire(document, fichier) {
+      if (fichier.type !== TYPE_CLASSEUR) return lecteur.lire(document, fichier);
+      if (document !== "liste_vehicules") return echec("illisible");
+      const lu = lireClasseurVehicules(fichier.contenu);
+      return lu.ok ? { ok: true, champs: lu.champs, classeur: true } : echec("illisible");
+    },
+    async reconnaitre(fichier, candidats) {
+      if (fichier.type !== TYPE_CLASSEUR) return lecteur.reconnaitre(fichier, candidats);
+      return {
+        ok: true,
+        reconnaissance: candidats.includes("liste_vehicules")
+          ? { document: "liste_vehicules", confiance: "haute", description: "Classeur Excel" }
+          : { document: null, confiance: "haute", description: "Classeur Excel" },
+      };
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -44,82 +81,79 @@ function lecteurAnthropic(cleApi: string, modele: string, options: { fetch?: typ
   const client = new Anthropic({
     apiKey: cleApi, maxRetries: options.maxRetries ?? 2, timeout: 120_000, ...(options.fetch ? { fetch: options.fetch } : {}),
   });
+
+  /** Envoie le fichier et une demande ; rend l'objet JSON reçu, conforme au schéma, ou l'échec */
+  async function appeler(
+    fichier: Fichier, demande: string, schema: Record<string, unknown>,
+    reglages: { effort: "low" | "medium"; maxTokens: number; enFlux: boolean },
+  ): Promise<{ ok: true; brut: Record<string, unknown> } | Echec> {
+    const source = { type: "base64" as const, data: fichier.contenu.toString("base64") };
+    const piece = fichier.type === "application/pdf"
+      ? { type: "document" as const, source: { ...source, media_type: "application/pdf" as const } }
+      : { type: "image" as const, source: { ...source, media_type: fichier.type as "image/jpeg" | "image/png" } };
+    const parametres = {
+      model: modele,
+      max_tokens: reglages.maxTokens,
+      // Si le modèle refuse (classificateurs de sécurité), l'API relance la même demande sur le modèle de repli conseillé
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default" as const,
+      system: CONSIGNES,
+      messages: [{ role: "user" as const, content: [piece, { type: "text" as const, text: demande }] }],
+      output_config: { effort: reglages.effort, format: { type: "json_schema" as const, schema } },
+    };
+    try {
+      // Une longue liste se lit en flux : la réponse peut dépasser le délai d'une requête simple
+      const reponse = reglages.enFlux
+        ? await client.beta.messages.stream(parametres).finalMessage()
+        : await client.beta.messages.create(parametres);
+      if (reponse.stop_reason === "refusal") return echec("refus");
+      if (reponse.stop_reason === "max_tokens") return echec("illisible");
+      const texte = reponse.content.find((bloc) => bloc.type === "text");
+      if (!texte || texte.type !== "text") return echec("illisible");
+      const brut: unknown = JSON.parse(texte.text);
+      if (typeof brut !== "object" || brut === null || Array.isArray(brut)) return echec("illisible");
+      return { ok: true, brut: brut as Record<string, unknown> };
+    } catch (erreur) {
+      if (erreur instanceof SyntaxError) return echec("illisible");
+      if (erreur instanceof Anthropic.AuthenticationError || erreur instanceof Anthropic.PermissionDeniedError) return echec("configuration");
+      // Fichier refusé par l'API (trop lourd, format, image illisible)
+      if (erreur instanceof Anthropic.BadRequestError) return echec("illisible");
+      if (erreur instanceof Anthropic.RateLimitError || erreur instanceof Anthropic.InternalServerError
+          || erreur instanceof Anthropic.APIConnectionError || erreur instanceof Anthropic.APIError) return echec("indisponible");
+      throw erreur;
+    }
+  }
+
   return {
     nom: "anthropic",
     async lire(document, fichier) {
-      // Un classeur Excel n'est pas une image : il n'est pas lu ici
-      if (fichier.type === TYPE_CLASSEUR) return echec("illisible");
-      const source = { type: "base64" as const, data: fichier.contenu.toString("base64") };
-      const piece = fichier.type === "application/pdf"
-        ? { type: "document" as const, source: { ...source, media_type: "application/pdf" as const } }
-        : { type: "image" as const, source: { ...source, media_type: fichier.type } };
-      try {
-        const reponse = await client.beta.messages.create({
-          model: modele,
-          max_tokens: 16000,
-          // Si le modèle refuse (classificateurs de sécurité), l'API relance la même demande sur le modèle de repli conseillé
-          betas: ["server-side-fallback-2026-07-01"],
-          fallbacks: "default",
-          system: CONSIGNES,
-          messages: [{ role: "user", content: [piece, { type: "text", text: DEMANDES[document] }] }],
-          output_config: { effort: "medium", format: { type: "json_schema", schema: SCHEMAS[document] } },
-        });
-        if (reponse.stop_reason === "refusal") return echec("refus");
-        if (reponse.stop_reason === "max_tokens") return echec("illisible");
-        const texte = reponse.content.find((bloc) => bloc.type === "text");
-        if (!texte || texte.type !== "text") return echec("illisible");
-        const brut: unknown = JSON.parse(texte.text);
-        if (typeof brut !== "object" || brut === null || Array.isArray(brut)) return echec("illisible");
-        return { ok: true, champs: nettoyer(document, brut as Record<string, unknown>) };
-      } catch (erreur) {
-        if (erreur instanceof SyntaxError) return echec("illisible");
-        if (erreur instanceof Anthropic.AuthenticationError || erreur instanceof Anthropic.PermissionDeniedError) return echec("configuration");
-        // Fichier refusé par l'API (trop lourd, format, image illisible)
-        if (erreur instanceof Anthropic.BadRequestError) return echec("illisible");
-        if (erreur instanceof Anthropic.RateLimitError || erreur instanceof Anthropic.InternalServerError
-            || erreur instanceof Anthropic.APIConnectionError || erreur instanceof Anthropic.APIError) return echec("indisponible");
-        throw erreur;
-      }
+      const definition = CATALOGUE[document];
+      const reponse = await appeler(fichier, definition.demande, definition.schema, definition.sortieLongue
+        ? { effort: "medium", maxTokens: 64_000, enFlux: true }
+        : { effort: "medium", maxTokens: 16_000, enFlux: false });
+      return reponse.ok ? { ok: true, champs: nettoyer(document, reponse.brut) } : reponse;
+    },
+    async reconnaitre(fichier, candidats) {
+      const reponse = await appeler(fichier, demandeReconnaissance(candidats), schemaReconnaissance(candidats),
+        { effort: "low", maxTokens: 2_000, enFlux: false });
+      return reponse.ok ? { ok: true, reconnaissance: nettoyerReconnaissance(reponse.brut, candidats) } : reponse;
     },
   };
 }
 
 // ---------------------------------------------------------------------------------------------------------
-// Simulation : valeurs d'exemple, inventées
+// Simulation : valeurs d'exemple, inventées (catalogue/<document>.ts)
 // ---------------------------------------------------------------------------------------------------------
-const EXEMPLES: Record<TypeDocument, Record<string, unknown>> = {
-  carte_grise: {
-    documentReconnu: true, lisibilite: "bonne", remarques: null,
-    immatriculation: "4521 KM 01", numeroChassis: "JTDBR32E720123456", marque: "Toyota", modele: "Corolla", genre: "Voiture particulière",
-    energie: "Essence", puissanceFiscale: 8, placesAssises: 5, datePremiereMiseEnCirculation: "2019-03-14", proprietaire: "Koné Mariam",
-    usage: "Promenade et affaires",
-  },
-  piece_identite: {
-    documentReconnu: true, lisibilite: "bonne", remarques: null,
-    typePiece: "passeport", numero: "L898902C3", nom: "ERIKSSON", prenoms: "ANNA MARIA", dateNaissance: "1974-08-12", lieuNaissance: null,
-    sexe: "F", nationalite: "Utopienne", dateDelivrance: null, dateExpiration: "2034-04-15",
-    // Spécimen de la norme ICAO 9303 (pays fictif « UTO »), date d'expiration ajustée et chiffres de contrôle recalculés
-    mrz: ["P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<", "L898902C36UTO7408122F3404159ZE184226B<<<<<16"],
-  },
-  constat_amiable: {
-    documentReconnu: true, lisibilite: "partielle", remarques: "Écriture manuscrite difficile à lire dans la partie observations.",
-    date: "2026-10-28", heure: "08:40", lieu: "Carrefour de la Siporex, Yopougon", blesses: false, degatsAutres: false, temoins: null,
-    vehicules: [
-      { lettre: "A", conducteur: "Koné Mariam", assure: "Koné Mariam", assureur: "SanlamAllianz", numeroPolice: "AUTO-KM-2026", numeroAttestation: null,
-        immatriculation: "2024 KM 01", marque: "Toyota Yaris", circonstances: [8], pointDeChoc: "Arrière", degatsApparents: "Pare-chocs arrière enfoncé",
-        observations: null },
-      { lettre: "B", conducteur: "Traoré Ali", assure: "Traoré Ali", assureur: "Autre compagnie", numeroPolice: null, numeroAttestation: null,
-        immatriculation: "7712 GH 01", marque: "Nissan Sunny", circonstances: [8], pointDeChoc: "Avant", degatsApparents: "Capot", observations: null },
-    ],
-    croquis: "Le véhicule B, roulant derrière A sur la même voie, l'a heurté à l'arrière à l'arrêt au feu.",
-  },
-};
-
 function lecteurSimulation(): LecteurDocuments {
   return {
     nom: "simulation",
     async lire(document) {
-      return { ok: true, champs: nettoyer(document, structuredClone(EXEMPLES[document])) };
+      return { ok: true, champs: nettoyer(document, structuredClone(CATALOGUE[document].exemple)) };
+    },
+    // La simulation ne regarde pas le fichier : elle « reconnaît » le premier candidat, dans l'ordre du catalogue
+    async reconnaitre(_fichier, candidats) {
+      const document = DOCUMENTS.find((d) => candidats.includes(d)) ?? null;
+      return { ok: true, reconnaissance: { document, confiance: "haute", description: document ? `${CATALOGUE[document].libelle} (exemple)` : null } };
     },
   };
 }
