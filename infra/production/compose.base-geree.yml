@@ -1,0 +1,14 @@
+# Base gérée par l'hébergeur dont le certificat est signé par sa propre autorité (sinon, ce fichier est inutile) :
+#   docker compose -f compose.yml -f compose.base-geree.yml up -d --build
+# Placez le certificat de l'autorité dans secrets/base-ca.crt, puis terminez DATABASE_URL, DATABASE_URL_PROPRIETAIRE
+# et DATABASE_URL_SAUVEGARDE par : ?sslmode=verify-full&sslrootcert=/etc/ssl/dbs/base-ca.crt
+services:
+  migrations:
+    volumes:
+      - ${DOSSIER_SECRETS:-./secrets}/base-ca.crt:/etc/ssl/dbs/base-ca.crt:ro
+  api:
+    volumes:
+      - ${DOSSIER_SECRETS:-./secrets}/base-ca.crt:/etc/ssl/dbs/base-ca.crt:ro
+  sauvegarde:
+    volumes:
+      - ${DOSSIER_SECRETS:-./secrets}/base-ca.crt:/etc/ssl/dbs/base-ca.crt:ro

@@ -1,0 +1,54 @@
+# Base PostgreSQL sur le serveur lui-même, à défaut d'une base gérée par l'hébergeur (ADR 0017) :
+#   docker compose -f compose.yml -f compose.base-locale.yml up -d --build
+# Elle n'est jointe que par les conteneurs (réseau interne, sans Internet) et n'est jamais exposée. Au premier
+# démarrage, initialiser-base.sh crée les comptes et la base (database/initialisation/01_roles_et_base.sql) avec
+# les mots de passe de .env ; les adresses de connexion sont construites ici, sans TLS (même serveur, réseau interne).
+# Mots de passe : uniquement des lettres et des chiffres (openssl rand -hex 24), car ils entrent dans des adresses.
+services:
+  base:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD manque dans .env}
+      MDP_PROPRIETAIRE: ${MDP_PROPRIETAIRE:?MDP_PROPRIETAIRE manque dans .env}
+      MDP_APPLICATION: ${MDP_APPLICATION:?MDP_APPLICATION manque dans .env}
+    volumes:
+      - donnees:/var/lib/postgresql/data
+      - ../../database:/depot/database:ro
+      - ./initialiser-base.sh:/docker-entrypoint-initdb.d/10-dbs.sh:ro
+    networks:
+      - prive
+    shm_size: 256m
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "dbs"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "20"
+
+  migrations:
+    environment:
+      DATABASE_URL_PROPRIETAIRE: postgres://dbs_proprietaire:${MDP_PROPRIETAIRE:?}@base:5432/dbs
+    depends_on:
+      base:
+        condition: service_healthy
+
+  api:
+    environment:
+      DATABASE_URL: postgres://dbs_application:${MDP_APPLICATION:?}@base:5432/dbs
+
+  sauvegarde:
+    environment:
+      DATABASE_URL_SAUVEGARDE: postgres://postgres:${POSTGRES_PASSWORD:?}@base:5432/dbs
+    depends_on:
+      base:
+        condition: service_healthy
+
+volumes:
+  donnees:
