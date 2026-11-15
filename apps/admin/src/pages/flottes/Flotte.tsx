@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 import { Alerte, Badge, Chargement, Champ, Section, Vide } from "../../composants/communs";
+import { LectureAutomatique, listeEnCsv } from "../../composants/LectureAutomatique";
 import { Lien } from "../../routeur";
 import { api, ErreurApi, messageErreur } from "../../services/api";
 import {
@@ -159,6 +160,12 @@ export function Flotte({ clientId }: { clientId: string }) {
       <Alerte>{erreur}</Alerte>
 
       {gestion && <ImportVehicules clientId={clientId} apres={charger} />}
+      {gestion && donnees.vehicules.length > 0 && (
+        <LectureAutomatique
+          document="auto" parmi={["visite_technique", "carte_transport"]} clientId={clientId} onMisAJour={charger}
+          titre="Mettre à jour une échéance depuis un document (visite technique, carte de transport)"
+        />
+      )}
 
       <Section
         titre="Véhicules et échéances"
@@ -259,6 +266,16 @@ function ImportVehicules({ clientId, apres }: { clientId: string; apres: () => P
       <Champ libelle="Fichier de la flotte">
         <input type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" onChange={(e) => void choisir(e)} />
       </Champ>
+      <LectureAutomatique
+        document="liste_vehicules" clientId={clientId} titre="Liste en photo ou en PDF ? La lire automatiquement"
+        libelleReport="Passer cette liste à l'aperçu de l'import"
+        onLu={(lu) => {
+          const source = { nom: "Liste lue automatiquement (à vérifier avec le document)", contenu: listeEnCsv(lu.champs) };
+          setMessage("");
+          setFichier(source);
+          void envoyer(source, false);
+        }}
+      />
       {envoi && <p className="chargement" role="status">Vérification du fichier…</p>}
       <Alerte>{erreur}</Alerte>
       <Alerte type="succes">{message}</Alerte>

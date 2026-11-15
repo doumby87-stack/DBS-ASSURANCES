@@ -5,7 +5,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Alerte, Badge, Chargement, Champ, Section, Vide } from "../../composants/communs";
-import { LectureAutomatique } from "../../composants/LectureAutomatique";
+import { DOCUMENT_PAR_NATURE, LectureAutomatique, type PieceLisible } from "../../composants/LectureAutomatique";
 import { Lien, naviguer } from "../../routeur";
 import { api, ErreurApi, messageErreur } from "../../services/api";
 import {
@@ -293,6 +293,10 @@ export function DemandeSite({ id }: { id: string }) {
   const { demande: d, pieces } = detail;
   const peutTraiter = d.statut === "nouvelle" && peut("gerant", "charge_clientele", "commercial");
   const memeNumero = doublons ?? detail.clientsMemeNumero;
+  // Pièces que l'outil sait lire, chacune selon sa nature (« autre » : reconnue automatiquement)
+  const piecesLisibles: PieceLisible[] = pieces
+    .filter((p) => p.etatAnalyse === "saine" && (p.nature in DOCUMENT_PAR_NATURE || p.nature === "autre"))
+    .map((p) => ({ id: p.id, libelle: p.libelle, source: "pieceDemandeSiteId", document: DOCUMENT_PAR_NATURE[p.nature] ?? "auto" }));
   const optionsBranches = Object.entries(BRANCHES).map(([valeur, libelle]) => <option key={valeur} value={valeur}>{libelle}</option>);
 
   return (
@@ -371,8 +375,9 @@ export function DemandeSite({ id }: { id: string }) {
             </dd>
           </div>
         </dl>
-        {detail.piece && detail.piece.etatAnalyse === "saine" && peut("gerant", "charge_clientele", "commercial") && (
-          <LectureAutomatique document="carte_grise" pieces={[{ id: d.id, libelle: "Carte grise jointe à la demande", source: "demandeSiteId" }]} />
+        {piecesLisibles.length > 0 && peut("gerant", "charge_clientele", "commercial") && (
+          <LectureAutomatique document="auto" pieces={piecesLisibles} clientId={d.clientId ?? undefined}
+            titre="Lire les documents joints automatiquement" />
         )}
         <h3>Accords donnés sur le site</h3>
         <ul className="liste-simple">

@@ -87,11 +87,14 @@ test("parcours du gérant, de la première connexion à la caisse et au reversem
 
   // --- Lecture automatique d'une carte grise (tâche 14, lecteur simulé) : valeurs proposées, vérifiées, puis enregistrées
   await page.getByRole("button", { name: "Ajouter un véhicule" }).click();
-  const lecture = page.getByRole("group", { name: "Lecture automatique de la carte grise" });
+  const lecture = page.getByRole("group", { name: "Lire la carte grise automatiquement" });
   const photoCarteGrise = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
   await lecture.getByLabel("Photo ou PDF (5 Mo au plus)").setInputFiles({ name: "carte-grise.png", mimeType: "image/png", buffer: photoCarteGrise });
   await lecture.getByRole("button", { name: "Lire le document" }).click();
   await expect(lecture.getByText(/vérifiez chacune avec le document/)).toBeVisible();
+  // Rapprochée de la fiche (ADR 0018) : véhicule encore inconnu, titulaire de la carte grise différent du client
+  await expect(lecture.getByText(/Véhicule inconnu de l'agence/)).toBeVisible();
+  await expect(lecture.getByText(/Le titulaire de la carte grise \(Koné Mariam\) n'est pas le client du dossier \(Transports Kouamé & Fils\)/)).toBeVisible();
   await lecture.getByRole("button", { name: "Pré-remplir le véhicule avec ces valeurs" }).click();
   await expect(page.getByLabel("Immatriculation", { exact: true })).toHaveValue("4521 KM 01");
   await expect(page.getByLabel("N° de châssis (VIN)")).toHaveValue("JTDBR32E720123456");
@@ -200,15 +203,29 @@ test("parcours du gérant, de la première connexion à la caisse et au reversem
   await page.getByRole("link", { name: /^n° \d+$/ }).click();
   await expect(page.getByRole("heading", { name: /^Demande n° \d+$/ })).toBeVisible();
   // Analysée par l'antivirus à la réception, puis de nouveau au téléchargement
-  await expect(page.getByText("Carte grise", { exact: true })).toBeVisible();
+  await expect(page.locator("dd strong", { hasText: /^Carte grise$/ })).toBeVisible();
   await expect(page.getByText(/Aucune menace trouvée par l'antivirus/)).toBeVisible();
   const [carteGrise] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /^Télécharger/ }).click()]);
   expect(carteGrise.suggestedFilename()).toMatch(/^carte-grise-demande-\d+\.png$/);
   expect(readFileSync(await carteGrise.path()).equals(png)).toBe(true);
+  // Pièce jointe lue selon sa nature, et rapprochée : ce véhicule est déjà sur une fiche de l'agence
+  const lectureDemande = page.getByRole("group", { name: "Lire les documents joints automatiquement" });
+  await expect(lectureDemande.getByLabel("Document à lire")).toHaveValue(/^pieceDemandeSiteId:/);
+  await lectureDemande.getByRole("button", { name: "Lire le document" }).click();
+  await expect(lectureDemande.getByText("Véhicule 4521 KM 01 déjà enregistré chez Transports Kouamé & Fils.")).toBeVisible();
+  await expect(lectureDemande.getByRole("link", { name: "Ouvrir la fiche du client" }).first()).toBeVisible();
   await page.getByRole("button", { name: "Créer le client et le devis" }).click();
   await expect(page.getByRole("heading", { name: "Mariam Traoré" })).toBeVisible();
   await expect(page.getByText("demande reçue par le site")).toBeVisible();
   await expect(page.locator(".consentements li", { hasText: "WhatsApp" })).toContainText(/Accepté.*Case « rappels WhatsApp » cochée sur le site/);
+
+  // --- « Lire un document » (ADR 0018) : sans fiche de départ, le document est reconnu, lu et rapproché des fiches
+  await page.getByRole("navigation", { name: "Navigation principale" }).getByRole("link", { name: "Lire un document" }).click();
+  const depot = page.getByRole("group", { name: "Déposer un document" });
+  await depot.getByLabel("Photo, PDF ou classeur Excel (5 Mo au plus)").setInputFiles({ name: "document.png", mimeType: "image/png", buffer: png });
+  await depot.getByRole("button", { name: "Lire le document" }).click();
+  await expect(depot.getByText("Document reconnu : Carte grise")).toBeVisible();
+  await expect(depot.getByText(/Véhicule 4521 KM 01 déjà enregistré chez Transports Kouamé & Fils/)).toBeVisible();
 
   // --- Outils du site (tâche 13) : appel d'offres à traiter, rappel d'échéance qui attend son heure, rendez-vous à confirmer
   const site = (chemin: string, data: object) =>
@@ -279,6 +296,14 @@ test("parcours du gérant, de la première connexion à la caisse et au reversem
     name: "flotte.csv", mimeType: "text/csv",
     buffer: Buffer.from(["Immatriculation;Marque;Genre;CV;Visite technique;Vignette", ...lignes].join("\n")),
   });
+  // Liste reçue en photo : lue automatiquement, puis passée telle quelle à l'aperçu contrôlé de l'import (sans l'importer)
+  const lectureListe = page.getByRole("group", { name: "Liste en photo ou en PDF ? La lire automatiquement" });
+  await lectureListe.getByLabel("Photo, PDF ou classeur Excel (5 Mo au plus)").setInputFiles({ name: "parc.png", mimeType: "image/png", buffer: photoCarteGrise });
+  await lectureListe.getByRole("button", { name: "Lire le document" }).click();
+  await expect(lectureListe.getByRole("table")).toContainText("7310 HJ 01");
+  await lectureListe.getByRole("button", { name: "Passer cette liste à l'aperçu de l'import" }).click();
+  await expect(page.getByText("3 véhicule(s) à ajouter, 0 à mettre à jour.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Importer 3 véhicule(s)" })).toBeVisible();
   // Premier essai : une plaque en double et une date impossible, rien n'est importé
   await page.getByLabel("Fichier de la flotte").setInputFiles(fichierFlotte([
     `7001 FE 01;Renault Trucks;Tracteur routier;12;${jj(10)};${jj(-5)}`,

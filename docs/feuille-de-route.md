@@ -161,4 +161,12 @@ Tout est prêt pour installer la production sur le serveur que l'agence choisira
 - **rien n'est enregistré sans la personne** : les champs pré-remplis sont surlignés jusqu'à l'enregistrement ; contrôles affichés (pièce expirée, numéro de châssis, dates) ; antivirus avant toute lecture ; 30 lectures par heure et par personne ; chaque lecture consignée, sans les valeurs ;
 - en démonstration et dans les tests, un lecteur simulé donne des valeurs d'exemple.
 
+**Étendue à tout l'outil** ([ADR 0018](architecture/adr/0018-lecture-intelligente.md)) :
+
+- **huit documents** : en plus des trois premiers, l'attestation d'assurance (compagnie, échéance, garanties, prime), le registre de commerce (forme juridique, siège, dirigeants), la carte de transport, la visite technique et la liste des véhicules d'une flotte ;
+- **reconnaissance automatique** : on dépose un document sans dire ce que c'est (page « Lire un document », pièce « autre » d'une demande du site) ;
+- **rapprochement avec les fiches** : véhicule déjà enregistré et chez qui, déjà assuré par l'agence, titulaire différent du client, client existant (même nom, même RCCM), contrat d'une autre compagnie et jours avant son échéance ; échéance de visite technique ou de carte de transport à reporter sur le véhicule, d'un clic ;
+- **valeurs douteuses surlignées** ; liste des véhicules en photo passée à l'aperçu contrôlé de l'import des flottes ; liste en Excel lue sur le serveur, sans modèle ;
+- **partout** : fiche client, identification (RCCM et dirigeants pour une entreprise), sinistres, demandes du site (chaque pièce selon sa nature), flotte.
+
 *À faire par l'agence :* obtenir l'autorisation de l'ARTCI pour le transfert des images chez Anthropic (hors de Côte d'Ivoire), accepter les conditions commerciales d'Anthropic et son avenant de protection des données, créer la clé de l'API et choisir le modèle (`LECTURE_*`), prévoir le budget, et rappeler au personnel de toujours vérifier avec le document.

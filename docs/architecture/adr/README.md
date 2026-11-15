@@ -21,6 +21,7 @@ Chaque décision importante est écrite ici, avec son contexte et ses conséquen
 | [0015](0015-lecture-automatique.md) | Lecture automatique des documents : un modèle Claude par l'API d'Anthropic, toujours validée par une personne | Acceptée (désactivée jusqu'à l'autorisation de l'ARTCI) |
 | [0016](0016-paiement-fractionne.md) | Paiement de la prime d'une flotte en plusieurs fois : échéancier, mise en vigueur à la première échéance, relances | Acceptée (conditions à confirmer avec SanlamAllianz) |
 | [0017](0017-mise-en-production.md) | Mise en production : un serveur, Docker Compose, Caddy, sauvegardes chiffrées hors site et restauration testée chaque mois | Acceptée (hébergeur à choisir) |
+| [0018](0018-lecture-intelligente.md) | Lecture intelligente des documents dans tout l'outil : catalogue de huit documents, reconnaissance automatique, rapprochement avec les fiches | Acceptée (même condition que 0015) |
 
 ## Modèle
 

@@ -365,7 +365,7 @@ function NouveauVehicule({ clientId, apres }: { clientId: string; apres: () => P
   }
   return (
     <>
-    <LectureAutomatique document="carte_grise" libelleReport="Pré-remplir le véhicule avec ces valeurs" onLu={reporter} />
+    <LectureAutomatique document="carte_grise" clientId={clientId} libelleReport="Pré-remplir le véhicule avec ces valeurs" onLu={reporter} />
     <form className="formulaire formulaire--grille" onSubmit={soumettre}>
       <Champ libelle="Immatriculation"><input className={lu("immatriculation")} required minLength={3} maxLength={20} value={v.immatriculation} onChange={modifier("immatriculation")} /></Champ>
       <Champ libelle="Marque"><input className={lu("marque")} maxLength={40} value={v.marque} onChange={modifier("marque")} /></Champ>
