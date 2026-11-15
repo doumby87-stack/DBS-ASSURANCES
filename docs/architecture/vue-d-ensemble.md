@@ -28,6 +28,7 @@ flowchart LR
     WA["WhatsApp Business"]
     SMS["SMS"]
     FNE["FNE (DGI)"]
+    IA["Lecture des documents<br/>(Anthropic, si activée)"]
   end
 
   V --> SV
@@ -42,6 +43,7 @@ flowchart LR
   API --> WA
   API --> SMS
   API --> FNE
+  API -->|"image analysée par l'antivirus"| IA
   PAY -.->|"notification signée, puis vérification auprès du prestataire"| API
   WA -.->|"notification signée"| API
 ```

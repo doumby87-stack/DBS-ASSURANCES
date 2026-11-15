@@ -37,6 +37,8 @@ const mfa = await poster(GESTION, "/auth/mfa", { code: gerante.code }, { Cookie:
 verifier(mfa.ok, "puis celle du code à 6 chiffres affiché sur la page d'accueil");
 const clientsGestion = await fetch(`${GESTION}/api/clients`, { headers: { Cookie: cookie(mfa) } });
 verifier(clientsGestion.ok && JSON.stringify(await clientsGestion.json()).includes("Transports Kouassi"), "elle voit les clients d'exemple");
+const lecture = await fetch(`${GESTION}/api/lecture-automatique`, { headers: { Cookie: cookie(mfa) } });
+verifier(lecture.ok && (await lecture.json()).prestataire === "simulation", "la lecture automatique des documents est proposée, simulée");
 
 // Espace client : le code qui partirait sur WhatsApp apparaît sur la page d'accueil
 const mariam = clients.find((c) => c.nom === "Koné Mariam");

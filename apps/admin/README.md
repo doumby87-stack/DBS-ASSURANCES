@@ -38,6 +38,7 @@ Vite transmet les appels `/api/…` à l'API (variable `API_URL` si l'API n'est 
 | Reversements (`/reversements`) | Primes à verser avec le compte à rebours des 30 jours, préparation d'un bordereau, liste des bordereaux | gérant, caissier, auditeur |
 | Bordereau (`/reversements/:id`) | Détail imprimable, validation (pas par son auteur), versement, annulation, export pour Excel | validation, versement, export : gérant |
 | Commissions (`/commissions`) | Rapprochement mensuel avec le relevé de SanlamAllianz et la facture FNE du mois (« À émettre » sinon), factures FNE de l'agence et leur annulation, taux par branche, contrats sans prime nette | gérant, auditeur (lecture) |
+| Lecture automatique (panneau, si l'API l'active) | Sur la fiche client (« Ajouter un véhicule » : carte grise), l'identification (pièce d'identité, depuis un justificatif enregistré ou une photo), la fiche d'un sinistre (constat amiable, résumé ajouté à la note interne) et une demande du site (carte grise jointe) : contrôles affichés (zone lisible par machine, pièce expirée, châssis), valeurs proposées, report dans le formulaire avec les champs surlignés ; rien n'est enregistré avant que la personne vérifie et enregistre ([ADR 0015](../../docs/architecture/adr/0015-lecture-automatique.md)) | carte grise : gérant, chargé, commercial ; pièce d'identité et constat : gérant, chargé |
 | Personnel (`/personnel`) | Comptes, rôles, désactivation, réinitialisation de l'accès ; mot de passe provisoire montré une seule fois | gérant |
 | Mon compte (`/mon-compte`) | Changement de mot de passe | tous |
 
@@ -80,6 +81,7 @@ Il construit l'API et le back-office, prépare une base de test neuve (`tests/e2
 6. clôture de caisse avec billetage ;
 7. bordereau de reversement, que son auteur ne peut pas valider, et export pour Excel ;
 8. flotte d'un transporteur : import, avenants au prorata, attestation, sinistre suivi jusqu'à la page Sinistres, accès à l'espace client ;
+8. bis. lecture automatique d'une carte grise (lecteur simulé) sur la fiche du client, report dans « Ajouter un véhicule », puis enregistrement du véhicule ;
 9. taux de commission, création d'un compte, puis déconnexion.
 
 Toute violation de la politique de sécurité du contenu fait échouer le test. La même vérification tourne dans l'intégration continue (« Back-office »).

@@ -85,6 +85,20 @@ test("parcours du gérant, de la première connexion à la caisse et au reversem
   await page.getByRole("button", { name: "Noter" }).click();
   await expect(page.getByText("Appelé pour confirmer la liste des véhicules")).toBeVisible();
 
+  // --- Lecture automatique d'une carte grise (tâche 14, lecteur simulé) : valeurs proposées, vérifiées, puis enregistrées
+  await page.getByRole("button", { name: "Ajouter un véhicule" }).click();
+  const lecture = page.getByRole("group", { name: "Lecture automatique de la carte grise" });
+  const photoCarteGrise = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
+  await lecture.getByLabel("Photo ou PDF (5 Mo au plus)").setInputFiles({ name: "carte-grise.png", mimeType: "image/png", buffer: photoCarteGrise });
+  await lecture.getByRole("button", { name: "Lire le document" }).click();
+  await expect(lecture.getByText(/vérifiez chacune avec le document/)).toBeVisible();
+  await lecture.getByRole("button", { name: "Pré-remplir le véhicule avec ces valeurs" }).click();
+  await expect(page.getByLabel("Immatriculation", { exact: true })).toHaveValue("4521 KM 01");
+  await expect(page.getByLabel("N° de châssis (VIN)")).toHaveValue("JTDBR32E720123456");
+  await expect(page.getByLabel("Immatriculation", { exact: true })).toHaveClass(/saisie-lue/);
+  await page.getByRole("button", { name: "Ajouter le véhicule" }).click();
+  await expect(page.getByText("4521 KM 01").first()).toBeVisible();
+
   // --- Encaissement au guichet : le reçu s'ouvre, le contrat entre en vigueur de lui-même
   await ligneContrat.getByRole("link", { name: "Encaisser" }).click();
   await expect(page.getByRole("heading", { name: /SA-2026-0042/ })).toBeVisible();

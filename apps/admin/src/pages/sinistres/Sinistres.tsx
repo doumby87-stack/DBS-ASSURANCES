@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Alerte, Badge, Chargement, Section, Vide } from "../../composants/communs";
+import { LectureAutomatique, resumeConstat } from "../../composants/LectureAutomatique";
 import { Lien } from "../../routeur";
 import { api, ErreurApi, messageErreur } from "../../services/api";
 import { dateCourte, dateHeure, lienWhatsApp, NATURES_SINISTRE, STATUTS_SINISTRE, telephone } from "../../services/format";
@@ -210,6 +211,14 @@ export function FicheSinistre({ id }: { id: string }) {
           </ul>
         )}
         <p className="note">Chaque document a été analysé par l'antivirus à son arrivée ; chaque téléchargement est consigné.</p>
+        {gestion && (
+          <LectureAutomatique
+            document="constat_amiable"
+            pieces={pieces.filter((p) => p.etatAnalyse === "saine").map((p) => ({ id: p.id, libelle: p.nom, source: "pieceSinistreId" as const }))}
+            libelleReport="Ajouter ce résumé à la note interne"
+            onLu={({ champs }) => setNote((avant) => [avant.trim(), resumeConstat(champs)].filter(Boolean).join("\n\n").slice(0, 4000))}
+          />
+        )}
       </Section>
 
       {gestion && (
@@ -226,7 +235,7 @@ export function FicheSinistre({ id }: { id: string }) {
               <input value={reference} maxLength={60} onChange={(e) => setReference(e.target.value)} />
             </label>
             <label className="champ">
-              <span className="champ__libelle">Note interne (jamais montrée au client)</span>
+              <span className="champ__libelle">Note interne (jamais montrée au client) : vérifiez-la avant d'enregistrer le suivi</span>
               <textarea value={note} maxLength={4000} rows={4} onChange={(e) => setNote(e.target.value)} />
             </label>
             <button type="submit" className="bouton bouton--principal">Enregistrer le suivi</button>
