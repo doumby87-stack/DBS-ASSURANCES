@@ -1,6 +1,6 @@
 # En-têtes de sécurité HTTP
 
-Le site vitrine les reçoit de son hébergeur grâce au fichier [`apps/site-vitrine/public/_headers`](../../apps/site-vitrine/public/_headers), copié tel quel dans le site construit et lu par Netlify et Cloudflare Pages. Le back-office et l'espace client recevront les mêmes, au moins aussi stricts.
+Le site vitrine les reçoit de son hébergeur grâce au fichier [`apps/site-vitrine/public/_headers`](../../apps/site-vitrine/public/_headers), copié tel quel dans le site construit et lu par Netlify et Cloudflare Pages. Le back-office et l'espace client reçoivent les mêmes, avec `connect-src 'self'` et `Referrer-Policy: no-referrer`, du serveur web de production ([`infra/production/Caddyfile`](../../infra/production/Caddyfile)) ; `infra/tests/production.sh` les vérifie à chaque modification.
 
 | En-tête | Valeur | Effet |
 | --- | --- | --- |

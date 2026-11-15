@@ -208,7 +208,7 @@ Le mot de passe provisoire s'affiche une seule fois. Ensuite, tous les comptes s
 
 **Risques connus :**
 
-- Quelqu'un qui connaît l'adresse e-mail d'un membre du personnel peut bloquer son compte en se trompant volontairement de mot de passe. Un autre gérant le débloque en réinitialisant son accès. Le pare-feu applicatif prévu en production (tâche 11) limitera aussi ces tentatives.
+- Quelqu'un qui connaît l'adresse e-mail d'un membre du personnel peut bloquer son compte en se trompant volontairement de mot de passe. Un autre gérant le débloque en réinitialisant son accès. Un pare-feu applicatif devant le serveur web (hébergeur ou Cloudflare, [ADR 0017](../../docs/architecture/adr/0017-mise-en-production.md)) peut aussi limiter ces tentatives.
 - Le personnel qui travaille derrière la même connexion Internet (la box de l'agence) partage le compteur par adresse IP : 20 échecs en 15 minutes, toutes personnes confondues, suspendent les connexions depuis l'agence pendant 15 minutes.
 
 ## Tests

@@ -10,7 +10,7 @@
 --     les paiements soldent la dette la plus ancienne d'abord (échéances et avenants, dans l'ordre des dates) ;
 --   · une échéance en retard ne suspend pas le contrat d'elle-même : la suspension suit une mise en demeure,
 --     décidée par l'agence. La base signale le retard, le client est relancé (J-7, puis une fois en retard).
--- Conception : docs/architecture/adr/0015-paiement-fractionne.md
+-- Conception : docs/architecture/adr/0016-paiement-fractionne.md
 -- =====================================================================
 
 CREATE TABLE app.echeances_paiement (

@@ -91,7 +91,7 @@ Bonjour {{1}}, {{2}} : {{3}}. Pour rouler en règle, pensez à les renouveler à
 
 ### `dbs_echeance_paiement`
 
-Échéance d'une prime payée en plusieurs fois (contrats flotte, [ADR 0015](../architecture/adr/0015-paiement-fractionne.md)) : 7 jours avant la date, puis une fois si l'échéance n'est pas réglée (dans les 15 jours qui suivent). Chaque étape d'une échéance n'est envoyée qu'une fois.
+Échéance d'une prime payée en plusieurs fois (contrats flotte, [ADR 0016](../architecture/adr/0016-paiement-fractionne.md)) : 7 jours avant la date, puis une fois si l'échéance n'est pas réglée (dans les 15 jours qui suivent). Chaque étape d'une échéance n'est envoyée qu'une fois.
 
 ```text
 Bonjour {{1}}, l'échéance de {{2}} de votre assurance {{3}} {{4}}. Vous pouvez la régler à l'agence ou par Mobile Money. Pour toute question, répondez à ce message ou appelez DBS-ASSURANCES au 07 49 36 07 02.

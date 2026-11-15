@@ -18,7 +18,8 @@ Chaque décision importante est écrite ici, avec son contexte et ses conséquen
 | [0012](0012-espace-client-et-paiement-en-ligne.md) | Espace client : particuliers, paiement Mobile Money vérifié auprès du prestataire, sinistres déclarés en ligne | Acceptée (prestataire réel à choisir) |
 | [0013](0013-conformite-et-pilotage.md) | Conformité et pilotage : identification des clients, alertes, réclamations, FNE, statistiques | Acceptée (seuils et délais à confirmer) |
 | [0014](0014-outils-du-site.md) | Outils du site : rappel d'échéance gratuit, assistant « appel d'offres », prise de rendez-vous | Acceptée (estimation en attente de SanlamAllianz) |
-| [0015](0015-paiement-fractionne.md) | Paiement de la prime d'une flotte en plusieurs fois : échéancier, mise en vigueur à la première échéance, relances | Acceptée (conditions à confirmer avec SanlamAllianz) |
+| [0016](0016-paiement-fractionne.md) | Paiement de la prime d'une flotte en plusieurs fois : échéancier, mise en vigueur à la première échéance, relances | Acceptée (conditions à confirmer avec SanlamAllianz) |
+| [0017](0017-mise-en-production.md) | Mise en production : un serveur, Docker Compose, Caddy, sauvegardes chiffrées hors site et restauration testée chaque mois | Acceptée (hébergeur à choisir) |
 
 ## Modèle
 

@@ -21,7 +21,7 @@ Légende : ✅ terminé · 🔜 prochaine · ⏳ plus tard · 🧑‍💼 tâche
 - [ ] Déclarer le traitement des données clients à l'**ARTCI** et demander, si l'hébergement est hors de Côte d'Ivoire, l'autorisation de transfert ([données personnelles](conformite/donnees-personnelles.md)).
 - [ ] Choisir l'**hébergeur** de l'application ([ADR 0006](architecture/adr/0006-hebergement-et-localisation-des-donnees.md)).
 - [ ] Choisir et réserver le **nom de domaine**, puis créer une adresse e-mail professionnelle (fin de l'adresse Gmail) avec protection contre l'usurpation (SPF, DKIM, DMARC).
-- [ ] Demander à **SanlamAllianz** : ce que fournit son extranet, le format de ses états de production et de commissions, sa procédure de lutte contre le blanchiment pour les agents, et son accord sur l'usage du logo ; pour la caisse, le format des bordereaux et les taux de commission par branche ; pour le paiement des flottes en plusieurs fois (déjà possible dans l'outil), les contrats concernés, les frais de fractionnement, la période des attestations et la procédure en cas d'échéance impayée ([ADR 0015](architecture/adr/0015-paiement-fractionne.md)) ; pour les flottes, les frais d'avenant éventuels, la ristourne minimale ou la retenue sur un retrait, et le format attendu pour la cotation en lot.
+- [ ] Demander à **SanlamAllianz** : ce que fournit son extranet, le format de ses états de production et de commissions, sa procédure de lutte contre le blanchiment pour les agents, et son accord sur l'usage du logo ; pour la caisse, le format des bordereaux et les taux de commission par branche ; pour le paiement des flottes en plusieurs fois (déjà possible dans l'outil), les contrats concernés, les frais de fractionnement, la période des attestations et la procédure en cas d'échéance impayée ([ADR 0016](architecture/adr/0016-paiement-fractionne.md)) ; pour les flottes, les frais d'avenant éventuels, la ristourne minimale ou la retenue sur un retrait, et le format attendu pour la cotation en lot.
 - [ ] Demander à l'**ASACI** (ou à SanlamAllianz) l'accès à la plateforme des attestations digitales : émission et vérification par l'agence, et s'il existe un moyen de l'interroger depuis l'application (tâche 10).
 - [ ] Confirmer la **source réglementaire du plafond d'espèces** de 1 000 000 F CFA par police, appliqué par la base.
 - [ ] Ouvrir un **compte marchand** de paiement Mobile Money (agrégateur comme CinetPay ou PayDunya, ou contrat direct avec un opérateur) au nom de la société, plutôt que d'utiliser un numéro personnel, et transmettre sa documentation d'intégration (vérification d'un paiement, signature des notifications) pour brancher le paiement en ligne (tâche 9).
@@ -33,7 +33,10 @@ Légende : ✅ terminé · 🔜 prochaine · ⏳ plus tard · 🧑‍💼 tâche
 - [ ] Activer les **protections GitHub** ([paramètres GitHub](securite/parametres-github.md)).
 - [ ] Préparer la **reprise des données** : liste des clients, contrats en cours (n° de police, dates, primes, véhicules) et encaissements non encore reversés, sous forme d'export de l'extranet ou de classeur Excel ; un outil d'import contrôlé, sur le modèle de celui des flottes, sera fait à partir d'un fichier réel.
 - [ ] Désigner le **personnel** qui aura un compte et son rôle (gérant, chargé de clientèle, caissier, commercial, apporteur, auditeur) ; chacun installe une application d'authentification (deuxième facteur) sur son téléphone.
-- [ ] Une fois l'hébergeur choisi : installer le démon **ClamAV** à côté de l'API, renseigner les variables (`URL_SITE_VITRINE`, `ANTIVIRUS_ADRESSE`, clés WhatsApp et SMS) dans l'API et `URL_API` dans Netlify, puis **tester une restauration** de sauvegarde ([sauvegardes](securite/sauvegardes-et-reprise.md)).
+- [ ] Choisir un **stockage hors site** pour les sauvegardes, chez un second fournisseur, en écriture unique (verrouillage des objets), le **canal des alertes** et une **surveillance extérieure** du site ([ADR 0017](architecture/adr/0017-mise-en-production.md)).
+- [ ] Une fois l'hébergeur choisi : faire installer la production par le prestataire technique, en suivant la [procédure de mise en service](../infra/production/mise-en-service.md), jusqu'à la première **restauration réussie** ; ranger la clé privée des sauvegardes au coffre-fort et sous pli scellé.
+- [ ] Choisir le prestataire du **test d'intrusion** sur [cahier des charges](securite/test-d-intrusion.md), le faire intervenir avant l'arrivée des données réelles, et signer son autorisation.
+- [ ] **Former le personnel** avant l'ouverture des comptes (une demi-journée, [plan de formation](securite/formation-du-personnel.md)), et enregistrer chaque session au back-office.
 
 ## ✅ Tâche 3 — API : socle sécurisé
 
@@ -99,7 +102,7 @@ Nouvelle application `apps/portail`, sur sa propre adresse, pour les entreprises
 - **attestations** déposées par l'agence (en lot, analysées, chiffrées), téléchargées une à une ou toutes ensemble ;
 - **historique des sinistres par véhicule**, avec leur déclaration et leur suivi au back-office ;
 - **isolement des entreprises par la base** (rôle `dbs_portail`) : une entreprise ne voit jamais les données d'une autre ;
-- **paiement de la flotte en plusieurs fois** ([ADR 0015](architecture/adr/0015-paiement-fractionne.md)) :
+- **paiement de la flotte en plusieurs fois** ([ADR 0016](architecture/adr/0016-paiement-fractionne.md)) :
   - **à l'agence** : l'échéancier est défini au back-office, de 2 à 12 échéances ;
   - **mise en vigueur** : le contrat entre en vigueur à la première échéance payée ;
   - **sur le portail** : l'entreprise voit son échéancier et paie en ligne l'échéance due ;
@@ -110,9 +113,19 @@ Nouvelle application `apps/portail`, sur sa propre adresse, pour les entreprises
 - relancer `database/initialisation/01_roles_et_base.sql` sur la base installée (nouveau rôle) ;
 - servir le portail sur sa propre adresse, avec l'API derrière `/api`, et la renseigner dans `URL_PORTAIL`.
 
-## ⏳ Tâche 11 — Mise en production
+## ✅ Tâche 11 — Mise en production
 
-Hébergement, sauvegardes testées, surveillance, test d'intrusion par un prestataire indépendant, formation du personnel (hameçonnage, mots de passe, procédure d'incident).
+Tout est prêt pour installer la production sur le serveur que l'agence choisira ([ADR 0017](architecture/adr/0017-mise-en-production.md)) :
+
+- **Pile** : Docker Compose sur un serveur Linux ; Caddy en façade (HTTPS automatique, en-têtes de sécurité, back-office et espace client) ; API sans privilège et en lecture seule ; antivirus ; migrations au démarrage ; base gérée par l'hébergeur, ou base sur le serveur.
+- **Sauvegardes** : chiffrées, copiées hors site sur un stockage immuable, restaurées et vérifiées automatiquement chaque mois, avec un registre ([sauvegardes](../infra/sauvegardes/README.md)).
+- **Surveillance** : contrôles tous les quarts d'heure et chaque matin, alertes au gérant et au prestataire ([surveillance](../infra/surveillance/README.md)).
+- **Procédures** : mise en service, ouverture des autres portes (site, espace client, paiement), mise à jour, reprise après incident ([mise en service](../infra/production/mise-en-service.md)).
+- **Essais** : à chaque modification, l'intégration continue démarre toute la pile, installe un premier gérant, vérifie HTTPS, en-têtes et isolement, puis sauvegarde et restaure.
+- **Test d'intrusion** : [cahier des charges](securite/test-d-intrusion.md) prêt pour consulter un prestataire indépendant.
+- **Formation** : [plan en quatre modules](securite/formation-du-personnel.md) (hameçonnage, mots de passe, incident, données personnelles), avec leurs questions, enregistré au back-office.
+
+*Avant l'ouverture (🧑‍💼, tâche 2) :* hébergeur, stockage hors site et canal des alertes choisis ; production installée et première restauration réussie ; test d'intrusion fait et ses corrections appliquées ; personnel formé.
 
 ## ✅ Tâche 12 — Conformité et pilotage
 

@@ -12,7 +12,7 @@ Deux journaux distincts, aux usages différents.
 - l'application n'a aucun accès au schéma `audit`, ni en lecture ni en écriture ;
 - chaque ligne contient l'empreinte SHA-256 de la précédente : `audit.verifier_chaine()` signale la première ligne modifiée ou supprimée.
 
-**Limite et parade** : un administrateur qui supprimerait les *dernières* lignes ne casse pas la chaîne. C'est pourquoi la dernière empreinte (`derniere_empreinte`, renvoyée par `audit.verifier_chaine()`) est copiée **chaque jour hors de la base** (e-mail au gérant et stockage hors site). Si la chaîne du lendemain ne prolonge pas l'empreinte de la veille, il y a eu suppression.
+**Limite et parade** : un administrateur qui supprimerait les *dernières* lignes ne casse pas la chaîne. C'est pourquoi la dernière empreinte (`derniere_empreinte`, renvoyée par `audit.verifier_chaine()`) est notée **à chaque sauvegarde hors de la base**, dans un fichier copié hors site et jamais supprimé (`infra/sauvegardes`). Chaque matin, la surveillance vérifie que cette empreinte existe toujours dans le journal ; chaque test de restauration la recherche dans la base restaurée. Si elle a disparu, il y a eu suppression.
 
 **Qui le lit** : le rôle `dbs_audit` (gérant via un outil dédié, expert-comptable, contrôleur). Le back-office affichera l'historique d'une fiche au gérant (tâche 4).
 
@@ -40,6 +40,6 @@ Les événements de sécurité sont aussi enregistrés dans la base, dans `secur
 
 | Fréquence | Contrôle | Qui |
 | --- | --- | --- |
-| Chaque jour (automatique) | `audit.verifier_chaine()` et copie de la dernière empreinte | Script programmé, alerte au gérant |
+| Chaque jour (automatique) | `audit.verifier_chaine()` et copie de la dernière empreinte | Sauvegarde et surveillance (`infra/surveillance`), alerte au gérant |
 | Chaque semaine | Échecs de connexion, comptes bloqués, exports | Gérant |
 | Chaque trimestre | Revue des comptes et des rôles ([contrôle des accès](controle-des-acces.md)) | Gérant |

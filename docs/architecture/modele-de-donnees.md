@@ -306,7 +306,7 @@ erDiagram
 | `app.v_sinistres_suivi` | Délai de déclaration et, pour un sinistre corporel, date limite indicative de l'offre. |
 | `app.v_consentements` | Dernier choix de chaque client pour chaque canal de relance. |
 | `app.v_avenants_flotte` | Avenants de flotte avec leur règlement (les encaissements au-delà de la prime de départ règlent les avenants dans l'ordre ; sur un contrat payé en plusieurs fois, la dette la plus ancienne d'abord) et leur annulation éventuelle. |
-| `app.v_dettes_fractionnees` | Contrat payé en plusieurs fois : ses échéances et ses avenants dans l'ordre des dates, avec la part payée de chacun ([ADR 0015](adr/0015-paiement-fractionne.md)). |
+| `app.v_dettes_fractionnees` | Contrat payé en plusieurs fois : ses échéances et ses avenants dans l'ordre des dates, avec la part payée de chacun ([ADR 0016](adr/0016-paiement-fractionne.md)). |
 | `app.v_echeances_paiement` | Chaque échéance : payée, bientôt (15 jours), à venir ou en retard, le reste à payer, et les avenants impayés dus aussitôt. |
 | `app.v_relances_dues` | Relances dues aujourd'hui (échéance à J-30, J-15, J-7 et le jour même, contrat expiré depuis moins de 7 jours, devis sans réponse depuis 3 jours, avancement d'un sinistre) qui ne sont pas encore planifiées. |
 
@@ -322,7 +322,7 @@ Les rappels d'échéance et les appels d'offres sont des demandes du site d'une 
 
 ## À venir
 
-Documents des contrats (stockage de fichiers, tâche 11) ; purge des fiches d'identification à la fin de la durée légale de conservation, une fois celle-ci confirmée.
+Documents des contrats (gardés chiffrés dans la base, comme les autres pièces, [ADR 0017](adr/0017-mise-en-production.md)) ; purge des fiches d'identification à la fin de la durée légale de conservation, une fois celle-ci confirmée.
 
 Les demandes du site n'entrent que par la fonction `app.enregistrer_demande_site`, appelée sans utilisateur connecté par la route publique du formulaire : elle limite les envois par adresse (5 par heure) et par jour (300), et range les pièces jointes chiffrées (4 au plus, 12 Mo en tout, chacune avec sa nature et son rang) dans `app.pieces_demandes_site`, en ajout seul et hors du journal d'audit ; les rappels d'échéance et les appels d'offres en reçoivent aussi par leurs fonctions. Le verdict de l'antivirus ne s'enregistre que par `app.enregistrer_analyse_piece` ; la maintenance de l'API retrouve les pièces à analyser par `app.pieces_a_analyser` et supprime les demandes sans suite depuis 12 mois par `app.purger_demandes_site`, seule à pouvoir supprimer dans ces tables ([ADR 0009](adr/0009-demandes-de-devis-du-site.md)).
 
