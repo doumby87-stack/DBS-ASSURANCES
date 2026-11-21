@@ -13,7 +13,7 @@ Sources : [CIO Mag](https://cio-mag.com/?p=38189), [Osiris](https://www.osiris.s
 Le site publié n'enregistre rien : le formulaire prépare un message que le visiteur envoie lui-même. L'enregistrement des demandes (tâche 7) est prêt mais **ne s'active que si le site est construit avec l'adresse de l'API** ([ADR 0009](../architecture/adr/0009-demandes-de-devis-du-site.md)) ; les textes du formulaire et des mentions légales changent alors d'eux-mêmes. **Avant de l'activer, et avant que le back-office enregistre la moindre donnée réelle**, il faut :
 
 - [ ] faire la formalité auprès de l'ARTCI pour les traitements ci-dessous, et obtenir le récépissé ou l'autorisation ;
-- [ ] obtenir l'autorisation de transfert si l'hébergement ou des sauvegardes sont hors de Côte d'Ivoire ([ADR 0006](../architecture/adr/0006-hebergement-et-localisation-des-donnees.md)), et avant d'activer la lecture automatique des documents chez Anthropic ([ADR 0015](../architecture/adr/0015-lecture-automatique.md)) ;
+- [ ] obtenir l'autorisation de transfert si l'hébergement ou des sauvegardes sont hors de Côte d'Ivoire ([ADR 0006](../architecture/adr/0006-hebergement-et-localisation-des-donnees.md)) ;
 - [x] préparer la section « Données personnelles » des mentions légales et les textes du formulaire pour l'enregistrement des demandes (affichés automatiquement à l'activation) ;
 - [ ] signer avec chaque sous-traitant un engagement de confidentialité et de sécurité.
 
@@ -30,7 +30,7 @@ Le site publié n'enregistre rien : le formulaire prépare un message que le vis
 | Sinistres | Déclaration et suivi | Circonstances, photos, constats, parfois données médicales | Agence, SanlamAllianz, experts | Clôture + 10 ans | ADR 0006 |
 | Relances | Prévenir des échéances, des devis restés sans réponse et de l'avancement des sinistres | Nom, téléphone, branche, n° de police, dates ; accord ou refus du client et sa preuve | Agence, Meta (WhatsApp), opérateur SMS | Durée du contrat ; preuve du consentement : tant que la relation dure, puis 5 ans | Hors de Côte d'Ivoire (Meta) |
 | Lutte contre le blanchiment | Obligation légale | Identification, bénéficiaires effectifs, alertes | Agence, correspondant LBC/FT de SanlamAllianz | Fin de relation + 10 ans | ADR 0006 |
-| Lecture automatique des documents (si activée) | Pré-remplir les fiches, vérifiées par une personne | Image de la carte grise, de la pièce d'identité ou du constat, le temps de la lecture ; journal : qui, quand, quel document | Agence, Anthropic (sous-traitant) | Images et valeurs lues : rien n'est gardé par l'agence en dehors des fiches enregistrées ; chez Anthropic : selon le contrat ; journal : comme le journal de sécurité | Hors de Côte d'Ivoire (Anthropic) |
+| Lecture automatique des documents (si activée) | Pré-remplir les fiches, vérifiées par une personne | Image de la carte grise, de la pièce d'identité ou du constat, le temps de la lecture ; journal : qui, quand, quel document | Agence | Images et valeurs lues : rien n'est gardé en dehors des fiches enregistrées ; journal : comme le journal de sécurité | Serveurs de l'agence (ADR 0006) ; aucun tiers |
 | Comptes du personnel | Sécurité des accès | Nom, e-mail, rôle, journaux de connexion | Agence | Départ + 1 an (journal d'audit : 10 ans) | ADR 0006 |
 
 ## Relances et consentement
@@ -45,7 +45,9 @@ Une demande qui n'est pas devenue un devis est **supprimée automatiquement 12 m
 
 ## Lecture automatique des documents
 
-Désactivée tant que l'autorisation de transfert n'est pas obtenue ([ADR 0015](../architecture/adr/0015-lecture-automatique.md)). Une fois activée, une personne de l'agence choisit de faire lire un document précis ; l'image part chez Anthropic, après une analyse antivirus, et seules les valeurs lues reviennent, pour pré-remplir un formulaire que la personne vérifie et enregistre elle-même. Ni l'image ni les valeurs ne sont gardées en dehors de ce qui est enregistré dans la fiche ; le journal de sécurité note qui a fait lire quel document, sans les valeurs. Avant l'activation : contrat de sous-traitance avec Anthropic (conditions commerciales et avenant de protection des données, durée de conservation des requêtes chez lui), mention dans l'information remise aux clients.
+La lecture se fait sur les serveurs de l'agence : par l'API elle-même, ou par un modèle installé sur une machine de l'agence ([ADR 0015](../architecture/adr/0015-lecture-automatique.md)). **Aucune image ne part chez un tiers**, il n'y a ni transfert hors de Côte d'Ivoire ni sous-traitant de plus.
+
+Une personne de l'agence choisit de faire lire un document précis, après une analyse antivirus. Les valeurs lues pré-remplissent un formulaire, qu'elle vérifie et enregistre elle-même. Ni l'image ni les valeurs ne sont gardées en dehors de ce qui est enregistré dans la fiche. Le journal de sécurité note qui a fait lire quel document, sans les valeurs.
 
 ## Droits des personnes
 
@@ -53,4 +55,4 @@ Accès, rectification, opposition et suppression (dans les limites des obligatio
 
 ## Sous-traitants prévus
 
-Hébergeur (ADR 0006), Meta (WhatsApp Business), opérateur SMS, prestataire de paiement (CinetPay ou autre), Anthropic (lecture automatique des documents, si activée), Netlify (site vitrine, sans donnée personnelle tant que le formulaire n'enregistre rien).
+Hébergeur (ADR 0006), Meta (WhatsApp Business), opérateur SMS, prestataire de paiement (CinetPay ou autre), Netlify (site vitrine, sans donnée personnelle tant que le formulaire n'enregistre rien).
