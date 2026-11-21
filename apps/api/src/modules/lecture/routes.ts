@@ -3,7 +3,7 @@
 // photo jointe à un sinistre, carte grise jointe à une demande du site). Il est analysé par l'antivirus, lu, puis
 // les valeurs sont contrôlées et renvoyées pour pré-remplir un formulaire : rien n'est enregistré, la personne
 // vérifie chaque champ avec le document. Chaque lecture est consignée au journal de sécurité, sans les valeurs,
-// et chacun est limité à 30 lectures par heure (coût et abus).
+// et chacun est limité à 30 lectures par heure (charge du serveur, lecture en masse).
 
 import { createHash } from "node:crypto";
 import type { FastifyInstance } from "fastify";
@@ -54,6 +54,8 @@ export async function routesLecture(
   options: { pool: Pool; gardes: Gardes; cleChiffrement: Buffer; antivirus: Antivirus; lecteur: LecteurDocuments | null },
 ): Promise<void> {
   const { pool, gardes, cleChiffrement, antivirus, lecteur } = options;
+  // Le moteur de reconnaissance tourne dans un fil d'exécution à part : il s'arrête avec l'API
+  if (lecteur) app.addHook("onClose", () => lecteur.fermer());
 
   // Le back-office n'affiche les boutons de lecture que si elle est disponible
   app.get("/lecture-automatique", { preHandler: gardes.sessionComplete() }, async () => ({

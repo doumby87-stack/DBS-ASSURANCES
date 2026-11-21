@@ -1,11 +1,15 @@
-// Lecture automatique (tâche 14) : zone lisible par machine (spécimens de la norme ICAO 9303), nettoyage des
-// valeurs reçues, contrôles proposés à la personne, et appel à l'API d'Anthropic (réseau simulé).
+// Lecture automatique (tâche 14) : zone lisible par machine (spécimens de la norme ICAO 9303) et sa correction,
+// analyse du texte reconnu, nettoyage des valeurs, contrôles proposés à la personne, lecteur local sur de vraies
+// images (documents fictifs de tests/donnees/lecture) et lecteur Ollama (réseau simulé).
 
-import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { afterAll, describe, expect, it } from "vitest";
+import { analyserTexte } from "../../src/integrations/lecture/analyse-locale.js";
 import { controler } from "../../src/integrations/lecture/controles.js";
 import { nettoyer, type ChampsCarteGrise, type ChampsConstat, type ChampsPieceIdentite } from "../../src/integrations/lecture/documents.js";
 import { creerLecteur } from "../../src/integrations/lecture/lecteur.js";
-import { analyserMrz, chiffreControle } from "../../src/integrations/lecture/mrz.js";
+import { analyserMrz, chiffreControle, extraireMrz } from "../../src/integrations/lecture/mrz.js";
+import { creerOcr, dimensions, imageDuPdf } from "../../src/integrations/lecture/ocr.js";
 
 // Spécimens publiés dans la norme ICAO 9303 (pays fictif « UTO »)
 const PASSEPORT = ["P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<", "L898902C36UTO7408122F1204159ZE184226B<<<<<10"];
@@ -94,74 +98,185 @@ describe("contrôles proposés à la personne", () => {
   });
 });
 
-describe("lecteur Claude (API d'Anthropic, réseau simulé)", () => {
-  type Appel = { url: string; entetes: Headers; corps: Record<string, unknown> };
-  function reseau(reponse: { statut: number; corps: object }) {
+describe("zone lisible par machine retrouvée dans un texte reconnu", () => {
+  const SPECIMEN = ["P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<", "L898902C36UTO7408122F3404159ZE184226B<<<<<16"];
+
+  it("retire les espaces, remet lettres et chiffres à leur place (UT0 → UTO, O dans une date → 0)", () => {
+    const lu = ["Date d'expiration 15/04/2034", "P<UTOERI KSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<", "L898902C36UT074O8122F3404159ZE 184226B<<<<<16"];
+    expect(extraireMrz(lu)).toEqual(SPECIMEN);
+  });
+
+  it("corrige le numéro quand un seul échange de sosies (0/O, 1/I, 8/B…) rend ses chiffres de contrôle justes", () => {
+    const lu = [SPECIMEN[0]!, SPECIMEN[1]!.replace("L898902C3", "L8989O2C3")];
+    expect(extraireMrz(lu)).toEqual(SPECIMEN);
+    expect(analyserMrz(extraireMrz(lu)!, AUJOURDHUI)?.valide).toBe(true);
+  });
+
+  it("carte au format TD1 ; « « » lu à la place de « < » ; rien quand il n'y a pas de zone", () => {
+    expect(extraireMrz(["I<UTOD231458907«<<<<<<<<<<<<<<", "74O8122F12O4159UTO<<<<<<<<<<<6", "ERIKSSON<<ANNA<MARIA<<<<<<<<<<"])).toEqual(CARTE);
+    expect(extraireMrz(["Nom ERIKSSON", "Prénoms ANNA MARIA"])).toBeNull();
+  });
+});
+
+describe("analyse du texte reconnu", () => {
+  const texte = (lignes: string[], confiance = 90) => ({ lignes: lignes.map((t) => ({ texte: t, confiance })), confiance });
+
+  it("carte grise : libellés retrouvés malgré les accents et une faute, valeurs sur la ligne suivante, formes corrigées", () => {
+    const champs = nettoyer("carte_grise", analyserTexte("carte_grise", texte([
+      "CERTIFICAT D'IMMATRICULATION", "N° d'immatriculation 4521 KM 01", "Date de 1re mise en circulation", "14/O3/2019",
+      "Nom ou raison sociale KONE MARIAM", "Marque : TOYOTA", "Type COROLLA", "Genre vP", "Energle ESS", "Puissance fiscale", "8cv",
+      "Places assises 5", "N° de série (châssis) JTDBR32E72OI23456", "Usage PROMENADE ET AFFAIRES",
+    ]), AUJOURDHUI));
+    expect(champs).toEqual({
+      documentReconnu: true, lisibilite: "bonne", remarques: null,
+      immatriculation: "4521 KM 01", numeroChassis: "JTDBR32E720123456", marque: "TOYOTA", modele: "COROLLA", genre: "Voiture particulière",
+      energie: "Essence", puissanceFiscale: 8, placesAssises: 5, datePremiereMiseEnCirculation: "2019-03-14", proprietaire: "KONE MARIAM",
+      usage: "PROMENADE ET AFFAIRES",
+    });
+  });
+
+  it("carte grise : sans libellés, l'immatriculation et le châssis se retrouvent à leur forme ; autre document : non reconnu", () => {
+    const champs = nettoyer("carte_grise", analyserTexte("carte_grise", texte(["photo floue", "7712 GH 01", "VF1 RFB00 567 123456"], 40), AUJOURDHUI));
+    expect(champs).toMatchObject({ documentReconnu: false, lisibilite: "mauvaise", immatriculation: "7712 GH 01", numeroChassis: "VF1RFB00567123456" });
+  });
+
+  it("pièce d'identité : la zone lisible par machine, juste, fait foi ; le reste vient des libellés", () => {
+    const champs = nettoyer("piece_identite", analyserTexte("piece_identite", texte([
+      "PASSEPORT — UTOPIA", "N° du passeport L898902C8", "Nom ERIKSSON", "Prénoms ANNA MARIA", "Date de naissance 12/08/1974", "sexe F",
+      "Lieu de naissance ZENITH", "Date de délivrance 16/04/2024", "Date d'expiration 15/04/2034",
+      "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<", "L898902C36UT07408122F3404159ZE184226B<<<<<16",
+    ]), AUJOURDHUI)) as ChampsPieceIdentite;
+    expect(champs).toMatchObject({
+      documentReconnu: true, typePiece: "passeport", numero: "L898902C3", nom: "ERIKSSON", prenoms: "ANNA MARIA", dateNaissance: "1974-08-12",
+      lieuNaissance: "ZENITH", sexe: "F", dateDelivrance: "2024-04-16", dateExpiration: "2034-04-15",
+    });
+    expect(controler("piece_identite", champs, AUJOURDHUI)).toContainEqual(expect.objectContaining({ champ: "numero", niveau: "ok" }));
+  });
+
+  it("carte d'identité ivoirienne sans zone lue : libellés seulement ; nationalité déduite du code du pays", () => {
+    const sansZone = nettoyer("piece_identite", analyserTexte("piece_identite", texte([
+      "RÉPUBLIQUE DE CÔTE D'IVOIRE", "CARTE NATIONALE D'IDENTITÉ", "N° C 0012345678", "Nom KOUASSI", "Prénoms AWA", "Né(e) le 03/02/1990",
+      "Sexe F", "Date d'expiration 02/02/2030",
+    ]), AUJOURDHUI));
+    expect(sansZone).toMatchObject({ typePiece: "cni", numero: "0012345678", nom: "KOUASSI", prenoms: "AWA", dateNaissance: "1990-02-03", dateExpiration: "2030-02-02", mrz: null });
+    const avecZone = nettoyer("piece_identite", analyserTexte("piece_identite", texte(["IDCIVC0012345<6<<<<<<<<<<<<<<<", "9002034F3002028CIV<<<<<<<<<<<4", "KOUASSI<<AWA<<<<<<<<<<<<<<<<<<"]), AUJOURDHUI));
+    expect(avecZone).toMatchObject({ typePiece: "cni", nationalite: "Ivoirienne", nom: "KOUASSI", prenoms: "AWA" });
+  });
+
+  it("constat : date, heure, lieu et immatriculations seulement, lecture toujours signalée partielle", () => {
+    const champs = nettoyer("constat_amiable", analyserTexte("constat_amiable", texte([
+      "CONSTAT AMIABLE D'ACCIDENT AUTOMOBILE", "1. Date de l'accident 28/10/2026 Heure 8h40", "2. Lieu Carrefour Siporex, Yopougon",
+      "Véhicule A 2024 KM 01", "Véhicule B 7712 GH 01",
+    ], 60), AUJOURDHUI)) as ChampsConstat;
+    expect(champs).toMatchObject({ documentReconnu: true, lisibilite: "partielle", date: "2026-10-28", heure: "08:40", lieu: "Carrefour Siporex, Yopougon" });
+    expect(champs.vehicules.map((v) => [v.lettre, v.immatriculation])).toEqual([["A", "2024 KM 01"], ["B", "7712 GH 01"]]);
+  });
+});
+
+describe("photo extraite d'un PDF", () => {
+  it("reprend la plus grande image JPEG ; rien dans un PDF sans photo", () => {
+    const petite = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 0xff, 0xd9]);
+    const grande = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(50, 7), Buffer.from([0xff, 0xd9])]);
+    const objet = (n: number, image: Buffer) => Buffer.concat([
+      Buffer.from(`${n} 0 obj\n<< /Type /XObject /Subtype /Image /Width 10 /Height 10 /Filter /DCTDecode /Length ${image.length} >>\nstream\n`, "latin1"),
+      image, Buffer.from("\nendstream\nendobj\n", "latin1"),
+    ]);
+    const pdf = Buffer.concat([Buffer.from("%PDF-1.4\n", "latin1"), objet(1, petite), objet(2, grande), Buffer.from("%%EOF\n", "latin1")]);
+    expect(imageDuPdf(pdf)?.equals(grande)).toBe(true);
+    expect(imageDuPdf(Buffer.from("%PDF-1.4\n1 0 obj\n<< /Length 5 >>\nstream\nBT ET\nendstream\nendobj\n%%EOF\n"))).toBeNull();
+  });
+});
+
+describe("lecteur local (Tesseract) sur de vraies images", () => {
+  const ocr = creerOcr();
+  afterAll(() => ocr.fermer());
+  const lecteur = creerLecteur({ prestataire: "local" }, { ocr, aujourdhui: () => AUJOURDHUI })!;
+  const exemple = (nom: string) => readFileSync(new URL(`../donnees/lecture/${nom}`, import.meta.url));
+
+  it("lit la photo d'une carte grise (penchée, un peu floue)", async () => {
+    const resultat = await lecteur.lire("carte_grise", { contenu: exemple("carte-grise-photo.jpg"), type: "image/jpeg" });
+    expect(resultat).toMatchObject({
+      ok: true,
+      champs: {
+        documentReconnu: true, immatriculation: "4521 KM 01", numeroChassis: "JTDBR32E720123456", marque: "TOYOTA", modele: "COROLLA",
+        energie: "Essence", puissanceFiscale: 8, placesAssises: 5, datePremiereMiseEnCirculation: "2019-03-14", proprietaire: "KONE MARIAM",
+      },
+    });
+  }, 30_000);
+
+  it("lit la photo d'un passeport : zone lisible par machine corrigée et confirmée", async () => {
+    const resultat = await lecteur.lire("piece_identite", { contenu: exemple("passeport-photo.jpg"), type: "image/jpeg" });
+    if (!resultat.ok) throw new Error(resultat.message);
+    expect(resultat.champs).toMatchObject({ typePiece: "passeport", numero: "L898902C3", nom: "ERIKSSON", prenoms: "ANNA MARIA", dateExpiration: "2034-04-15" });
+    expect(controler("piece_identite", resultat.champs, AUJOURDHUI)).toEqual([
+      { champ: "numero", niveau: "ok", message: "Numéro et dates confirmés par la zone lisible par machine (chiffres de contrôle justes)." },
+    ]);
+  }, 30_000);
+
+  it("lit la taille des images sans les décoder, et refuse celles qui seraient démesurées une fois décodées", async () => {
+    expect(dimensions(exemple("carte-grise.png"))).toMatchObject({ largeur: expect.any(Number), hauteur: expect.any(Number) });
+    const { largeur, hauteur } = dimensions(exemple("carte-grise-photo.jpg"))!;
+    expect(largeur).toBeGreaterThan(800);
+    expect(hauteur).toBeGreaterThan(400);
+    // En-tête d'un PNG de 20 000 × 20 000 pixels (400 millions) : refusé avant toute lecture
+    const geant = Buffer.from(exemple("carte-grise.png"));
+    geant.writeUInt32BE(20_000, 16);
+    geant.writeUInt32BE(20_000, 20);
+    expect(await lecteur.lire("carte_grise", { contenu: geant, type: "image/png" }))
+      .toMatchObject({ ok: false, raison: "illisible", message: expect.stringContaining("trop grande") });
+  });
+
+  it("un fichier qui n'est pas une image, ou un PDF sans photo, n'est pas lu", async () => {
+    expect(await lecteur.lire("carte_grise", { contenu: Buffer.from("pas une image"), type: "image/png" })).toMatchObject({ ok: false, raison: "illisible" });
+    expect(await lecteur.lire("carte_grise", { contenu: Buffer.from("%PDF-1.4\n%%EOF\n"), type: "application/pdf" }))
+      .toMatchObject({ ok: false, raison: "illisible", message: expect.stringContaining("photo") });
+  }, 30_000);
+});
+
+describe("lecteur Ollama (modèle ouvert sur une machine de l'agence, réseau simulé)", () => {
+  type Appel = { url: string; corps: Record<string, unknown> };
+  const config = { prestataire: "ollama" as const, adresse: "http://127.0.0.1:11434", modele: "modele-de-test" };
+  const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
+  function reseau(statut: number, corps: unknown) {
     const appels: Appel[] = [];
     const recuperer = (async (url: string | URL | Request, init?: RequestInit) => {
-      appels.push({ url: String(url), entetes: new Headers(init?.headers), corps: JSON.parse(String(init?.body)) });
-      return new Response(JSON.stringify(reponse.corps), { status: reponse.statut, headers: { "content-type": "application/json" } });
+      appels.push({ url: String(url), corps: JSON.parse(String(init?.body)) });
+      return new Response(JSON.stringify(corps), { status: statut, headers: { "content-type": "application/json" } });
     }) as typeof fetch;
     return { appels, recuperer };
   }
-  const message = (texte: string, stopReason = "end_turn") => ({
-    id: "msg_test", type: "message", role: "assistant", model: "modele-de-test", content: [{ type: "text", text: texte }],
-    stop_reason: stopReason, stop_sequence: null, usage: { input_tokens: 1500, output_tokens: 300 },
-  });
-  const config = { prestataire: "anthropic" as const, cleApi: "cle-de-test", modele: "modele-de-test" };
-  const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
+  const reponse = (contenu: string, fin = "stop") => ({ model: "modele-de-test", message: { role: "assistant", content: contenu }, done: true, done_reason: fin });
 
-  it("envoie le fichier seul, avec le schéma du document et le repli en cas de refus ; nettoie la réponse", async () => {
-    const { appels, recuperer } = reseau({ statut: 200, corps: message(JSON.stringify({
-      documentReconnu: true, lisibilite: "bonne", remarques: null, immatriculation: "1234 ab 01", numeroChassis: null, marque: "Isuzu",
-      modele: null, genre: null, energie: null, puissanceFiscale: 12, placesAssises: 3, datePremiereMiseEnCirculation: null,
-      proprietaire: null, usage: null,
-    })) });
-    const lecteur = creerLecteur(config, { fetch: recuperer, maxRetries: 0 })!;
-    const resultat = await lecteur.lire("carte_grise", { contenu: PNG, type: "image/png" });
-    expect(resultat).toMatchObject({ ok: true, champs: { immatriculation: "1234 AB 01", marque: "Isuzu", puissanceFiscale: 12 } });
+  it("envoie l'image et le schéma du document à Ollama ; nettoie la réponse et corrige la zone lisible par machine", async () => {
+    const { appels, recuperer } = reseau(200, reponse(JSON.stringify({
+      documentReconnu: true, lisibilite: "bonne", remarques: null, typePiece: "passeport", numero: "L898902C3", nom: "ERIKSSON", prenoms: "ANNA MARIA",
+      dateNaissance: "1974-08-12", lieuNaissance: null, sexe: "F", nationalite: "Utopienne", dateDelivrance: null, dateExpiration: "2034-04-15",
+      mrz: ["P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<", "L898902C36UT07408122F3404159ZE184226B<<<<<16"],
+    })));
+    const resultat = await creerLecteur(config, { fetch: recuperer, aujourdhui: () => AUJOURDHUI })!.lire("piece_identite", { contenu: PNG, type: "image/png" });
+    if (!resultat.ok) throw new Error(resultat.message);
+    expect((resultat.champs as ChampsPieceIdentite).mrz?.[1]).toContain("UTO7408122");
+    expect(controler("piece_identite", resultat.champs, AUJOURDHUI).at(-1)).toMatchObject({ niveau: "ok" });
 
     expect(appels).toHaveLength(1);
-    const { url, entetes, corps } = appels[0]!;
-    expect(url).toContain("/v1/messages");
-    // La clé part dans un en-tête (x-api-key ou authorization, selon la version du SDK), jamais dans le corps
-    expect(entetes.get("x-api-key") ?? entetes.get("authorization")).toContain("cle-de-test");
-    expect(JSON.stringify(corps)).not.toContain("cle-de-test");
-    expect(entetes.get("anthropic-beta")).toContain("server-side-fallback-2026-07-01");
-    expect(corps).toMatchObject({
-      model: "modele-de-test", fallbacks: "default",
-      output_config: { effort: "medium", format: { type: "json_schema" } },
-    });
-    const contenu = (corps.messages as { content: { type: string; source?: { media_type: string; data: string } }[] }[])[0]!.content;
-    expect(contenu[0]).toMatchObject({ type: "image", source: { type: "base64", media_type: "image/png", data: PNG.toString("base64") } });
-    expect(contenu).toHaveLength(2);
+    expect(appels[0]!.url).toBe("http://127.0.0.1:11434/api/chat");
+    expect(appels[0]!.corps).toMatchObject({ model: "modele-de-test", stream: false, options: { temperature: 0 }, format: { type: "object" } });
+    const messages = appels[0]!.corps.messages as { role: string; images?: string[] }[];
+    expect(messages.map((m) => m.role)).toEqual(["system", "user"]);
+    expect(messages[1]!.images).toEqual([PNG.toString("base64")]);
   });
 
-  it("un PDF part comme document ; refus, réponse coupée, clé refusée et requête refusée deviennent des issues claires", async () => {
-    const pdf = Buffer.from("%PDF-1.4\n%%EOF\n");
-    const pdfReseau = reseau({ statut: 200, corps: message("{}", "refusal") });
-    expect(await creerLecteur(config, { fetch: pdfReseau.recuperer, maxRetries: 0 })!.lire("constat_amiable", { contenu: pdf, type: "application/pdf" }))
-      .toMatchObject({ ok: false, raison: "refus" });
-    expect((pdfReseau.appels[0]!.corps.messages as { content: { type: string }[] }[])[0]!.content[0]!.type).toBe("document");
-
-    const cas: [number, object, string][] = [
-      [200, message("{\"documentReconnu\": tr", "max_tokens"), "illisible"],
-      [200, message("pas du JSON"), "illisible"],
-      [401, { type: "error", error: { type: "authentication_error", message: "invalid x-api-key" } }, "configuration"],
-      [400, { type: "error", error: { type: "invalid_request_error", message: "image too large" } }, "illisible"],
-      [529, { type: "error", error: { type: "overloaded_error", message: "Overloaded" } }, "indisponible"],
+  it("modèle absent, machine éteinte, réponse coupée ou pas du JSON : des issues claires", async () => {
+    const cas: [ReturnType<typeof reseau>["recuperer"], string][] = [
+      [reseau(404, { error: "model 'modele-de-test' not found" }).recuperer, "configuration"],
+      [reseau(500, { error: "out of memory" }).recuperer, "indisponible"],
+      [reseau(200, reponse("{\"documentReconnu\": tr", "length")).recuperer, "illisible"],
+      [reseau(200, reponse("pas du JSON")).recuperer, "illisible"],
+      [(async () => { throw new TypeError("fetch failed"); }) as typeof fetch, "indisponible"],
     ];
-    for (const [statut, corps, raison] of cas) {
-      const { recuperer } = reseau({ statut, corps });
-      expect(await creerLecteur(config, { fetch: recuperer, maxRetries: 0 })!.lire("piece_identite", { contenu: PNG, type: "image/png" }))
-        .toMatchObject({ ok: false, raison });
+    for (const [recuperer, raison] of cas) {
+      expect(await creerLecteur(config, { fetch: recuperer })!.lire("constat_amiable", { contenu: PNG, type: "image/png" })).toMatchObject({ ok: false, raison });
     }
-  });
-
-  it("la simulation rend des valeurs d'exemple, dont une zone lisible par machine juste", async () => {
-    const resultat = await creerLecteur({ prestataire: "simulation" })!.lire("piece_identite", { contenu: PNG, type: "image/png" });
-    if (!resultat.ok) throw new Error("lecture simulée en échec");
-    expect(analyserMrz((resultat.champs as ChampsPieceIdentite).mrz!, AUJOURDHUI)?.valide).toBe(true);
     expect(creerLecteur(null)).toBeNull();
   });
 });

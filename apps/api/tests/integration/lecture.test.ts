@@ -1,19 +1,23 @@
-// Lecture automatique (tâche 14) : route de l'agence, avec le lecteur simulé. Sources (photo envoyée, justificatif
-// enregistré), antivirus, droits par document, journal de sécurité sans les valeurs, limite par heure.
+// Lecture automatique (tâche 14) : route de l'agence, avec le vrai lecteur local (Tesseract) sur les documents fictifs
+// de tests/donnees/lecture. Sources (photo envoyée, justificatif enregistré), antivirus, droits par document, journal
+// de sécurité sans les valeurs, limite par heure.
 
+import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { connecter, creerCompte, demarrer, envoyer, type Compte, type Contexte } from "./outils.js";
 
-const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
+const exemple = (nom: string) => readFileSync(new URL(`../donnees/lecture/${nom}`, import.meta.url));
 const EICAR = "X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*";
-const photo = { type: "image/png", contenu: PNG.toString("base64") };
+const carteGrise = { type: "image/jpeg", contenu: exemple("carte-grise-photo.jpg").toString("base64") };
+const passeport = { type: "image/jpeg", contenu: exemple("passeport-photo.jpg").toString("base64") };
+const photo = carteGrise;
 
 let ctx: Contexte;
 const cookies: Record<string, string> = {};
 const comptes: Record<string, Compte> = {};
 
 beforeAll(async () => {
-  ctx = await demarrer({ env: { LECTURE_PRESTATAIRE: "simulation" } });
+  ctx = await demarrer({ env: { LECTURE_PRESTATAIRE: "local" } });
   for (const role of ["gerant", "charge_clientele", "commercial", "caissier"] as const) {
     comptes[role] = await creerCompte(ctx, role);
     cookies[role] = await connecter(ctx, comptes[role]);
@@ -28,11 +32,11 @@ const lire = (cookie: string | undefined, corps: object) => envoyer(ctx, { url: 
 
 describe("lecture automatique", () => {
   it("se signale disponible, et lit une carte grise envoyée en photo, avec les contrôles", async () => {
-    expect((await envoyer(ctx, { url: "/lecture-automatique", cookie: cookies.commercial })).json()).toEqual({ disponible: true, prestataire: "simulation" });
-    const reponse = await lire(cookies.commercial, { document: "carte_grise", fichier: photo });
+    expect((await envoyer(ctx, { url: "/lecture-automatique", cookie: cookies.commercial })).json()).toEqual({ disponible: true, prestataire: "local" });
+    const reponse = await lire(cookies.commercial, { document: "carte_grise", fichier: carteGrise });
     expect(reponse.statusCode).toBe(200);
     expect(reponse.json()).toMatchObject({
-      document: "carte_grise", prestataire: "simulation",
+      document: "carte_grise", prestataire: "local",
       champs: { immatriculation: "4521 KM 01", numeroChassis: "JTDBR32E720123456", puissanceFiscale: 8 },
       controles: [],
       avertissement: expect.stringContaining("vérifiez chacune avec le document"),
@@ -40,7 +44,7 @@ describe("lecture automatique", () => {
   });
 
   it("pièce d'identité : la zone lisible par machine confirme le numéro et les dates", async () => {
-    const reponse = await lire(cookies.charge_clientele, { document: "piece_identite", fichier: photo });
+    const reponse = await lire(cookies.charge_clientele, { document: "piece_identite", fichier: passeport });
     expect(reponse.json().controles).toContainEqual(expect.objectContaining({ champ: "numero", niveau: "ok" }));
   });
 
@@ -67,7 +71,7 @@ describe("lecture automatique", () => {
     const clientId = client.json().client.id as string;
     const depot = await envoyer(ctx, {
       url: `/clients/${clientId}/justificatifs`, cookie: cookies.charge_clientele,
-      corps: { nature: "piece_identite", nom: "passeport.png", type: "image/png", fichier: PNG.toString("base64") },
+      corps: { nature: "piece_identite", nom: "passeport.png", type: "image/png", fichier: exemple("passeport.png").toString("base64") },
     });
     expect(depot.statusCode).toBe(201);
     const reponse = await lire(cookies.charge_clientele, { document: "piece_identite", justificatifId: depot.json().justificatif.id });

@@ -104,3 +104,92 @@ export function analyserMrz(lignesBrutes: string[], aujourdhui = new Date()): Re
   }
   return null;
 }
+
+// ---------------------------------------------------------------------------------------------------------
+// Retrouver la zone dans un texte reconnu, et corriger les confusions habituelles de la reconnaissance
+// ---------------------------------------------------------------------------------------------------------
+
+/** Ce que contient chaque position : a = lettre ou « < », n = chiffre, d = chiffre ou « < », s = sexe, x = tout */
+const MASQUES: Record<"TD1" | "TD3", string[]> = {
+  TD1: ["a".repeat(5) + "x".repeat(9) + "d" + "x".repeat(15), "n".repeat(7) + "s" + "n".repeat(7) + "aaa" + "x".repeat(11) + "n", "a".repeat(30)],
+  TD3: ["a".repeat(44), "x".repeat(9) + "n" + "aaa" + "n".repeat(7) + "s" + "n".repeat(7) + "x".repeat(14) + "dn"],
+};
+const VERS_CHIFFRE: Record<string, string> = { O: "0", Q: "0", D: "0", I: "1", L: "1", Z: "2", S: "5", G: "6", T: "7", B: "8" };
+const VERS_LETTRE: Record<string, string> = { "0": "O", "1": "I", "2": "Z", "4": "A", "5": "S", "6": "G", "7": "T", "8": "B" };
+/** Caractères que la reconnaissance confond, dans les champs qui mêlent lettres et chiffres */
+const SOSIES: Record<string, string> = { "0": "O", O: "0", "1": "I", I: "1", "2": "Z", Z: "2", "5": "S", S: "5", "6": "G", G: "6", "8": "B", B: "8" };
+
+function appliquerMasque(ligne: string, masque: string): string {
+  let resultat = "";
+  for (let i = 0; i < masque.length; i += 1) {
+    const c = ligne[i] ?? "<";
+    const m = masque[i];
+    if (m === "n") resultat += VERS_CHIFFRE[c] ?? c;
+    else if (m === "d") resultat += c === "<" ? c : VERS_CHIFFRE[c] ?? c;
+    else if (m === "a") resultat += VERS_LETTRE[c] ?? c;
+    else if (m === "s") resultat += c === "H" ? "M" : c;
+    else resultat += c;
+  }
+  return resultat;
+}
+
+/** Variantes d'un champ obtenues en échangeant ses caractères sosies (au plus 2⁸) */
+function variantes(champ: string): string[] {
+  const positions = [...champ].flatMap((c, i) => (SOSIES[c] ? [i] : [])).slice(0, 8);
+  const resultats: string[] = [];
+  for (let combinaison = 0; combinaison < 1 << positions.length; combinaison += 1) {
+    const caracteres = [...champ];
+    positions.forEach((p, bit) => {
+      if (combinaison & (1 << bit)) caracteres[p] = SOSIES[caracteres[p]!]!;
+    });
+    resultats.push(caracteres.join(""));
+  }
+  return resultats;
+}
+
+/**
+ * Le numéro du document mêle lettres et chiffres : parmi les variantes que son chiffre de contrôle accepte, on garde
+ * celle qui change le moins de caractères, si elle est seule dans ce cas (sinon, on ne devine pas).
+ */
+function corrigerNumero(lignes: string[], format: "TD1" | "TD3"): string[] {
+  const [ligne, debut] = format === "TD3" ? [1, 0] : [0, 5];
+  const courant = lignes[ligne]!;
+  const numero = courant.slice(debut, debut + 9);
+  const chiffre = courant[debut + 9]!;
+  if (!/\d/.test(chiffre) || chiffreControle(numero) === Number(chiffre)) return lignes;
+  const ecarts = (v: string) => [...v].filter((c, i) => c !== numero[i]).length;
+  const justes = variantes(numero).filter((v) => chiffreControle(v) === Number(chiffre));
+  const minimum = Math.min(...justes.map(ecarts));
+  const meilleures = justes.filter((v) => ecarts(v) === minimum);
+  if (meilleures.length !== 1) return lignes;
+  const copie = [...lignes];
+  copie[ligne] = courant.slice(0, debut) + meilleures[0] + courant.slice(debut + 9);
+  return copie;
+}
+
+/**
+ * Retrouve la zone lisible par machine parmi les lignes reconnues (elle est en bas du document), remet chaque
+ * caractère dans la catégorie attendue à sa position (un O dans une date devient 0, un 0 dans un nom devient O),
+ * puis corrige le numéro si un seul échange de sosies le rend juste. Rend null s'il n'y a pas de zone.
+ */
+export function extraireMrz(lignesLues: string[]): string[] | null {
+  const propres = lignesLues.map((l) => l.toUpperCase().replace(/\s+/g, "").replace(/[«‹(\[{]/g, "<"));
+  const candidates = propres.map((l) => /^[A-Z0-9<]{26,48}$/.test(l) && l.includes("<"));
+  // Dernier groupe de lignes candidates consécutives
+  const fin = candidates.lastIndexOf(true);
+  if (fin < 0) return null;
+  let debut = fin;
+  while (debut > 0 && candidates[debut - 1]) debut -= 1;
+  const groupe = propres.slice(debut, fin + 1);
+
+  const ajuster = (l: string, longueur: number) => (l.length > longueur ? l.slice(0, longueur) : l.padEnd(longueur, "<"));
+  if (groupe.length >= 3 && groupe.slice(-3).every((l) => l.length >= 27 && l.length <= 33)) {
+    const lignes = groupe.slice(-3).map((l, i) => appliquerMasque(ajuster(l, 30), MASQUES.TD1[i]!));
+    return corrigerNumero(lignes, "TD1");
+  }
+  if (groupe.length >= 2 && groupe.slice(-2).every((l) => l.length >= 40 && l.length <= 48)) {
+    const lignes = groupe.slice(-2).map((l, i) => appliquerMasque(ajuster(l, 44), MASQUES.TD3[i]!));
+    return corrigerNumero(lignes, "TD3");
+  }
+  return null;
+}

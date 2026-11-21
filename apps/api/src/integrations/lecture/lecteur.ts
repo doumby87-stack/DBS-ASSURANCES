@@ -1,123 +1,133 @@
 // Lecteur de documents (tâche 14, ADR 0015) : il reçoit l'image ou le PDF d'un document et rend ses champs, que le
-// back-office propose ensuite à une personne. Deux lecteurs :
-//   · « anthropic » : un modèle Claude par l'API d'Anthropic (SDK officiel), sortie structurée selon le schéma du
-//     document, repli automatique sur un autre modèle si le premier refuse ;
-//   · « simulation » : valeurs d'exemple fixes, pour la démonstration et les tests (refusé en production).
-// Rien d'autre que le fichier et des consignes générales ne part : ni nom de client, ni numéro de dossier. Les
-// valeurs reçues ne sont ni journalisées ni enregistrées ici.
+// back-office propose ensuite à une personne. Deux lecteurs, gratuits, qui travaillent sur les serveurs de l'agence :
+//   · « local » : reconnaissance de caractères (Tesseract) dans l'API, puis analyse du texte : libellés, formes
+//     connues (immatriculation, châssis, dates), zone lisible par machine corrigée par ses chiffres de contrôle ;
+//   · « ollama » : un modèle de vision ouvert, installé avec Ollama sur une machine de l'agence ; il lit aussi
+//     l'écriture à la main (constat), avec une sortie structurée selon le schéma du document.
+// Rien ne part chez un tiers. Les valeurs lues ne sont ni journalisées ni enregistrées ici.
 
-import Anthropic from "@anthropic-ai/sdk";
 import type { Configuration } from "../../config/configuration.js";
 import type { TypePiece } from "../../modules/demandes-site/piece.js";
-import { CONSIGNES, DEMANDES, nettoyer, SCHEMAS, type Champs, type TypeDocument } from "./documents.js";
+import { analyserTexte } from "./analyse-locale.js";
+import { CONSIGNES, DEMANDES, nettoyer, SCHEMAS, type Champs, type ChampsPieceIdentite, type TypeDocument } from "./documents.js";
+import { analyserMrz, extraireMrz } from "./mrz.js";
+import { creerOcr, dimensions, imageDuPdf, PIXELS_MAX, type Ocr } from "./ocr.js";
 
 export type ResultatLecture =
   | { ok: true; champs: Champs }
-  | { ok: false; raison: "refus" | "illisible" | "indisponible" | "configuration"; message: string };
+  | { ok: false; raison: "illisible" | "indisponible" | "configuration"; message: string };
 
 export interface LecteurDocuments {
-  nom: "anthropic" | "simulation";
+  nom: "local" | "ollama";
   lire(document: TypeDocument, fichier: { contenu: Buffer; type: TypePiece }): Promise<ResultatLecture>;
+  fermer(): Promise<void>;
 }
 
 const MESSAGES = {
-  refus: "Le service de lecture n'a pas voulu lire ce document. Saisissez les champs à la main.",
   illisible: "Le document n'a pas pu être lu. Essayez avec une photo plus nette, bien cadrée et sans reflet, ou saisissez les champs à la main.",
+  pdf: "Ce PDF ne contient pas de photo du document. Envoyez plutôt une photo (JPEG ou PNG), ou saisissez les champs à la main.",
+  geante: "Cette image est trop grande pour être lue. Envoyez une photo plus petite (moins de 60 millions de pixels).",
   indisponible: "Le service de lecture ne répond pas pour l'instant. Réessayez dans quelques minutes, ou saisissez les champs à la main.",
-  configuration: "La lecture automatique est mal configurée (clé de l'API refusée). Prévenez la personne qui administre l'outil.",
+  configuration: "La lecture automatique est mal configurée (modèle introuvable sur le serveur de lecture). Prévenez la personne qui administre l'outil.",
 } as const;
-const echec = (raison: keyof typeof MESSAGES): ResultatLecture => ({ ok: false, raison, message: MESSAGES[raison] });
+const echec = (raison: "illisible" | "indisponible" | "configuration", message: string = MESSAGES[raison]): ResultatLecture => ({ ok: false, raison, message });
 
-/** `fetch` et `maxRetries` : remplaçables dans les tests (aucun appel réseau, pas d'attente entre les essais) */
+/** Image à lire : la photo envoyée, ou celle que contient le PDF ; refusée si elle est démesurée une fois décodée */
+function image(fichier: { contenu: Buffer; type: TypePiece }): Buffer | ResultatLecture {
+  const photo = fichier.type === "application/pdf" ? imageDuPdf(fichier.contenu) : fichier.contenu;
+  if (!photo) return echec("illisible", MESSAGES.pdf);
+  const taille = dimensions(photo);
+  if (taille && taille.largeur * taille.hauteur > PIXELS_MAX) return echec("illisible", MESSAGES.geante);
+  return photo;
+}
+
+/** Une zone lisible par machine mal reconnue se corrige souvent d'après ses chiffres de contrôle */
+function corrigerZone(champs: Champs, aujourdhui: Date): Champs {
+  const piece = champs as ChampsPieceIdentite;
+  if (!piece.mrz) return champs;
+  const corrigee = extraireMrz(piece.mrz);
+  return corrigee && analyserMrz(corrigee, aujourdhui)?.valide ? { ...piece, mrz: corrigee } : champs;
+}
+
+/** `ocr` et `fetch` : remplaçables dans les tests */
 export function creerLecteur(
-  config: Configuration["lecture"], options: { fetch?: typeof fetch; maxRetries?: number } = {},
+  config: Configuration["lecture"], options: { ocr?: Ocr; fetch?: typeof fetch; aujourdhui?: () => Date } = {},
 ): LecteurDocuments | null {
   if (!config) return null;
-  if (config.prestataire === "simulation") return lecteurSimulation();
-  return lecteurAnthropic(config.cleApi, config.modele, options);
+  const aujourdhui = options.aujourdhui ?? (() => new Date());
+  if (config.prestataire === "local") return lecteurLocal(options.ocr ?? creerOcr(), aujourdhui);
+  return lecteurOllama(config.adresse, config.modele, options.fetch ?? fetch, aujourdhui);
 }
 
 // ---------------------------------------------------------------------------------------------------------
-// Claude, par l'API d'Anthropic
+// Local : Tesseract dans l'API
 // ---------------------------------------------------------------------------------------------------------
-function lecteurAnthropic(cleApi: string, modele: string, options: { fetch?: typeof fetch; maxRetries?: number }): LecteurDocuments {
-  const client = new Anthropic({
-    apiKey: cleApi, maxRetries: options.maxRetries ?? 2, timeout: 120_000, ...(options.fetch ? { fetch: options.fetch } : {}),
-  });
+function lecteurLocal(ocr: Ocr, aujourdhui: () => Date): LecteurDocuments {
   return {
-    nom: "anthropic",
+    nom: "local",
     async lire(document, fichier) {
-      const source = { type: "base64" as const, data: fichier.contenu.toString("base64") };
-      const piece = fichier.type === "application/pdf"
-        ? { type: "document" as const, source: { ...source, media_type: "application/pdf" as const } }
-        : { type: "image" as const, source: { ...source, media_type: fichier.type } };
+      const photo = image(fichier);
+      if (!Buffer.isBuffer(photo)) return photo;
+      let lu;
       try {
-        const reponse = await client.beta.messages.create({
-          model: modele,
-          max_tokens: 16000,
-          // Si le modèle refuse (classificateurs de sécurité), l'API relance la même demande sur le modèle de repli conseillé
-          betas: ["server-side-fallback-2026-07-01"],
-          fallbacks: "default",
-          system: CONSIGNES,
-          messages: [{ role: "user", content: [piece, { type: "text", text: DEMANDES[document] }] }],
-          output_config: { effort: "medium", format: { type: "json_schema", schema: SCHEMAS[document] } },
-        });
-        if (reponse.stop_reason === "refusal") return echec("refus");
-        if (reponse.stop_reason === "max_tokens") return echec("illisible");
-        const texte = reponse.content.find((bloc) => bloc.type === "text");
-        if (!texte || texte.type !== "text") return echec("illisible");
-        const brut: unknown = JSON.parse(texte.text);
-        if (typeof brut !== "object" || brut === null || Array.isArray(brut)) return echec("illisible");
-        return { ok: true, champs: nettoyer(document, brut as Record<string, unknown>) };
-      } catch (erreur) {
-        if (erreur instanceof SyntaxError) return echec("illisible");
-        if (erreur instanceof Anthropic.AuthenticationError || erreur instanceof Anthropic.PermissionDeniedError) return echec("configuration");
-        // Fichier refusé par l'API (trop lourd, format, image illisible)
-        if (erreur instanceof Anthropic.BadRequestError) return echec("illisible");
-        if (erreur instanceof Anthropic.RateLimitError || erreur instanceof Anthropic.InternalServerError
-            || erreur instanceof Anthropic.APIConnectionError || erreur instanceof Anthropic.APIError) return echec("indisponible");
-        throw erreur;
+        lu = await ocr.lire(photo);
+      } catch {
+        // Image que le moteur ne sait pas décoder
+        return echec("illisible");
       }
+      if (lu.lignes.length === 0) return echec("illisible");
+      const date = aujourdhui();
+      return { ok: true, champs: nettoyer(document, analyserTexte(document, lu, date)) };
     },
+    fermer: () => ocr.fermer(),
   };
 }
 
 // ---------------------------------------------------------------------------------------------------------
-// Simulation : valeurs d'exemple, inventées
+// Ollama : modèle de vision ouvert sur une machine de l'agence
 // ---------------------------------------------------------------------------------------------------------
-const EXEMPLES: Record<TypeDocument, Record<string, unknown>> = {
-  carte_grise: {
-    documentReconnu: true, lisibilite: "bonne", remarques: null,
-    immatriculation: "4521 KM 01", numeroChassis: "JTDBR32E720123456", marque: "Toyota", modele: "Corolla", genre: "Voiture particulière",
-    energie: "Essence", puissanceFiscale: 8, placesAssises: 5, datePremiereMiseEnCirculation: "2019-03-14", proprietaire: "Koné Mariam",
-    usage: "Promenade et affaires",
-  },
-  piece_identite: {
-    documentReconnu: true, lisibilite: "bonne", remarques: null,
-    typePiece: "passeport", numero: "L898902C3", nom: "ERIKSSON", prenoms: "ANNA MARIA", dateNaissance: "1974-08-12", lieuNaissance: null,
-    sexe: "F", nationalite: "Utopienne", dateDelivrance: null, dateExpiration: "2034-04-15",
-    // Spécimen de la norme ICAO 9303 (pays fictif « UTO »), date d'expiration ajustée et chiffres de contrôle recalculés
-    mrz: ["P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<", "L898902C36UTO7408122F3404159ZE184226B<<<<<16"],
-  },
-  constat_amiable: {
-    documentReconnu: true, lisibilite: "partielle", remarques: "Écriture manuscrite difficile à lire dans la partie observations.",
-    date: "2026-10-28", heure: "08:40", lieu: "Carrefour de la Siporex, Yopougon", blesses: false, degatsAutres: false, temoins: null,
-    vehicules: [
-      { lettre: "A", conducteur: "Koné Mariam", assure: "Koné Mariam", assureur: "SanlamAllianz", numeroPolice: "AUTO-KM-2026", numeroAttestation: null,
-        immatriculation: "2024 KM 01", marque: "Toyota Yaris", circonstances: [8], pointDeChoc: "Arrière", degatsApparents: "Pare-chocs arrière enfoncé",
-        observations: null },
-      { lettre: "B", conducteur: "Traoré Ali", assure: "Traoré Ali", assureur: "Autre compagnie", numeroPolice: null, numeroAttestation: null,
-        immatriculation: "7712 GH 01", marque: "Nissan Sunny", circonstances: [8], pointDeChoc: "Avant", degatsApparents: "Capot", observations: null },
-    ],
-    croquis: "Le véhicule B, roulant derrière A sur la même voie, l'a heurté à l'arrière à l'arrêt au feu.",
-  },
-};
+/** Un modèle de vision sur un processeur sans carte graphique peut prendre plusieurs minutes par image */
+const DELAI_OLLAMA_MS = 5 * 60_000;
 
-function lecteurSimulation(): LecteurDocuments {
+function lecteurOllama(adresse: string, modele: string, appeler: typeof fetch, aujourdhui: () => Date): LecteurDocuments {
   return {
-    nom: "simulation",
-    async lire(document) {
-      return { ok: true, champs: nettoyer(document, structuredClone(EXEMPLES[document])) };
+    nom: "ollama",
+    async lire(document, fichier) {
+      const photo = image(fichier);
+      if (!Buffer.isBuffer(photo)) return photo;
+      let reponse: Response;
+      try {
+        reponse = await appeler(new URL("/api/chat", adresse), {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          signal: AbortSignal.timeout(DELAI_OLLAMA_MS),
+          body: JSON.stringify({
+            model: modele,
+            stream: false,
+            format: SCHEMAS[document],
+            options: { temperature: 0 },
+            messages: [
+              { role: "system", content: CONSIGNES },
+              { role: "user", content: DEMANDES[document], images: [photo.toString("base64")] },
+            ],
+          }),
+        });
+      } catch {
+        return echec("indisponible");
+      }
+      if (reponse.status === 404) return echec("configuration");
+      if (reponse.status === 400) return echec("illisible");
+      if (!reponse.ok) return echec("indisponible");
+      try {
+        const corps = (await reponse.json()) as { message?: { content?: unknown }; done_reason?: unknown };
+        if (corps.done_reason === "length" || typeof corps.message?.content !== "string") return echec("illisible");
+        const brut: unknown = JSON.parse(corps.message.content);
+        if (typeof brut !== "object" || brut === null || Array.isArray(brut)) return echec("illisible");
+        return { ok: true, champs: corrigerZone(nettoyer(document, brut as Record<string, unknown>), aujourdhui()) };
+      } catch {
+        return echec("illisible");
+      }
     },
+    fermer: async () => {},
   };
 }
