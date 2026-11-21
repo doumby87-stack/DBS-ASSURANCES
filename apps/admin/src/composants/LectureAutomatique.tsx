@@ -11,7 +11,7 @@ export type DocumentLisible = "carte_grise" | "piece_identite" | "constat_amiabl
 export interface Controle { champ: string | null; niveau: "ok" | "attention"; message: string }
 export interface ResultatLecture {
   document: DocumentLisible;
-  prestataire: "anthropic" | "simulation";
+  prestataire: "local" | "ollama";
   champs: Record<string, unknown>;
   controles: Controle[];
   avertissement: string;
@@ -168,7 +168,7 @@ export function LectureAutomatique({ document, pieces = [], libelleReport, onLu 
       {resultat && (
         <div className="lecture__resultat">
           <Alerte type="info">
-            {resultat.avertissement}{resultat.prestataire === "simulation" && " (Démonstration : ces valeurs sont des exemples, pas celles du document.)"}
+            {resultat.avertissement}
           </Alerte>
           {resultat.controles.length > 0 && (
             <ul className="lecture__controles">

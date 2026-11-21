@@ -85,11 +85,12 @@ test("parcours du gérant, de la première connexion à la caisse et au reversem
   await page.getByRole("button", { name: "Noter" }).click();
   await expect(page.getByText("Appelé pour confirmer la liste des véhicules")).toBeVisible();
 
-  // --- Lecture automatique d'une carte grise (tâche 14, lecteur simulé) : valeurs proposées, vérifiées, puis enregistrées
+  // --- Lecture automatique d'une carte grise (tâche 14, vrai lecteur local sur une photo fictive) : valeurs proposées,
+  // vérifiées, puis enregistrées
   await page.getByRole("button", { name: "Ajouter un véhicule" }).click();
   const lecture = page.getByRole("group", { name: "Lecture automatique de la carte grise" });
-  const photoCarteGrise = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
-  await lecture.getByLabel("Photo ou PDF (5 Mo au plus)").setInputFiles({ name: "carte-grise.png", mimeType: "image/png", buffer: photoCarteGrise });
+  const photoCarteGrise = readFileSync(new URL("../../../api/tests/donnees/lecture/carte-grise-photo.jpg", import.meta.url));
+  await lecture.getByLabel("Photo ou PDF (5 Mo au plus)").setInputFiles({ name: "carte-grise.jpg", mimeType: "image/jpeg", buffer: photoCarteGrise });
   await lecture.getByRole("button", { name: "Lire le document" }).click();
   await expect(lecture.getByText(/vérifiez chacune avec le document/)).toBeVisible();
   await lecture.getByRole("button", { name: "Pré-remplir le véhicule avec ces valeurs" }).click();

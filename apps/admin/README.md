@@ -74,14 +74,13 @@ PGHOST=localhost PGUSER=postgres PGPASSWORD=… npm run test:e2e -w @dbs/admin
 Il construit l'API et le back-office, prépare une base de test neuve (`tests/e2e/preparer.mjs`), démarre les deux, puis joue dans Chromium le parcours d'un gérant :
 
 1. première connexion, avec le deuxième facteur et le mot de passe personnel ;
-2. création d'un client et d'un contrat, puis note d'un échange ;
+2. création d'un client et d'un contrat, puis note d'un échange ; lecture d'une carte grise fictive par le vrai lecteur local, report dans « Ajouter un véhicule », puis enregistrement du véhicule ;
 3. encaissement au guichet : reçu n° 000001 avec le montant en lettres, contrat mis en vigueur ;
 4. relance à faire à la main faute d'accord, accord du client noté sur sa fiche, puis relance automatique (l'API tourne en simulation : rien ne part) ;
 5. relance et renouvellement depuis le tableau des échéances ;
 6. clôture de caisse avec billetage ;
 7. bordereau de reversement, que son auteur ne peut pas valider, et export pour Excel ;
 8. flotte d'un transporteur : import, avenants au prorata, attestation, sinistre suivi jusqu'à la page Sinistres, accès à l'espace client ;
-8. bis. lecture automatique d'une carte grise (lecteur simulé) sur la fiche du client, report dans « Ajouter un véhicule », puis enregistrement du véhicule ;
 9. taux de commission, création d'un compte, puis déconnexion.
 
 Toute violation de la politique de sécurité du contenu fait échouer le test. La même vérification tourne dans l'intégration continue (« Back-office »).

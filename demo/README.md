@@ -26,8 +26,9 @@ Le lanceur démarre :
 - **Deuxième facteur du personnel :** chaque compte a un secret fixe, tiré de son e-mail. La page d'accueil calcule le code du moment.
 - **Paiement en ligne :** prestataire `simulation`.
 - **Relances :** `RELANCES_SIMULATION`.
-- **Lecture automatique des documents :** lecteur `simulation`. Les valeurs proposées sont des exemples, quel que soit le document.
 - **Antivirus :** démon de démonstration (`apps/api/tests/antivirus/clamd-factice.mjs`). Il ne refuse que le fichier de test EICAR.
+
+La **lecture automatique des documents** est la vraie, le lecteur `local` : la reconnaissance de caractères tourne dans l'API, sur l'ordinateur. La page d'accueil propose deux documents fictifs à lire, une carte grise et un passeport (`apps/api/tests/donnees/lecture`).
 
 Les clés, les mots de passe et ces simulations sont **publics** : ils ne servent qu'ici. Le lanceur refuse de tourner avec `NODE_ENV=production`, et l'API refuse ces simulations en production.
 
