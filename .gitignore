@@ -45,3 +45,9 @@ desktop.ini
 .e2e/
 test-results/
 playwright-report/
+
+# --- Sauvegardes chiffrées et variables de production : jamais dans le dépôt ---
+*.age
+*.age.empreinte
+*.age.resultat
+infra/production/*.env
