@@ -1,0 +1,27 @@
+---
+// Documents à joindre à une demande de devis, selon l'assurance (src/donnees/devis-par-assurance.ts) : un champ de
+// fichier par document, tous rendus cachés ; le script du formulaire (scripts/devis.ts) n'affiche que ceux de
+// l'assurance choisie, le plus utile d'abord. Rendu seulement quand le site enregistre les demandes (API connue).
+import {
+  AIDES_NATURE, LIBELLES_NATURE, NATURES_AVEC_CLASSEUR, NATURES_PIECE, PIECES_MAX, TYPE_CLASSEUR, type NaturePiece,
+} from "../donnees/devis-par-assurance";
+
+/** Plusieurs fichiers pour ces documents : une carte grise par véhicule, plusieurs photos */
+const MULTIPLES: readonly NaturePiece[] = ["carte_grise", "photos_bien"];
+const PHOTOS_PDF = "image/jpeg,image/png,application/pdf,.jpg,.jpeg,.png,.pdf";
+const accepte = (nature: NaturePiece) => NATURES_AVEC_CLASSEUR.includes(nature) ? `${PHOTOS_PDF},${TYPE_CLASSEUR},.xlsx` : PHOTOS_PDF;
+---
+<fieldset class="champ groupe pieces" data-pieces hidden>
+  <legend class="champ__libelle">Documents utiles <span class="champ__facultatif">(facultatif)</span></legend>
+  <p class="champ__aide">Jusqu'à {PIECES_MAX} fichiers, 5 Mo chacun : une photo (JPEG ou PNG) ou un PDF, et un classeur Excel (.xlsx) pour une liste. Nous n'aurons pas à vous les redemander.</p>
+  {NATURES_PIECE.map((nature) => (
+    <div class="champ pieces__champ" data-piece={nature} hidden>
+      <label for={`champ-piece-${nature}`}>{LIBELLES_NATURE[nature]}{MULTIPLES.includes(nature) && <span class="champ__facultatif"> (un ou plusieurs fichiers)</span>}</label>
+      <input class="saisie saisie--fichier" id={`champ-piece-${nature}`} name={`piece-${nature}`} type="file" multiple={MULTIPLES.includes(nature)} accept={accepte(nature)} data-nature={nature} aria-describedby={`aide-piece-${nature} erreur-piece-${nature}`} />
+      <p class="champ__aide" id={`aide-piece-${nature}`}>{AIDES_NATURE[nature]}</p>
+      <p class="champ__erreur" id={`erreur-piece-${nature}`}></p>
+    </div>
+  ))}
+  <p class="champ__aide" data-pieces-total aria-live="polite"></p>
+  <p class="champ__erreur" id="erreur-pieces" aria-live="polite"></p>
+</fieldset>

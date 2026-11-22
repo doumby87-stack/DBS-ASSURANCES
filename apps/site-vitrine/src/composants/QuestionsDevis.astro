@@ -1,0 +1,38 @@
+---
+// Questions propres à chaque assurance, à l'étape 2 du devis (src/donnees/devis-par-assurance.ts). Tous les
+// questionnaires sont rendus cachés ; le script du formulaire (scripts/devis.ts) n'affiche que celui de
+// l'assurance choisie, et ne lit que ses réponses.
+import { QUESTIONNAIRES, type Question } from "../donnees/devis-par-assurance";
+
+const id = (branche: string, q: Question) => `q-${branche}-${q.cle}`;
+const libelle = (q: Question) => `${q.libelle}${q.type === "nombre" && q.unite ? ` (${q.unite})` : ""}`;
+---
+{Object.entries(QUESTIONNAIRES).filter(([, questions]) => questions.length > 0).map(([branche, questions]) => (
+  <div class="questionnaire" data-questionnaire={branche} hidden>
+    {questions.map((q) => (q.type === "choix" || q.type === "plusieurs") ? (
+      <fieldset class="champ groupe groupe--serre" data-question={q.cle} data-type={q.type} data-obligatoire={q.obligatoire ? "" : undefined} aria-describedby={`erreur-${id(branche, q)}`}>
+        <legend class="champ__libelle">{libelle(q)}{q.obligatoire ? " *" : <span class="champ__facultatif"> (facultatif)</span>}</legend>
+        <ul class:list={["cases", { "cases--grille": Object.keys(q.options).length > 3 }]} role="list">
+          {Object.entries(q.options).map(([valeur, texte]) => (
+            <li><label class="case"><input type={q.type === "choix" ? "radio" : "checkbox"} name={id(branche, q)} value={valeur} /><span>{texte}</span></label></li>
+          ))}
+        </ul>
+        <p class="champ__erreur" id={`erreur-${id(branche, q)}`}></p>
+      </fieldset>
+    ) : (
+      <div class="champ" data-question={q.cle} data-type={q.type} data-obligatoire={q.obligatoire ? "" : undefined}>
+        <label for={id(branche, q)}>{libelle(q)}{q.obligatoire ? " *" : <span class="champ__facultatif"> (facultatif)</span>}</label>
+        {q.type === "texte" && (
+          <input class="saisie" id={id(branche, q)} name={id(branche, q)} type="text" maxlength={q.max} placeholder={q.exemple} aria-describedby={`erreur-${id(branche, q)}`} />
+        )}
+        {q.type === "nombre" && (
+          <input class="saisie" id={id(branche, q)} name={id(branche, q)} type="number" inputmode="numeric" step="1" min={q.min} max={q.max} aria-describedby={`erreur-${id(branche, q)}`} />
+        )}
+        {q.type === "date" && (
+          <input class="saisie" id={id(branche, q)} name={id(branche, q)} type="date" min="2000-01-01" max="2100-12-31" aria-describedby={`erreur-${id(branche, q)}`} />
+        )}
+        <p class="champ__erreur" id={`erreur-${id(branche, q)}`}></p>
+      </div>
+    ))}
+  </div>
+))}

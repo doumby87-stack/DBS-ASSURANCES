@@ -87,6 +87,11 @@ test.describe("formulaire de devis", () => {
     await page.goto("/devis/?assurance=flotte&profil=entreprise");
     await expect(page.locator('input[name="assurance"][value="flotte"]')).toBeChecked();
     await expect(page.locator('input[name="profil"][value="Entreprise"]')).toBeChecked();
+    // Une flotte est en général demandée par une entreprise : profil choisi d'office, mais modifiable
+    await page.goto("/devis/?assurance=flotte");
+    await expect(page.locator('input[name="profil"][value="Entreprise"]')).toBeChecked();
+    await page.goto("/devis/?assurance=flotte&profil=professionnel");
+    await expect(page.locator('input[name="profil"][value="Professionnel"]')).toBeChecked();
   });
 
   test("parcours complet jusqu'au message WhatsApp pré-rempli", async ({ page, context }) => {
@@ -104,12 +109,16 @@ test.describe("formulaire de devis", () => {
     await etape(1).getByText("Un professionnel").click();
     await etape(1).getByRole("button", { name: "Continuer" }).click();
 
-    // Étape 2 : l'aide dépend de l'assurance choisie
+    // Étape 2 : les questions et les documents dépendent de l'assurance choisie
     await expect(etape(2)).toBeVisible();
     await expect(etape(2)).toBeFocused();
-    await expect(page.locator("[data-aide-besoin]")).toContainText("puissance fiscale");
-    await page.getByLabel("Votre besoin").fill("Toyota Corolla 2019, livraisons.");
+    await expect(page.getByLabel("Nombre de véhicules")).toBeHidden();
+    await page.locator("[data-questionnaire]:visible").getByLabel(/Marque et modèle/).fill("Toyota Corolla");
+    await page.getByLabel(/Puissance fiscale/).fill("7");
+    await etape(2).getByText("Professionnel (déplacements pour le travail)").click();
+    await page.getByLabel(/Autres précisions/).fill("Livraisons en ville.");
     await page.getByLabel("Commune ou ville").fill("Yopougon");
+    await expect(page.locator("[data-documents-utiles]")).toContainText("carte grise");
     await etape(2).getByRole("button", { name: "Continuer" }).click();
 
     // Étape 3 : récapitulatif, puis coordonnées vérifiées
@@ -140,7 +149,11 @@ test.describe("formulaire de devis", () => {
     expect(message).toContain("• Nom : Exemple Transport");
     expect(message).toContain("• Téléphone : +225 07 00 00 00 00");
     expect(message).toContain("• Commune / ville : Yopougon");
-    expect(message).toContain("Toyota Corolla 2019, livraisons.");
+    expect(message).toContain("• Marque et modèle : Toyota Corolla");
+    expect(message).toContain("• Puissance fiscale : 7 CV");
+    expect(message).toContain("• Usage : Professionnel (déplacements pour le travail)");
+    expect(message).toContain("Autres précisions :\nLivraisons en ville.");
+    expect(message).toContain("Je peux vous envoyer : carte grise, attestation ou contrat d'assurance actuel.");
     expect(message).not.toContain("E-mail");
     await expect(page.locator("[data-statut-envoi]")).toContainText("WhatsApp s'ouvre");
     expect(erreurs).toEqual([]);
@@ -149,13 +162,19 @@ test.describe("formulaire de devis", () => {
   test("Retour et Modifier ramènent aux étapes précédentes sans perdre la saisie", async ({ page }) => {
     await page.goto("/devis/?assurance=agricole");
     await page.locator('[data-etape="1"] [data-suivant]').click();
-    await page.getByLabel("Votre besoin").fill("Cacao, 12 hectares");
+    // La culture est obligatoire pour une assurance agricole
     await page.locator('[data-etape="2"] [data-suivant]').click();
+    await expect(page.locator("#erreur-q-agricole-culture")).toHaveText("Répondez à cette question.");
+    await expect(page.getByLabel(/^Culture/)).toBeFocused();
+    await page.getByLabel(/^Culture/).fill("Cacao");
+    await page.getByLabel(/Superficie/).fill("12");
+    await page.locator('[data-etape="2"] [data-suivant]').click();
+    await expect(page.locator("[data-recapitulatif]")).toContainText("12 hectares");
     await page.getByRole("button", { name: "Modifier" }).click();
     await expect(page.locator('[data-etape="1"]')).toBeVisible();
     await expect(page.locator('input[value="agricole"]')).toBeChecked();
     await page.locator('[data-etape="1"] [data-suivant]').click();
-    await expect(page.getByLabel("Votre besoin")).toHaveValue("Cacao, 12 hectares");
+    await expect(page.getByLabel(/^Culture/)).toHaveValue("Cacao");
     await page.locator('[data-etape="2"] [data-precedent]').click();
     await expect(page.locator('[data-etape="1"]')).toBeVisible();
   });
