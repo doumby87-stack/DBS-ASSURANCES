@@ -28,7 +28,7 @@ Le lanceur démarre :
 - **Relances :** `RELANCES_SIMULATION`.
 - **Antivirus :** démon de démonstration (`apps/api/tests/antivirus/clamd-factice.mjs`). Il ne refuse que le fichier de test EICAR.
 
-La **lecture automatique des documents** est la vraie, le lecteur `local` : la reconnaissance de caractères tourne dans l'API, sur l'ordinateur. La page d'accueil propose deux documents fictifs à lire, une carte grise et un passeport (`apps/api/tests/donnees/lecture`).
+La **lecture automatique des documents** est la vraie, le lecteur `local` : la reconnaissance de caractères tourne dans l'API, sur l'ordinateur. La page d'accueil propose des documents fictifs à lire (`apps/api/tests/donnees/lecture`) : le recto et le verso d'une carte grise, ceux d'une carte d'identité, et un passeport.
 
 Les clés, les mots de passe et ces simulations sont **publics** : ils ne servent qu'ici. Le lanceur refuse de tourner avec `NODE_ENV=production`, et l'API refuse ces simulations en production.
 

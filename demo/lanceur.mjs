@@ -340,8 +340,9 @@ async function demarrerAccueil() {
     "/accueil.js": { type: "text/javascript; charset=utf-8", contenu: readFileSync(`${RACINE}demo/accueil.js`, "utf8") },
     "/accueil.css": { type: "text/css; charset=utf-8", contenu: readFileSync(`${RACINE}demo/accueil.css`, "utf8") },
     // Documents fictifs pour essayer la lecture automatique (les mêmes que dans les tests de l'API)
-    "/exemples/carte-grise.jpg": { type: "image/jpeg", contenu: readFileSync(`${RACINE}apps/api/tests/donnees/lecture/carte-grise-photo.jpg`) },
-    "/exemples/passeport.jpg": { type: "image/jpeg", contenu: readFileSync(`${RACINE}apps/api/tests/donnees/lecture/passeport-photo.jpg`) },
+    ...Object.fromEntries(["carte-grise-2023-recto", "carte-grise-2023-verso", "cni-recto", "cni-verso", "passeport-photo"].map((nom) => [
+      `/exemples/${nom}.jpg`, { type: "image/jpeg", contenu: readFileSync(`${RACINE}apps/api/tests/donnees/lecture/${nom}.jpg`) },
+    ])),
   };
   const enTetes = {
     "Content-Security-Policy": "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; base-uri 'none'; frame-ancestors 'none'",

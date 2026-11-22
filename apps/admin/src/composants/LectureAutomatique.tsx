@@ -1,6 +1,6 @@
 // Lecture automatique d'un document (tâche 14) : carte grise, pièce d'identité, constat amiable. La personne choisit
-// une pièce déjà enregistrée ou une photo, l'outil la lit, montre les contrôles et les valeurs lues, puis pré-remplit
-// le formulaire. Rien n'est enregistré tant que la personne n'a pas vérifié et validé le formulaire elle-même.
+// une pièce déjà enregistrée ou une à deux photos (recto et verso), l'outil les lit, montre les contrôles et les
+// valeurs lues, puis pré-remplit le formulaire. Rien n'est enregistré tant que la personne n'a pas vérifié et validé le formulaire elle-même.
 // Invisible si la lecture automatique n'est pas activée sur l'API.
 
 import { useEffect, useState } from "react";
@@ -103,7 +103,7 @@ export function LectureAutomatique({ document, pieces = [], libelleReport, onLu 
 }) {
   const [disponible, setDisponible] = useState(false);
   const [source, setSource] = useState(pieces[0] ? `${pieces[0].source}:${pieces[0].id}` : "fichier");
-  const [fichier, setFichier] = useState<File | null>(null);
+  const [fichiers, setFichiers] = useState<File[]>([]);
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState("");
   const [resultat, setResultat] = useState<ResultatLecture | null>(null);
@@ -126,10 +126,15 @@ export function LectureAutomatique({ document, pieces = [], libelleReport, onLu 
     try {
       let corps: Record<string, unknown> = { document };
       if (source === "fichier") {
-        if (!fichier) return;
-        const type = TYPES[fichier.type];
-        if (!type) throw new Error("Choisissez une photo (JPEG ou PNG) ou un PDF.");
-        corps = { ...corps, fichier: { type, contenu: await lireEnBase64(fichier) } };
+        if (fichiers.length === 0) return;
+        if (fichiers.length > 2) throw new Error("Deux fichiers au plus : le recto et le verso.");
+        const envoyes = [];
+        for (const fichier of fichiers) {
+          const type = TYPES[fichier.type];
+          if (!type) throw new Error("Choisissez des photos (JPEG ou PNG) ou des PDF.");
+          envoyes.push({ type, contenu: await lireEnBase64(fichier) });
+        }
+        corps = { ...corps, fichiers: envoyes };
       } else {
         const [cle, id] = source.split(":");
         corps = { ...corps, [cle!]: id };
@@ -151,16 +156,16 @@ export function LectureAutomatique({ document, pieces = [], libelleReport, onLu 
           <Champ libelle="Document à lire">
             <select value={source} onChange={(e) => setSource(e.target.value)}>
               {pieces.map((p) => <option key={p.id} value={`${p.source}:${p.id}`}>{p.libelle}</option>)}
-              <option value="fichier">Une photo ou un PDF de l'ordinateur</option>
+              <option value="fichier">Des photos ou des PDF de l'ordinateur</option>
             </select>
           </Champ>
         )}
         {source === "fichier" && (
-          <Champ libelle="Photo ou PDF (5 Mo au plus)">
-            <input type="file" accept="image/jpeg,image/png,application/pdf" onChange={(e) => setFichier(e.target.files?.[0] ?? null)} />
+          <Champ libelle="Photos ou PDF : recto, et verso s'il y en a un (5 Mo chacun au plus)">
+            <input type="file" multiple accept="image/jpeg,image/png,application/pdf" onChange={(e) => setFichiers([...(e.target.files ?? [])])} />
           </Champ>
         )}
-        <button type="button" className="bouton" disabled={envoi || (source === "fichier" && !fichier)} onClick={() => void lire()}>
+        <button type="button" className="bouton" disabled={envoi || (source === "fichier" && fichiers.length === 0)} onClick={() => void lire()}>
           {envoi ? "Lecture en cours…" : "Lire le document"}
         </button>
       </div>
