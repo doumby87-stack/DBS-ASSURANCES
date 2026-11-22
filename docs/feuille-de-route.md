@@ -135,14 +135,14 @@ Hébergement, sauvegardes testées, surveillance, test d'intrusion par un presta
 ([ADR 0015](architecture/adr/0015-lecture-automatique.md))
 
 - **gratuite, sans rien envoyer à l'extérieur** : reconnaissance de caractères libre (Tesseract) dans l'API ; en option, un modèle de vision ouvert (Ollama) sur une machine de l'agence, qui lit aussi l'écriture à la main ;
-- **carte grise** : sur la fiche d'un client, « Ajouter un véhicule » se pré-remplit (immatriculation, marque, modèle, genre, énergie, puissance fiscale, places, châssis, première mise en circulation) ; aussi pour lire la carte grise jointe à une demande du site ;
-- **pièce d'identité** : la fiche d'identification se pré-remplit depuis le justificatif enregistré ; la zone lisible par machine des passeports et des cartes biométriques est corrigée et contrôlée par ses chiffres de contrôle ;
+- **carte grise** (recto et verso, ancienne ou récente, nouvelles plaques AB-123-CD) : sur la fiche d'un client, « Ajouter un véhicule » se pré-remplit (immatriculation, marque, modèle, genre, énergie, puissance fiscale, places, châssis, première mise en circulation, titulaire, usage) ; aussi pour lire la carte grise jointe à une demande du site. Essayée sur une vraie carte grise reçue par WhatsApp : onze champs sur onze ;
+- **pièce d'identité** (recto et verso) : la fiche d'identification se pré-remplit depuis le justificatif enregistré ou des photos ; la zone lisible par machine des passeports et des cartes biométriques est corrigée et contrôlée par ses chiffres de contrôle et par le numéro imprimé ;
 - **constat amiable** : un résumé s'ajoute à la note interne du sinistre (en partie seulement avec le lecteur local : date, heure, lieu, immatriculations) ;
 - **rien n'est enregistré sans la personne** : les champs pré-remplis sont surlignés jusqu'à l'enregistrement. Les contrôles s'affichent (pièce expirée, numéro de châssis, dates). L'antivirus passe avant toute lecture. 30 lectures par heure et par personne ; chaque lecture est consignée, sans les valeurs ;
 - la démonstration utilise le vrai lecteur, avec une carte grise et un passeport fictifs à télécharger.
 
 *À faire par l'agence :*
 - activer la lecture (`LECTURE_PRESTATAIRE=local`) ;
-- essayer sur quelques vraies cartes grises et CNI, pour ajuster l'analyse si besoin, sans les publier ;
+- essayer sur d'autres documents réels (anciennes cartes grises, CNI, passeports, cartes de résident), pour ajuster l'analyse si besoin, sans les publier ;
 - si une machine puissante est disponible, y installer Ollama et un modèle de vision libre pour mieux lire les constats ;
 - rappeler au personnel de toujours vérifier avec le document.
