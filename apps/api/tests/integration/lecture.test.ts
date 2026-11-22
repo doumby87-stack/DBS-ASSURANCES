@@ -4,6 +4,7 @@
 
 import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { chiffrerPiece } from "../../src/modules/demandes-site/piece.js";
 import { connecter, creerCompte, demarrer, envoyer, type Compte, type Contexte } from "./outils.js";
 
 const exemple = (nom: string) => readFileSync(new URL(`../donnees/lecture/${nom}`, import.meta.url));
@@ -69,6 +70,33 @@ describe("lecture automatique", () => {
     });
     expect(infecte.statusCode).toBe(422);
     expect(infecte.json().code).toBe("piece_infectee");
+  });
+
+  it("lit une carte grise précise parmi les documents d'une demande du site, jamais un classeur", async () => {
+    // Demande d'une flotte : une liste (classeur), puis deux cartes grises, analysées saines
+    const pieces = [
+      { nature: "liste_vehicules", type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", contenu: Buffer.from("PK classeur") },
+      { nature: "carte_grise", type: "image/jpeg", contenu: exemple("carte-grise-2023-recto.jpg") },
+      { nature: "carte_grise", type: "image/jpeg", contenu: exemple("carte-grise-2023-verso.jpg") },
+    ].map((p) => ({ ...p, ...chiffrerPiece(ctx.cleChiffrement, p.contenu) }));
+    const { rows: [demande] } = await ctx.base.query<{ id: string; numero: number }>(
+      `SELECT * FROM app.enregistrer_demande_site('flotte', 'entreprise', 'Flotte Lecture', '+2250101019999', NULL, NULL, NULL,
+         'J''accepte que DBS-ASSURANCES utilise ces informations.', NULL, sha256('lecture'), NULL,
+         $1::uuid[], $2::text[], $3::text[], $4::int[], $5::bytea[], $6::bytea[])`,
+      [pieces.map((p) => p.id), pieces.map((p) => p.nature), pieces.map((p) => p.type), pieces.map((p) => p.contenu.length),
+       pieces.map((p) => p.contenuChiffre), pieces.map((p) => p.empreinte)],
+    );
+    for (const p of pieces) await ctx.base.query("SELECT app.enregistrer_analyse_piece($1, true, NULL)", [p.id]);
+
+    expect((await lire(cookies.commercial, { document: "carte_grise", pieceDemandeSiteId: pieces[2]!.id })).statusCode).toBe(200);
+    expect((await lire(cookies.commercial, { document: "carte_grise", demandeSiteId: demande!.id })).statusCode).toBe(200);
+    expect((await lire(cookies.commercial, { document: "carte_grise", pieceDemandeSiteId: pieces[0]!.id })).statusCode).toBe(404);
+    expect((await lire(cookies.caissier, { document: "carte_grise", pieceDemandeSiteId: pieces[1]!.id })).statusCode).toBe(403);
+    const { rows: [journal] } = await ctx.base.query<{ n: number }>(
+      "SELECT count(*)::int AS n FROM securite.evenements WHERE type = 'lecture_automatique' AND objet = $1",
+      [`Carte grise, demande du site n° ${demande!.numero}`],
+    );
+    expect(journal!.n).toBe(2);
   });
 
   it("lit un justificatif déjà enregistré sur la fiche, et consigne la lecture sans les valeurs lues", async () => {

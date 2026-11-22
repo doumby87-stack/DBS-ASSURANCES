@@ -20,6 +20,7 @@ import type { Gardes } from "../../securite/gardes.js";
 import { utilisateurDe } from "../../securite/gardes.js";
 import { consignerEvenement } from "../../securite/limitation.js";
 import type { Role } from "../../securite/sessions.js";
+import { TYPE_CLASSEUR } from "../demandes-site/devis-par-assurance.js";
 import { dechiffrerPiece, LONGUEUR_BASE64_MAX, TYPES_PIECE, verifierPiece, type TypePiece } from "../demandes-site/piece.js";
 import { dechiffrerPieceSinistre } from "../sinistres/pieces.js";
 
@@ -44,7 +45,10 @@ interface Corps {
   fichiers?: { type: TypePiece; contenu: string }[];
   justificatifId?: string;
   pieceSinistreId?: string;
+  /** La (première) carte grise d'une demande du site */
   demandeSiteId?: string;
+  /** Un document précis d'une demande du site (une des cartes grises d'une flotte) */
+  pieceDemandeSiteId?: string;
 }
 
 const enAttente = () => new ErreurApi(503, "analyse_en_attente", "Ce document n'a pas encore été analysé par l'antivirus. Réessayez dans quelques minutes.");
@@ -89,6 +93,7 @@ export async function routesLecture(
             justificatifId: { type: "string", format: "uuid" },
             pieceSinistreId: { type: "string", format: "uuid" },
             demandeSiteId: { type: "string", format: "uuid" },
+            pieceDemandeSiteId: { type: "string", format: "uuid" },
           },
         },
       },
@@ -98,7 +103,7 @@ export async function routesLecture(
       const d = requete.body;
       if (!lecteur) throw new ErreurApi(503, "lecture_indisponible", "La lecture automatique n'est pas activée : saisissez les champs à la main.");
       if (!ROLES[d.document].includes(moi.role)) throw erreurs.accesRefuse();
-      const sources = [d.fichiers, d.justificatifId, d.pieceSinistreId, d.demandeSiteId].filter((s) => s !== undefined);
+      const sources = [d.fichiers, d.justificatifId, d.pieceSinistreId, d.demandeSiteId, d.pieceDemandeSiteId].filter((s) => s !== undefined);
       if (sources.length !== 1) throw new ErreurApi(400, "source_invalide", "Indiquez un seul document à lire.");
 
       // Document à lire, et ce qui sera consigné au journal (jamais son contenu)
@@ -154,8 +159,11 @@ export async function routesLecture(
         }
         const { rows } = await client.query<{ id: string; contenu_chiffre: Buffer | null; empreinte: Buffer; type: TypePiece; etat_analyse: string; numero: number }>(
           `SELECT p.id, p.contenu_chiffre, p.empreinte, p.type_contenu AS type, p.etat_analyse, d.numero
-           FROM app.pieces_demandes_site p JOIN app.demandes_site d ON d.id = p.demande_id WHERE p.demande_id = $1`,
-          [d.demandeSiteId],
+           FROM app.pieces_demandes_site p JOIN app.demandes_site d ON d.id = p.demande_id
+           WHERE p.type_contenu <> $3
+             AND CASE WHEN $2::uuid IS NOT NULL THEN p.id = $2 ELSE p.demande_id = $1 AND p.nature = 'carte_grise' END
+           ORDER BY p.rang LIMIT 1`,
+          [d.demandeSiteId ?? null, d.pieceDemandeSiteId ?? null, TYPE_CLASSEUR],
         );
         const p = rows[0];
         if (!p) throw erreurs.introuvable();
