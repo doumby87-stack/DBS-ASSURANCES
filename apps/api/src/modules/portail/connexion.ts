@@ -12,9 +12,8 @@ import type { ConfigurationRelances } from "../../config/configuration.js";
 import type { ResultatEnvoi } from "../../integrations/envoi.js";
 import { creerClientWhatsApp } from "../../integrations/whatsapp/whatsapp.js";
 import { empreinteJeton } from "../../securite/jetons.js";
+import type { CookieDeSession } from "../../securite/sessions.js";
 
-// Préfixe __Host- : cookie limité à l'adresse du portail, en HTTPS ; il n'est jamais envoyé au back-office
-export const NOM_COOKIE_PORTAIL = "__Host-dbs_portail";
 export const DUREE_CODE = "10 minutes";
 export const DUREE_SESSION_PORTAIL = "12 hours";
 export const INACTIVITE_PORTAIL = "30 minutes";
@@ -71,8 +70,8 @@ export function creerEmpreinteCode(cleChiffrement: Buffer): (telephone: string, 
 }
 
 /** Session valide correspondant au cookie du portail, ou null. */
-export async function lireSessionPortail(pool: Pool, requete: FastifyRequest): Promise<SessionPortail | null> {
-  const empreinte = empreinteJeton(requete.cookies[NOM_COOKIE_PORTAIL]);
+export async function lireSessionPortail(pool: Pool, requete: FastifyRequest, cookie: CookieDeSession): Promise<SessionPortail | null> {
+  const empreinte = empreinteJeton(requete.cookies[cookie.nom]);
   if (!empreinte) return null;
   const { rows } = await transactionSysteme(pool, (client) =>
     client.query<{
@@ -95,18 +94,18 @@ export async function lireSessionPortail(pool: Pool, requete: FastifyRequest): P
   };
 }
 
-export function poserCookiePortail(reponse: FastifyReply, jeton: string, expireLe: Date): void {
-  reponse.setCookie(NOM_COOKIE_PORTAIL, jeton, { path: "/", httpOnly: true, secure: true, sameSite: "strict", expires: expireLe });
+export function poserCookiePortail(reponse: FastifyReply, cookie: CookieDeSession, jeton: string, expireLe: Date): void {
+  reponse.setCookie(cookie.nom, jeton, { path: "/", httpOnly: true, secure: cookie.securise, sameSite: "strict", expires: expireLe });
 }
 
-export function effacerCookiePortail(reponse: FastifyReply): void {
-  reponse.clearCookie(NOM_COOKIE_PORTAIL, { path: "/", httpOnly: true, secure: true, sameSite: "strict" });
+export function effacerCookiePortail(reponse: FastifyReply, cookie: CookieDeSession): void {
+  reponse.clearCookie(cookie.nom, { path: "/", httpOnly: true, secure: cookie.securise, sameSite: "strict" });
 }
 
 /** Garde des routes du portail : une session du portail valide. */
-export function gardePortail(pool: Pool): preHandlerAsyncHookHandler {
+export function gardePortail(pool: Pool, cookie: CookieDeSession): preHandlerAsyncHookHandler {
   return async (requete) => {
-    requete.gestionnaire ??= await lireSessionPortail(pool, requete);
+    requete.gestionnaire ??= await lireSessionPortail(pool, requete, cookie);
     if (!requete.gestionnaire) throw erreurs.nonAuthentifie();
   };
 }

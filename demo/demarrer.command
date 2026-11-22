@@ -15,7 +15,20 @@ echo "  Préparation en cours. La première fois, comptez 5 à 15 minutes ; ensu
 echo
 if ! docker compose -f compose.yml up -d --build --wait; then
   echo
-  echo "  Le démarrage a échoué. Ouvrez le guide DEMARRER.md, partie « En cas de problème »."
+  echo "  Le démarrage a échoué. Préparation du journal, patientez…"
+  # Le détail de l'erreur : construction (rejouée, le cache la rend rapide), état et messages des conteneurs
+  {
+    echo "Démonstration DBS-ASSURANCES : journal du démarrage"
+    docker version
+    docker compose version
+    docker compose --progress plain -f compose.yml build
+    docker compose -f compose.yml ps -a
+    docker compose -f compose.yml logs --no-color --tail 200
+  } > journal-demarrage.log 2>&1
+  echo
+  echo "  Le détail est dans le fichier journal-demarrage.log, ici, dans le dossier demo."
+  echo "  Envoyez ce fichier à la personne qui développe le projet."
+  echo "  Voir aussi le guide DEMARRER.md, partie « En cas de problème »."
   printf "\n  Appuyez sur Entrée pour fermer. "; read -r _
   exit 1
 fi

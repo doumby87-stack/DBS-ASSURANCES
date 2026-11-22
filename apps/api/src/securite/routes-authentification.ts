@@ -22,7 +22,8 @@ import {
   controlerPolitique, doitEtreRehache, hacherMotDePasse, LONGUEUR_MAX, verifierLeurre, verifierMotDePasse,
 } from "./mots-de-passe.js";
 import {
-  effacerCookieSession, fermerSession, fermerSessionsUtilisateur, lireSession, ouvrirSession, poserCookieSession,
+  type CookieDeSession, effacerCookieSession, fermerSession, fermerSessionsUtilisateur, lireSession, ouvrirSession,
+  poserCookieSession,
 } from "./sessions.js";
 import { encoderBase32, genererSecretTotp, uriOtpauth, verifierCodeTotp } from "./totp.js";
 
@@ -30,6 +31,8 @@ export interface OptionsAuthentification {
   config: Configuration;
   pool: Pool;
   gardes: Gardes;
+  /** Cookie de session du personnel, le même que celui lu par les gardes */
+  cookie: CookieDeSession;
   horloge: () => number;
   verifierFuite: VerificateurFuite | null;
 }
@@ -45,7 +48,7 @@ const schemaCode = {
 const contexteTotp = (utilisateurId: string) => `totp:${utilisateurId}`;
 
 export async function routesAuthentification(app: FastifyInstance, options: OptionsAuthentification): Promise<void> {
-  const { config, pool, gardes, horloge, verifierFuite } = options;
+  const { config, pool, gardes, cookie, horloge, verifierFuite } = options;
 
   /** Remplace la session courante par une session complète (nouveau jeton). */
   async function terminerConnexion(requete: FastifyRequest, reponse: FastifyReply, ancienne: Buffer, utilisateurId: string) {
@@ -54,7 +57,7 @@ export async function routesAuthentification(app: FastifyInstance, options: Opti
       await consignerEvenement(client, "connexion_reussie", { utilisateurId, ip: requete.ip });
       return ouvrirSession(client, utilisateurId, "complet", requete);
     });
-    poserCookieSession(reponse, jeton, expireLe);
+    poserCookieSession(reponse, cookie, jeton, expireLe);
   }
 
   app.post<{ Body: { email: string; motDePasse: string } }>(
@@ -111,7 +114,7 @@ export async function routesAuthentification(app: FastifyInstance, options: Opti
 
       if (resultat.statut === "suspendu") throw erreurs.tropDeTentatives();
       if (resultat.statut === "refuse") throw erreurs.identifiantsInvalides();
-      poserCookieSession(reponse, resultat.session.jeton, resultat.session.expireLe);
+      poserCookieSession(reponse, cookie, resultat.session.jeton, resultat.session.expireLe);
       return { etape: resultat.totpActive ? "mfa" : "configuration_mfa" };
     },
   );
@@ -254,20 +257,20 @@ export async function routesAuthentification(app: FastifyInstance, options: Opti
       if (!resultat) {
         throw new ErreurApi(400, "mot_de_passe_actuel_incorrect", "Le mot de passe actuel est incorrect.");
       }
-      poserCookieSession(reponse, resultat.jeton, resultat.expireLe);
+      poserCookieSession(reponse, cookie, resultat.jeton, resultat.expireLe);
       return { motDePasseProvisoire: false };
     },
   );
 
   app.post("/auth/deconnexion", async (requete, reponse) => {
-    const session = await lireSession(pool, requete);
+    const session = await lireSession(pool, requete, cookie);
     if (session) {
       await transactionUtilisateur(pool, session.id, async (client) => {
         await fermerSession(client, session.empreinte);
         await consignerEvenement(client, "deconnexion", { utilisateurId: session.id, ip: requete.ip });
       });
     }
-    effacerCookieSession(reponse);
+    effacerCookieSession(reponse, cookie);
     return reponse.status(204).send();
   });
 }

@@ -11,7 +11,8 @@ COPY apps/api/package.json apps/api/
 COPY apps/admin/package.json apps/admin/
 COPY apps/portail/package.json apps/portail/
 COPY apps/site-vitrine/package.json apps/site-vitrine/
-RUN npm ci --no-audit --no-fund
+# Connexion lente ou coupée par moments : on réessaie chaque téléchargement plutôt que d'échouer
+RUN npm ci --no-audit --no-fund --fetch-retries=5 --fetch-retry-mintimeout=20000 --fetch-retry-maxtimeout=120000 --fetch-timeout=600000
 
 COPY . .
 # Le site appelle l'API de la démonstration pour enregistrer les demandes (devis, rendez-vous, rappels…)

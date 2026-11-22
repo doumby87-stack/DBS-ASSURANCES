@@ -21,7 +21,7 @@ Le tout est rempli de données d'exemple, et vous pourrez essayer chaque espace 
 | --- | --- | --- |
 | **Docker Desktop** | Il fait tourner le projet (base de données, serveurs) dans des « boîtes » isolées, sans rien installer d'autre sur l'ordinateur. Gratuit pour un usage personnel et pour les petites entreprises, selon les conditions de Docker. | [docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop/) |
 | **GitHub Desktop** | Il récupère le projet, puis ses mises à jour en un clic. | [desktop.github.com](https://desktop.github.com/) |
-| **Google Chrome**, **Microsoft Edge** ou **Firefox** | Pour ouvrir les espaces. | Souvent déjà installé |
+| **Google Chrome**, **Microsoft Edge**, **Firefox** ou **Safari** | Pour ouvrir les espaces. | Souvent déjà installé |
 
 L'ordinateur doit avoir :
 
@@ -57,9 +57,7 @@ L'ordinateur doit avoir :
 2. Ouvrez-le, puis connectez-vous avec le compte GitHub qui a accès au projet.
 3. Menu **File**, puis **Clone repository**, onglet **GitHub.com**.
 4. Choisissez **doumby87-stack/DBS-ASSURANCES**, puis l'endroit où le ranger (par exemple dans Documents), puis **Clone**.
-5. En haut, dans **Current branch**, choisissez la branche à essayer :
-   - tant que la PR n° 14 n'est pas fusionnée, choisissez **`claude/magical-cori-wmv30p`** : c'est elle qui contient cette démonstration ;
-   - ensuite, choisissez **`main`**.
+5. En haut, dans **Current branch**, choisissez **`main`** (ou la branche qu'on vous a demandé d'essayer).
 
 **Sans GitHub Desktop**
 
@@ -100,7 +98,8 @@ Cette page d'accueil réunit tout ce qu'il faut pour tester : les liens vers cha
 2. Dans la gestion, saisissez son **e-mail**, puis le mot de passe, le même pour tous : **`Demo DBS Assurances 2026`**.
 3. Saisissez le **code à 6 chiffres** affiché en face du compte sur la page d'accueil.
    - En vrai, ce code vient de l'application d'authentification du téléphone.
-   - Il change toutes les 30 secondes, et chaque code ne sert qu'une fois. S'il est refusé, attendez le suivant.
+   - Il change toutes les 30 secondes, et chaque code ne sert qu'une fois. La page d'accueil affiche toujours un code encore valable : recopiez celui du moment.
+   - Après 5 erreurs, le compte se bloque, comme il le fera en vrai. Sur la page d'accueil, cliquez alors sur **Débloquer les comptes**, puis recommencez depuis l'e-mail.
 
 **Se connecter à l'espace client**
 
@@ -141,7 +140,9 @@ Si la structure de la base de données a changé, la démonstration repart d'ell
 | Docker Desktop ne démarre pas sous Windows (message sur « WSL » ou la « virtualisation ») | Faites les mises à jour de Windows et redémarrez. Si le message parle de virtualisation, elle doit être activée dans le BIOS de l'ordinateur : demandez à la personne qui s'occupe de votre matériel. |
 | « port is already allocated » ou « address already in use » | Un autre programme utilise déjà l'une des adresses de la démonstration (ports 8080, 3000, 4173, 4174 ou 4321). Fermez-le, ou redémarrez l'ordinateur, puis relancez `demarrer`. |
 | « Ce site est inaccessible » | Attendez une minute et actualisez la page. Dans Docker Desktop, rubrique **Containers**, les éléments de **dbs-demo** doivent être en marche. |
-| Le code de la gestion est refusé | Chaque code ne sert qu'une fois : attendez le suivant, sur la page d'accueil. Après 5 erreurs de suite, le compte se bloque 15 minutes : c'est une protection. Patientez, prenez un autre compte, ou utilisez `reinitialiser`. |
+| Le démarrage a échoué | Relancez `demarrer` une fois : une coupure de connexion pendant le téléchargement suffit à le faire échouer. Si l'échec revient, un fichier **`journal-demarrage.log`** vient d'être créé dans le dossier `demo` : envoyez-le à la personne qui développe le projet, il contient l'erreur exacte. |
+| « E-mail ou mot de passe incorrect » alors que tout est juste, ou le code est refusé | Après 5 erreurs, le compte se bloque, et même le bon mot de passe est alors refusé : c'est la protection prévue pour la vraie agence. Sur la page d'accueil, cliquez sur **Débloquer les comptes**, puis recommencez depuis l'e-mail. Relancer `demarrer` débloque aussi les comptes. Le mot de passe s'écrit exactement `Demo DBS Assurances 2026` (espaces et majuscules compris), et le code est celui affiché à l'instant en face du compte. |
+| « Trop de tentatives depuis cette adresse » | Plus de 20 erreurs en 15 minutes, tous comptes confondus : attendez 15 minutes, ou utilisez `reinitialiser`. |
 | Aucun code n'apparaît pour l'espace client | Vérifiez que le numéro saisi est exactement celui de la page d'accueil. Un code vaut 10 minutes : demandez-en un autre si besoin. |
 | Sur Mac : « impossible d'ouvrir… développeur non identifié » | Clic droit sur le fichier, **Ouvrir**, puis **Ouvrir**. |
 | Autre chose | Dans Docker Desktop, rubrique **Containers**, ouvrez **dbs-demo**, puis **demo-1**, onglet **Logs**. Copiez les dernières lignes et envoyez-les à la personne qui développe le projet. |

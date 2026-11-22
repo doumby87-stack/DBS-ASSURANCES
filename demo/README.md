@@ -11,7 +11,7 @@ Tout le projet sur un ordinateur, avec des données inventées. Le guide pour le
 | `Dockerfile` | Image `demo` : dépendances (`npm ci`), puis construction de l'API, de la gestion, de l'espace client et du site. Le site est construit avec `URL_API=http://localhost:3000`, pour que ses formulaires enregistrent les demandes. |
 | `lanceur.mjs` | Remplit la base de données fictives la première fois, puis démarre les services (voir ci-dessous). |
 | `accueil.html`, `accueil.js`, `accueil.css` | Page d'accueil : liens, comptes, codes. Elle suit une politique de sécurité du contenu stricte : aucun script ni style en ligne. |
-| `demarrer`, `arreter`, `reinitialiser` (`.bat` pour Windows, `.command` pour macOS et Linux) | Les commandes Docker en un double-clic : `up -d --build --wait` ; `down` ; `down -v` puis démarrage. |
+| `demarrer`, `arreter`, `reinitialiser` (`.bat` pour Windows, `.command` pour macOS et Linux) | Les commandes Docker en un double-clic : `up -d --build --wait` ; `down` ; `down -v` puis démarrage. Si le démarrage échoue, `demarrer` écrit `journal-demarrage.log` (versions de Docker, construction rejouée, état et messages des conteneurs), à envoyer à qui développe le projet. Les `.bat` sont en ASCII, sans `chcp` : selon sa version, l'invite de commandes de Windows lit mal les accents. |
 
 Le lanceur démarre :
 
@@ -19,6 +19,13 @@ Le lanceur démarre :
 - la **gestion** et l'**espace client**, servis par `vite preview` avec les en-têtes de production ;
 - le **site**, servi avec son fichier `_headers` ;
 - la **page d'accueil**, sur le port 8080.
+
+## Ce qui est adapté à un ordinateur
+
+- **Cookies de session :** en `http://localhost`, l'API les pose sans préfixe `__Host-` ni attribut `Secure`, car Safari refuse ces cookies hors HTTPS, même sur localhost. Le choix dépend de l'adresse configurée (`URL_BACK_OFFICE`, `URL_PORTAIL`) : en HTTPS, imposé en production, rien ne change.
+- **Une seule adresse :** l'API n'accepte les connexions que depuis `http://localhost:…`. Avec `ADRESSE_PUBLIQUE`, que pose le lanceur, la gestion, l'espace client et le site renvoient `http://127.0.0.1:…` vers cette adresse.
+- **Comptes bloqués :** comme en production, 5 erreurs de mot de passe ou de code bloquent un compte. Chaque démarrage et le bouton « Débloquer les comptes » de la page d'accueil (`POST /debloquer`, accepté seulement depuis la page d'accueil) les débloquent. Le journal de sécurité n'est jamais effacé.
+- **Code du personnel :** chaque code ne sert qu'une fois. Si celui du moment vient de servir, la page d'accueil affiche le suivant, que l'API accepte déjà.
 
 ## Ce qui est simulé
 

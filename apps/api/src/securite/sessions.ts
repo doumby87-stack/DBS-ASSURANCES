@@ -8,7 +8,25 @@ import type { Client, Pool } from "../base-de-donnees/connexion.js";
 import { transactionSysteme } from "../base-de-donnees/connexion.js";
 import { empreinteJeton, genererJeton } from "./jetons.js";
 
-// Préfixe __Host- : le navigateur n'accepte ce cookie qu'en HTTPS, pour ce seul domaine, sur tout le site
+/**
+ * Cookie de session : son nom et l'attribut Secure dépendent de l'adresse de l'application.
+ *   · en HTTPS (toujours en production, imposé par la configuration) : préfixe __Host- et Secure, le navigateur
+ *     n'accepte alors ce cookie qu'en HTTPS, pour ce seul domaine, sur tout le site ;
+ *   · sur http://localhost (démonstration, essais sur l'ordinateur) : ni préfixe ni Secure, car Safari refuse
+ *     ces cookies hors HTTPS, même sur localhost. HttpOnly et SameSite=Strict restent.
+ * L'API ne lit que le nom attendu pour son adresse : jamais un cookie sans préfixe quand elle est en HTTPS.
+ */
+export interface CookieDeSession {
+  nom: string;
+  securise: boolean;
+}
+
+export function cookieDeSession(origine: string, nom: string): CookieDeSession {
+  const securise = new URL(origine).protocol === "https:";
+  return { nom: securise ? `__Host-${nom}` : nom, securise };
+}
+
+/** Nom du cookie de session du personnel en HTTPS */
 export const NOM_COOKIE = "__Host-dbs_session";
 export const DUREE_SESSION_PARTIELLE_MS = 5 * 60 * 1000;
 export const DUREE_SESSION_COMPLETE_MS = 8 * 60 * 60 * 1000;
@@ -48,8 +66,8 @@ export async function ouvrirSession(
 }
 
 /** Session valide correspondant au cookie de la requête, ou null. */
-export async function lireSession(pool: Pool, requete: FastifyRequest): Promise<SessionUtilisateur | null> {
-  const empreinte = empreinteJeton(requete.cookies[NOM_COOKIE]);
+export async function lireSession(pool: Pool, requete: FastifyRequest, cookie: CookieDeSession): Promise<SessionUtilisateur | null> {
+  const empreinte = empreinteJeton(requete.cookies[cookie.nom]);
   if (!empreinte) return null;
   const { rows } = await transactionSysteme(pool, (client) =>
     client.query<{
@@ -85,16 +103,16 @@ export async function fermerSessionsUtilisateur(client: Client, utilisateurId: s
   );
 }
 
-export function poserCookieSession(reponse: FastifyReply, jeton: string, expireLe: Date): void {
-  reponse.setCookie(NOM_COOKIE, jeton, {
+export function poserCookieSession(reponse: FastifyReply, cookie: CookieDeSession, jeton: string, expireLe: Date): void {
+  reponse.setCookie(cookie.nom, jeton, {
     path: "/",
     httpOnly: true,
-    secure: true,
+    secure: cookie.securise,
     sameSite: "strict",
     expires: expireLe,
   });
 }
 
-export function effacerCookieSession(reponse: FastifyReply): void {
-  reponse.clearCookie(NOM_COOKIE, { path: "/", httpOnly: true, secure: true, sameSite: "strict" });
+export function effacerCookieSession(reponse: FastifyReply, cookie: CookieDeSession): void {
+  reponse.clearCookie(cookie.nom, { path: "/", httpOnly: true, secure: cookie.securise, sameSite: "strict" });
 }

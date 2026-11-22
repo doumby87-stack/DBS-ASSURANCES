@@ -43,6 +43,7 @@ import { creerGardes } from "./securite/gardes.js";
 import { creerVerificateurFuite, type VerificateurFuite } from "./securite/mots-de-passe.js";
 import { enregistrerProtections } from "./securite/protection.js";
 import { routesAuthentification } from "./securite/routes-authentification.js";
+import { cookieDeSession } from "./securite/sessions.js";
 
 export interface DependancesApplication {
   config: Configuration;
@@ -111,7 +112,8 @@ export async function construireApplication(dependances: DependancesApplication)
   });
   enregistrerProtections(app, config);
 
-  const gardes = creerGardes(pool);
+  const cookiePersonnel = cookieDeSession(config.origineBackOffice, "dbs_session");
+  const gardes = creerGardes(pool, cookiePersonnel);
   const verifierFuite =
     dependances.verifierFuite !== undefined
       ? dependances.verifierFuite
@@ -132,6 +134,7 @@ export async function construireApplication(dependances: DependancesApplication)
     config,
     pool,
     gardes,
+    cookie: cookiePersonnel,
     horloge: dependances.horloge ?? Date.now,
     verifierFuite,
   });
@@ -154,17 +157,20 @@ export async function construireApplication(dependances: DependancesApplication)
   await app.register(routesPaiementsEnLigne, { pool, gardes });
   const prestataire = config.paiement ? (dependances.prestatairePaiement ?? creerPrestataire(config.paiement)) : null;
   if (config.originePortail) {
+    // Cookie limité à l'adresse du portail, jamais envoyé au back-office (__Host-dbs_portail en HTTPS)
+    const cookie = cookieDeSession(config.originePortail, "dbs_portail");
     await app.register(routesPortail, {
       pool,
       cleChiffrement: config.cleChiffrement,
       envoiCodes: dependances.envoiCodes ?? creerEnvoiCodes(config.relances),
       paiementEnLigne: prestataire !== null,
+      cookie,
     });
-    await app.register(routesSinistresPortail, { pool, cleChiffrement: config.cleChiffrement, antivirus });
-    await app.register(routesReclamationsPortail, { pool });
+    await app.register(routesSinistresPortail, { pool, cleChiffrement: config.cleChiffrement, antivirus, cookie });
+    await app.register(routesReclamationsPortail, { pool, cookie });
     if (prestataire && config.paiement) {
       await app.register(routesPaiementsPortail, {
-        pool, prestataire, originePortail: config.originePortail, montantMax: config.paiement.montantMax,
+        pool, prestataire, originePortail: config.originePortail, montantMax: config.paiement.montantMax, cookie,
       });
     }
   }

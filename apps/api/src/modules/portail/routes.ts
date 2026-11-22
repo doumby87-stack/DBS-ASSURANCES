@@ -18,6 +18,7 @@ import { normaliserTelephone } from "../../commun/formats.js";
 import { parametreId, texteCourt } from "../../commun/schemas.js";
 import { creerZip, nomDeFichier } from "../../commun/zip.js";
 import { genererJeton } from "../../securite/jetons.js";
+import type { CookieDeSession } from "../../securite/sessions.js";
 import { dechiffrerAttestation } from "./attestations.js";
 import {
   creerEmpreinteCode, DUREE_CODE, DUREE_SESSION_PORTAIL, effacerCookiePortail, type EnvoiCodes, gardePortail,
@@ -67,11 +68,11 @@ async function lireVehicules(client: Client, clientId: string): Promise<Vehicule
 
 export async function routesPortail(
   app: FastifyInstance,
-  options: { pool: Pool; cleChiffrement: Buffer; envoiCodes: EnvoiCodes; paiementEnLigne: boolean },
+  options: { pool: Pool; cleChiffrement: Buffer; envoiCodes: EnvoiCodes; paiementEnLigne: boolean; cookie: CookieDeSession },
 ): Promise<void> {
-  const { pool, cleChiffrement, envoiCodes, paiementEnLigne } = options;
+  const { pool, cleChiffrement, envoiCodes, paiementEnLigne, cookie } = options;
   const empreinteCode = creerEmpreinteCode(cleChiffrement);
-  const garde = gardePortail(pool);
+  const garde = gardePortail(pool, cookie);
   const config = { appeleeParLePortail: true };
   const telephone = texteCourt(30, 8);
 
@@ -156,15 +157,15 @@ export async function routesPortail(
         throw new ErreurApi(401, "code_invalide", "Code incorrect ou expiré : vérifiez-le, ou demandez-en un nouveau.");
       }
       const { expire_le: expireLe, ...session } = resultat.session;
-      poserCookiePortail(reponse, resultat.jeton, expireLe);
+      poserCookiePortail(reponse, cookie, resultat.jeton, expireLe);
       return { session };
     },
   );
 
   app.post("/portail/deconnexion", { config }, async (requete, reponse) => {
-    const session = await lireSessionPortail(pool, requete);
+    const session = await lireSessionPortail(pool, requete, cookie);
     if (session) await transactionSysteme(pool, (client) => client.query("SELECT portail.fermer_session($1)", [session.empreinte]));
-    effacerCookiePortail(reponse);
+    effacerCookiePortail(reponse, cookie);
     return reponse.status(204).send();
   });
 

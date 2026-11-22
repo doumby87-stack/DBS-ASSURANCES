@@ -1,6 +1,7 @@
-// Vérifie une démonstration démarrée (demo/compose.yml) : chaque espace répond, un compte du personnel se connecte
-// avec le code affiché sur la page d'accueil et fait lire la carte grise d'exemple, et une cliente reçoit son code
-// puis entre dans son espace.
+// Vérifie une démonstration démarrée (demo/compose.yml) : chaque espace répond, et 127.0.0.1 renvoie vers localhost ;
+// un compte du personnel se connecte avec le code affiché sur la page d'accueil (cookie que Safari accepte aussi) et
+// fait lire la carte grise d'exemple ; la page d'accueil débloque les comptes ; une cliente reçoit son code puis entre
+// dans son espace.
 // Lancé par l'intégration continue ; utilisable à la main : node demo/verifier.mjs
 
 const ACCUEIL = "http://localhost:8080";
@@ -28,12 +29,22 @@ for (const [nom, adresse] of [["page d'accueil", ACCUEIL], ["site", `${SITE}/ren
   verifier(reponse.ok, `${nom} : ${adresse} répond`);
 }
 
+// http://127.0.0.1:… est renvoyé vers http://localhost:…, la seule adresse que l'API accepte
+for (const [nom, adresse] of [["site", SITE], ["gestion", GESTION], ["espace client", ESPACE_CLIENT]]) {
+  const autre = adresse.replace("localhost", "127.0.0.1");
+  const reponse = await fetch(`${autre}/chemin?x=1`, { redirect: "manual" });
+  verifier(reponse.status === 307 && reponse.headers.get("location") === `${adresse}/chemin?x=1`, `${nom} : ${autre} renvoie vers ${adresse}`);
+}
+
 // Personnel : mot de passe, puis code à 6 chiffres de la page d'accueil
 const { personnel, clients } = await etat();
 verifier(personnel.length === 5 && personnel.every((p) => /^\d{6}$/.test(p.code)), "cinq comptes du personnel, avec leur code du moment");
 const gerante = personnel.find((p) => p.role === "gerant");
 const connexion = await poster(GESTION, "/auth/connexion", { email: gerante.email, motDePasse: MOT_DE_PASSE });
 verifier(connexion.ok && (await connexion.json()).etape === "mfa", "la gérante passe l'étape du mot de passe");
+// Safari refuse les cookies Secure ou préfixés __Host- sur http://localhost : la connexion n'irait pas plus loin
+const pose = connexion.headers.getSetCookie()[0] ?? "";
+verifier(pose.startsWith("dbs_session=") && !/;\s*secure/i.test(pose), "son cookie de session est gardé par tous les navigateurs, Safari compris");
 const mfa = await poster(GESTION, "/auth/mfa", { code: gerante.code }, { Cookie: cookie(connexion) });
 verifier(mfa.ok, "puis celle du code à 6 chiffres affiché sur la page d'accueil");
 const clientsGestion = await fetch(`${GESTION}/api/clients`, { headers: { Cookie: cookie(mfa) } });
@@ -49,6 +60,12 @@ const lue = await poster(GESTION, "/lecture-automatique", {
 const champsLus = lue.ok ? (await lue.json()).champs : {};
 verifier(champsLus.immatriculation === "CD-123-EF-01" && champsLus.numeroChassis === "WDB9634031L123456",
   "elle lit le recto et le verso de la carte grise d'exemple de la page d'accueil");
+
+// Après 5 erreurs, un compte est bloqué ; la page d'accueil le débloque
+const deblocage = await fetch(`${ACCUEIL}/debloquer`, { method: "POST", headers: { Origin: ACCUEIL } });
+verifier(deblocage.status === 204, "la page d'accueil débloque les comptes");
+const deblocageAilleurs = await fetch(`${ACCUEIL}/debloquer`, { method: "POST", headers: { Origin: "https://exemple.test" } });
+verifier(deblocageAilleurs.status === 403, "mais pas à la demande d'un autre site");
 
 // Espace client : le code qui partirait sur WhatsApp apparaît sur la page d'accueil
 const mariam = clients.find((c) => c.nom === "Koné Mariam");
