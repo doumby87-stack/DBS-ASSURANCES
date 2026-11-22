@@ -103,6 +103,35 @@ describe("Connexion", () => {
     expect(expire - Date.now()).toBeLessThanOrEqual(5 * 60 * 1000 + 5_000); // session partielle : 5 minutes
   });
 
+  it("en HTTPS, le même jeton dans un cookie sans préfixe __Host- est ignoré", async () => {
+    const compte = await creerCompte(ctx, "commercial");
+    const valeur = (await connecter(ctx, compte)).split("=")[1]!;
+    expect((await envoyer(ctx, { url: "/auth/session", cookie: `__Host-dbs_session=${valeur}` })).statusCode).toBe(200);
+    expect((await envoyer(ctx, { url: "/auth/session", cookie: `dbs_session=${valeur}` })).statusCode).toBe(401);
+  });
+
+  it("sur http://localhost (démonstration), le cookie n'a ni Secure ni préfixe, que Safari refuse hors HTTPS", async () => {
+    const origine = "http://localhost:4173";
+    const local = await demarrer({ env: { URL_BACK_OFFICE: origine } });
+    try {
+      const compte = await creerCompte(local, "commercial");
+      const connexion = await envoyer(local, {
+        url: "/auth/connexion", origine, corps: { email: compte.email, motDePasse: compte.motDePasse },
+      });
+      expect(connexion.cookies.map((c) => c.name)).toEqual(["dbs_session"]);
+      const cookie = connexion.cookies[0]!;
+      expect(cookie).toMatchObject({ httpOnly: true, sameSite: "Strict", path: "/" });
+      expect(cookie.secure).toBeFalsy();
+      // La session partielle est bien relue depuis ce cookie : l'étape du deuxième facteur est possible
+      const configuration = await envoyer(local, {
+        methode: "POST", url: "/auth/mfa/configuration", origine, cookie: `dbs_session=${cookie.value}`,
+      });
+      expect(configuration.statusCode).toBe(200);
+    } finally {
+      await local.fermer();
+    }
+  });
+
   it("un code du deuxième facteur ne sert qu'une seule fois", async () => {
     const compte = await creerCompte(ctx, "caissier");
     await connecter(ctx, compte);

@@ -10,6 +10,7 @@ import { transactionPortail } from "../../base-de-donnees/connexion.js";
 import { ErreurApi, erreurs } from "../../commun/erreurs.js";
 import { date, parametreId, texteCourt } from "../../commun/schemas.js";
 import type { Antivirus } from "../../integrations/antivirus/clamav.js";
+import type { CookieDeSession } from "../../securite/sessions.js";
 import { gardePortail, gestionnaireDe } from "../portail/connexion.js";
 import {
   chiffrerPieceSinistre, LONGUEUR_BASE64_MAX, MESSAGES_PIECE_SINISTRE, nomAffiche, TYPES_PIECE, verifierPiece,
@@ -27,10 +28,10 @@ const DEPUIS = `FROM app.sinistres s JOIN app.contrats k ON k.id = s.contrat_id 
 
 export async function routesSinistresPortail(
   app: FastifyInstance,
-  options: { pool: Pool; cleChiffrement: Buffer; antivirus: Antivirus },
+  options: { pool: Pool; cleChiffrement: Buffer; antivirus: Antivirus; cookie: CookieDeSession },
 ): Promise<void> {
-  const { pool, cleChiffrement, antivirus } = options;
-  const garde = gardePortail(pool);
+  const { pool, cleChiffrement, antivirus, cookie } = options;
+  const garde = gardePortail(pool, cookie);
   const config = { appeleeParLePortail: true };
 
   app.get("/portail/sinistres", { preHandler: garde }, async (requete) => {

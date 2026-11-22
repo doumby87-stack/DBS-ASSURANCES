@@ -13,6 +13,7 @@ import { transactionPortail } from "../../base-de-donnees/connexion.js";
 import { ErreurApi, erreurs } from "../../commun/erreurs.js";
 import { parametreId } from "../../commun/schemas.js";
 import { estSimulation, type PrestatairePaiement } from "../../integrations/paiement/prestataire.js";
+import type { CookieDeSession } from "../../securite/sessions.js";
 import { gardePortail, gestionnaireDe } from "../portail/connexion.js";
 import { creerLimiteVerifications, type StatutPaiementEnLigne, verifierEtConclure } from "./conclusion.js";
 
@@ -31,10 +32,10 @@ interface PaiementPortail {
 
 export async function routesPaiementsPortail(
   app: FastifyInstance,
-  options: { pool: Pool; prestataire: PrestatairePaiement; originePortail: string; montantMax: number },
+  options: { pool: Pool; prestataire: PrestatairePaiement; originePortail: string; montantMax: number; cookie: CookieDeSession },
 ): Promise<void> {
-  const { pool, prestataire, originePortail, montantMax } = options;
-  const garde = gardePortail(pool);
+  const { pool, prestataire, originePortail, montantMax, cookie } = options;
+  const garde = gardePortail(pool, cookie);
   const config = { appeleeParLePortail: true };
   const peutVerifier = creerLimiteVerifications();
 

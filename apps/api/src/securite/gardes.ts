@@ -4,7 +4,7 @@
 import type { FastifyRequest, preHandlerAsyncHookHandler } from "fastify";
 import type { Pool } from "../base-de-donnees/connexion.js";
 import { erreurs } from "../commun/erreurs.js";
-import { lireSession, type Role, type SessionUtilisateur } from "./sessions.js";
+import { lireSession, type CookieDeSession, type Role, type SessionUtilisateur } from "./sessions.js";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -27,9 +27,9 @@ export interface Gardes {
   roles: (...roles: Role[]) => preHandlerAsyncHookHandler;
 }
 
-export function creerGardes(pool: Pool): Gardes {
+export function creerGardes(pool: Pool, cookie: CookieDeSession): Gardes {
   async function charger(requete: FastifyRequest): Promise<SessionUtilisateur> {
-    requete.utilisateur ??= await lireSession(pool, requete);
+    requete.utilisateur ??= await lireSession(pool, requete, cookie);
     if (!requete.utilisateur) throw erreurs.nonAuthentifie();
     return requete.utilisateur;
   }

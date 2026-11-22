@@ -75,7 +75,7 @@ Le formulaire du site envoie la demande à `POST /site/demandes-devis` (JSON, ca
 
 ## Espace client (portail)
 
-Avec `URL_PORTAIL`, l'API ouvre les routes de l'espace client ([`apps/portail`](../portail/README.md), [ADR 0011](../../docs/architecture/adr/0011-portail-des-entreprises.md), [ADR 0012](../../docs/architecture/adr/0012-espace-client-et-paiement-en-ligne.md)), acceptées depuis cette seule origine. Leur session est séparée de celle du personnel : cookie `__Host-dbs_portail` et table `portail.sessions`, 30 minutes d'inactivité, 12 heures au plus. Chaque lecture passe par `transactionPortail`, sous le rôle de base `dbs_portail`, qui ne voit que le client de la personne connectée (son entreprise, ou elle-même pour un particulier).
+Avec `URL_PORTAIL`, l'API ouvre les routes de l'espace client ([`apps/portail`](../portail/README.md), [ADR 0011](../../docs/architecture/adr/0011-portail-des-entreprises.md), [ADR 0012](../../docs/architecture/adr/0012-espace-client-et-paiement-en-ligne.md)), acceptées depuis cette seule origine. Leur session est séparée de celle du personnel : cookie `__Host-dbs_portail` (`dbs_portail` sur `http://localhost`) et table `portail.sessions`, 30 minutes d'inactivité, 12 heures au plus. Chaque lecture passe par `transactionPortail`, sous le rôle de base `dbs_portail`, qui ne voit que le client de la personne connectée (son entreprise, ou elle-même pour un particulier).
 
 | Route | Rôle |
 | --- | --- |
@@ -200,7 +200,7 @@ Le mot de passe provisoire s'affiche une seule fois. Ensuite, tous les comptes s
 | Mots de passe hachés avec Argon2id (paramètres OWASP), recalculés si les paramètres changent | `src/securite/mots-de-passe.ts` |
 | Mots de passe d'au moins 12 caractères, sans l'adresse e-mail, absents des fuites connues (k-anonymat : le mot de passe ne quitte jamais le serveur) | `src/securite/mots-de-passe.ts` |
 | Deuxième facteur TOTP obligatoire, codes à usage unique (anti-rejeu), secret chiffré en AES-256-GCM lié à l'utilisateur | `src/securite/totp.ts`, `chiffrement.ts` |
-| Sessions côté serveur ; seule l'empreinte du jeton est en base ; cookie `__Host-`, `HttpOnly`, `Secure`, `SameSite=Strict` ; nouveau jeton à chaque changement de niveau ou de mot de passe | `src/securite/sessions.ts` |
+| Sessions côté serveur ; seule l'empreinte du jeton est en base ; cookie `__Host-`, `HttpOnly`, `Secure`, `SameSite=Strict` (en HTTPS, imposé en production ; sur `http://localhost`, pour la démonstration et les essais, ni préfixe ni `Secure`, que Safari refuse hors HTTPS) ; nouveau jeton à chaque changement de niveau ou de mot de passe | `src/securite/sessions.ts` |
 | Expiration : 15 minutes d'inactivité, 8 heures au maximum ; compte désactivé = accès coupé immédiatement | base, `securite.lire_session` |
 | Blocage après 5 échecs (15 min, puis doublé, 24 h au plus) et fermeture des sessions ; 20 échecs par adresse IP en 15 min suspendent les tentatives | `src/securite/limitation.ts` |
 | Même réponse et même durée pour un compte inconnu, désactivé, bloqué ou un mauvais mot de passe | `src/securite/routes-authentification.ts` |

@@ -13,6 +13,7 @@ import { parametreId, texteCourt } from "../../commun/schemas.js";
 import type { Gardes } from "../../securite/gardes.js";
 import { utilisateurDe } from "../../securite/gardes.js";
 import { consignerEvenement } from "../../securite/limitation.js";
+import type { CookieDeSession } from "../../securite/sessions.js";
 import { gardePortail, gestionnaireDe } from "../portail/connexion.js";
 
 export const CANAUX_RECLAMATION = ["guichet", "telephone", "whatsapp", "email", "courrier"] as const;
@@ -182,9 +183,9 @@ export async function routesReclamations(app: FastifyInstance, options: { pool: 
 }
 
 /** Réclamations depuis l'espace client : déposer, suivre (la réponse de l'agence comprise). */
-export async function routesReclamationsPortail(app: FastifyInstance, options: { pool: Pool }): Promise<void> {
-  const { pool } = options;
-  const garde = gardePortail(pool);
+export async function routesReclamationsPortail(app: FastifyInstance, options: { pool: Pool; cookie: CookieDeSession }): Promise<void> {
+  const { pool, cookie } = options;
+  const garde = gardePortail(pool, cookie);
 
   app.get("/portail/reclamations", { preHandler: garde }, async (requete) => {
     const moi = gestionnaireDe(requete);
