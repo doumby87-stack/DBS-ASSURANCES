@@ -1,14 +1,14 @@
 @echo off
-chcp 65001 >nul
-title Remise à zéro de la démonstration DBS-ASSURANCES
+rem Efface tout ce qui a ete saisi dans la demonstration et repart des donnees d'exemple.
+title Remise a zero de la demonstration DBS-ASSURANCES
 cd /d "%~dp0"
 echo.
-echo  Tout ce que vous avez saisi dans la démonstration sera effacé,
-echo  et les données d'exemple reviendront.
+echo  Tout ce que vous avez saisi dans la demonstration sera efface,
+echo  et les donnees d'exemple reviendront.
 echo.
-set /p REPONSE= Continuer ? Tapez o puis Entrée : 
+set /p REPONSE= Continuer ? Tapez o puis Entree : 
 if /i not "%REPONSE%"=="o" (
-  echo  Rien n'a été effacé.
+  echo  Rien n'a ete efface.
   pause
   exit /b 0
 )
