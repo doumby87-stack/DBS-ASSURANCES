@@ -112,6 +112,19 @@ async function demoPrete() {
   }
 }
 
+/**
+ * Débloque les comptes du personnel. Comme en production, 5 erreurs de mot de passe ou de code bloquent un compte
+ * (15 minutes, puis de plus en plus longtemps) ; dans la démonstration, la page d'accueil et chaque démarrage
+ * le débloquent, pour qu'un essai raté n'empêche pas de continuer.
+ */
+async function debloquerComptes(base) {
+  await base.query(
+    `UPDATE securite.identifiants SET echecs_consecutifs = 0, bloque_jusqu_a = NULL
+     WHERE utilisateur_id IN (SELECT id FROM app.utilisateurs WHERE email = ANY($1))`,
+    [PERSONNEL.map((p) => p.email)],
+  );
+}
+
 /** Rôles, base et migrations, avec les scripts de production (demo/preparer-base.sh) */
 function preparerBase(reinitialiser) {
   execFileSync("bash", [`${RACINE}demo/preparer-base.sh`], {
@@ -318,10 +331,15 @@ function lancer(nom, commande, args, options) {
 
 function demarrerApplications() {
   const vite = `${RACINE}node_modules/vite/bin/vite.js`;
-  lancer("gestion", process.execPath, [vite, "preview", "--host", "0.0.0.0"], { cwd: `${RACINE}apps/admin` });
-  lancer("espace client", process.execPath, [vite, "preview", "--host", "0.0.0.0"], { cwd: `${RACINE}apps/portail` });
+  // ADRESSE_PUBLIQUE : http://127.0.0.1:… est renvoyé vers http://localhost:…, la seule adresse que l'API accepte
+  lancer("gestion", process.execPath, [vite, "preview", "--host", "0.0.0.0"], {
+    cwd: `${RACINE}apps/admin`, env: { ...process.env, ADRESSE_PUBLIQUE: ADRESSES.gestion },
+  });
+  lancer("espace client", process.execPath, [vite, "preview", "--host", "0.0.0.0"], {
+    cwd: `${RACINE}apps/portail`, env: { ...process.env, ADRESSE_PUBLIQUE: ADRESSES.espaceClient },
+  });
   lancer("site", process.execPath, [`${RACINE}apps/site-vitrine/tests/serveur.mjs`, "4321", "dist"], {
-    cwd: `${RACINE}apps/site-vitrine`, env: { ...process.env, HOTE: "0.0.0.0" },
+    cwd: `${RACINE}apps/site-vitrine`, env: { ...process.env, HOTE: "0.0.0.0", ADRESSE_PUBLIQUE: ADRESSES.site },
   });
 }
 
@@ -349,13 +367,62 @@ async function demarrerAccueil() {
     "X-Content-Type-Options": "nosniff",
     "Cache-Control": "no-store",
   };
-  createServer((requete, reponse) => {
+  const base = new pg.Pool({ connectionString: urlSuper(BASE), max: 2 });
+
+  /** Dernier code utilisé et blocage de chaque compte ; vide si la base ne répond pas (les codes restent affichés) */
+  async function comptes() {
+    try {
+      const { rows } = await base.query(
+        `SELECT u.email, i.totp_dernier_pas::text AS dernier_pas, i.bloque_jusqu_a
+         FROM securite.identifiants i JOIN app.utilisateurs u ON u.id = i.utilisateur_id
+         WHERE u.email = ANY($1)`,
+        [PERSONNEL.map((p) => p.email)],
+      );
+      return new Map(rows.map((r) => [r.email, r]));
+    } catch {
+      return new Map();
+    }
+  }
+
+  async function etatPersonnel(maintenant) {
+    const pas = pasDeTemps(maintenant);
+    const parEmail = await comptes();
+    return PERSONNEL.map((p) => {
+      const compte = parEmail.get(p.email);
+      const dernierPas = compte?.dernier_pas == null ? null : Number(compte.dernier_pas);
+      // Chaque code ne sert qu'une fois. Si celui du moment vient de servir (déconnexion puis reconnexion),
+      // on affiche le suivant, que l'API accepte déjà (elle tolère un pas d'avance) : le code affiché marche toujours.
+      const libre = [pas, pas + 1].find((n) => dernierPas === null || n > dernierPas);
+      const bloque = compte?.bloque_jusqu_a && compte.bloque_jusqu_a.getTime() > maintenant ? compte.bloque_jusqu_a : null;
+      return {
+        ...p,
+        code: libre === undefined ? null : codeTotp(secretTotp(p.email), libre),
+        bloqueJusqua: bloque ? bloque.toISOString() : null,
+      };
+    });
+  }
+
+  createServer(async (requete, reponse) => {
     const chemin = new URL(requete.url ?? "/", "http://localhost").pathname;
+    if (chemin === "/debloquer" && requete.method === "POST") {
+      // Seulement depuis la page d'accueil elle-même
+      if (![ADRESSES.accueil, "http://127.0.0.1:8080"].includes(requete.headers.origin ?? "")) {
+        reponse.writeHead(403, { ...enTetes, "Content-Type": "text/plain; charset=utf-8" });
+        return reponse.end("Refusé");
+      }
+      try {
+        await debloquerComptes(base);
+        reponse.writeHead(204, enTetes);
+      } catch {
+        reponse.writeHead(500, enTetes);
+      }
+      return reponse.end();
+    }
     if (chemin === "/etat.json") {
       const maintenant = Date.now();
       const etat = {
         resteSecondes: PERIODE_SECONDES - Math.floor(maintenant / 1000) % PERIODE_SECONDES,
-        personnel: PERSONNEL.map((p) => ({ ...p, code: codeTotp(secretTotp(p.email), pasDeTemps(maintenant)) })),
+        personnel: await etatPersonnel(maintenant),
         clients: CLIENTS_ESPACE.map((c) => {
           const recu = codesRecus.get(c.telephone);
           // Un code de l'espace client vaut 10 minutes
@@ -385,6 +452,9 @@ try {
     journal("données fictives…");
     await remplir();
   }
+  const base = new pg.Client({ connectionString: urlSuper(BASE) });
+  await base.connect();
+  await debloquerComptes(base).finally(() => base.end());
   journal("démarrage de l'API, de la gestion, de l'espace client et du site…");
   await demarrerApi();
   demarrerApplications();

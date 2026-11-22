@@ -39,12 +39,17 @@
     <section aria-labelledby="titre-personnel">
       <h2 id="titre-personnel">2. Se connecter à la gestion</h2>
       <p>Choisissez un compte. Mot de passe (le même pour tous) : <code class="a-copier">{{MOT_DE_PASSE}}</code></p>
-      <p>Puis le <strong>code à 6 chiffres</strong> : en vrai, il s'affiche dans l'application d'authentification du téléphone ; ici, il est juste en dessous. Il change toutes les 30 secondes <span class="note">(encore <span data-reste>…</span> s)</span>, et chaque code ne sert qu'une fois.</p>
+      <p>Puis le <strong>code à 6 chiffres</strong> : en vrai, il s'affiche dans l'application d'authentification du téléphone ; ici, il est juste en dessous. Il change toutes les 30 secondes <span class="note">(encore <span data-reste>…</span> s)</span>, et chaque code ne sert qu'une fois : celui affiché ici est toujours un code encore valable.</p>
       <div class="tableau-defilant">
         <table>
           <thead><tr><th>Rôle</th><th>Nom</th><th>E-mail (identifiant)</th><th>Code</th></tr></thead>
           <tbody data-personnel><tr><td colspan="4">Chargement…</td></tr></tbody>
         </table>
+      </div>
+      <div class="deblocage">
+        <p>Après 5 erreurs de mot de passe ou de code, un compte se bloque, comme en vrai : la connexion répond alors « mot de passe incorrect » même avec le bon. Ici, un clic suffit pour repartir.</p>
+        <button type="button" class="bouton" data-debloquer>Débloquer les comptes</button>
+        <p class="note" role="status" data-message-deblocage></p>
       </div>
     </section>
 

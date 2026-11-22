@@ -11,6 +11,9 @@ const DIST = resolve(fileURLToPath(new URL(`../${process.argv[3] ?? "dist"}/`, i
 const PORT = Number(process.argv[2] ?? process.env.PORT ?? 4321);
 // 127.0.0.1 par défaut ; 0.0.0.0 dans le conteneur de la démonstration (demo/compose.yml), publié sur 127.0.0.1 seulement
 const HOTE = process.env.HOTE ?? "127.0.0.1";
+// Démonstration : avec ADRESSE_PUBLIQUE (http://localhost:4321), une autre adresse (http://127.0.0.1:4321) y est
+// renvoyée, car l'API n'accepte les demandes du site que depuis celle-là (URL_SITE_VITRINE)
+const ADRESSE_PUBLIQUE = process.env.ADRESSE_PUBLIQUE ? new URL(process.env.ADRESSE_PUBLIQUE) : null;
 
 const TYPES = {
   ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8",
@@ -35,6 +38,11 @@ function enTetes() {
 }
 
 createServer((requete, reponse) => {
+  if (ADRESSE_PUBLIQUE && requete.headers.host !== ADRESSE_PUBLIQUE.host) {
+    const chemin = requete.url?.startsWith("/") ? requete.url : "/";
+    reponse.writeHead(307, { Location: `${ADRESSE_PUBLIQUE.origin}${chemin}` });
+    return reponse.end();
+  }
   const chemin = decodeURIComponent(new URL(requete.url ?? "/", "http://localhost").pathname);
   let fichier = normalize(join(DIST, chemin));
   if (fichier !== DIST && !fichier.startsWith(DIST + sep)) fichier = join(DIST, "404.html");

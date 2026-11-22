@@ -36,4 +36,11 @@ tr:last-child td { border-bottom: 0; }
 td.a-copier { white-space: nowrap; }
 code { padding: 2px 6px; border-radius: 6px; background: #e9ecf5; color: var(--encre); }
 .note { color: var(--doux); }
+.alerte { color: #a3221a; font-weight: 600; }
+button.bouton { border: 0; font: inherit; font-weight: 700; cursor: pointer; }
+button.bouton:disabled { opacity: 0.6; cursor: progress; }
+.deblocage { margin-top: 16px; padding: 16px; border: 1px solid var(--ligne); border-radius: 12px; background: #fff; }
+.deblocage p { margin: 0 0 12px; }
+.deblocage p.note { margin: 12px 0 0; }
+.deblocage p.note:empty { display: none; }
 .essais { display: grid; gap: 8px; padding-left: 1.3em; }
