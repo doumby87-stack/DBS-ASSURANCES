@@ -1,0 +1,75 @@
+# Serveur web de production (tâche 11, ADR 0016) : Caddy obtient et renouvelle seul les certificats HTTPS.
+#
+#   · {$DOMAINE_GESTION} (par exemple gestion.dbs-assurances.ci) : le back-office, l'API derrière /api ;
+#   · {$DOMAINE_CLIENT}  (par exemple client.dbs-assurances.ci)  : l'espace client, l'API derrière /api.
+# Le préfixe /api est retiré avant de transmettre à l'API (apps/api/README.md). Les mêmes en-têtes de sécurité que
+# ceux que vérifient les tests de bout en bout (apps/admin/vite.config.ts, apps/portail/vite.config.ts).
+# {$TLS_LOCAL} reste vide en production ; « tls internal » seulement pour un essai sur un poste.
+
+{
+	email {$ACME_EMAIL}
+	# Pas d'interface d'administration à distance
+	admin off
+}
+
+(commun) {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+		-Server
+	}
+	# Journal d'accès sans les paramètres des adresses (une recherche peut contenir un nom) ; Caddy masque déjà
+	# les cookies et les en-têtes d'authentification
+	log {
+		output stdout
+		format filter {
+			wrap json
+			fields {
+				request>uri regexp "\?.*" "?…"
+			}
+		}
+	}
+	# API : deux photos de 5 Mo au plus (lecture recto-verso), encodées en base64
+	handle_path /api/* {
+		request_body {
+			max_size 15MB
+		}
+		# Caddy transmet l'adresse du client dans X-Forwarded-For (PROXYS_DE_CONFIANCE=1 côté API)
+		reverse_proxy api:3000
+	}
+}
+
+(application) {
+	handle {
+		header {
+			Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
+		}
+		# Fichiers construits, au nom unique : gardés un an ; tout le reste (la page d'entrée), revérifié à chaque fois
+		@ressources path /assets/*
+		header @ressources Cache-Control "public, max-age=31536000, immutable"
+		@autres not path /assets/*
+		header @autres Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+}
+
+{$DOMAINE_GESTION} {
+	{$TLS_LOCAL}
+	import commun
+	root * /srv/gestion
+	header Cross-Origin-Opener-Policy "same-origin-allow-popups"
+	import application
+}
+
+{$DOMAINE_CLIENT} {
+	{$TLS_LOCAL}
+	import commun
+	root * /srv/client
+	header Cross-Origin-Opener-Policy "same-origin"
+	import application
+}

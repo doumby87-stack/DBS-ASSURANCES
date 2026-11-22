@@ -1,0 +1,166 @@
+# Production sur un serveur (VPS ou serveur de l'hébergeur) avec Docker (tâche 11, ADR 0016).
+# Mode d'emploi pas à pas : infra/production/README.md. Trois fichiers de réglages, jamais dans le dépôt, chacun
+# lisible par root seulement (chmod 600), d'après les exemples *.env.exemple :
+#   · .env             réglages du serveur (adresses, mots de passe des comptes de la base, clé publique des
+#                      sauvegardes) : lus par Docker Compose, jamais transmis tels quels à l'API ;
+#   · api.env          secrets de l'API (connexion à la base, clé de chiffrement, WhatsApp, paiement…) ;
+#   · sauvegarde.env   accès au stockage hors site (rclone).
+# Chaque service ne reçoit que ce qui le concerne.
+#
+#   docker compose -f infra/production/compose.yml --profile base-locale up -d --build
+#
+# Réseaux séparés :
+#   · public      : le serveur web seul, ports 80 et 443 ;
+#   · application : le serveur web, l'API et l'antivirus, sans accès à Internet ;
+#   · donnees     : la base, l'API, la sauvegarde et les migrations, sans accès à Internet ;
+#   · sortie      : ce qui doit joindre Internet (API : WhatsApp, paiement ; antivirus : signatures ; sauvegarde :
+#                   copie hors site).
+# La base n'a aucun port ouvert. Si l'hébergeur fournit une base PostgreSQL gérée, omettez le profil base-locale et
+# mettez son adresse dans DATABASE_URL et PGHOST.
+
+name: dbs-production
+
+x-durcissement: &durcissement
+  restart: unless-stopped
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: [ALL]
+  logging:
+    driver: json-file
+    options: { max-size: "20m", max-file: "10" }
+
+services:
+  web:
+    <<: *durcissement
+    build: { context: ../.., dockerfile: infra/production/Dockerfile, target: web }
+    image: dbs-web:${VERSION:-local}
+    cap_add: [NET_BIND_SERVICE]
+    read_only: true
+    tmpfs: [/tmp]
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      DOMAINE_GESTION: ${DOMAINE_GESTION:?Adresse de la gestion, par exemple gestion.dbs-assurances.ci}
+      DOMAINE_CLIENT: ${DOMAINE_CLIENT:?Adresse de l'espace client, par exemple client.dbs-assurances.ci}
+      ACME_EMAIL: ${ACME_EMAIL:?Adresse e-mail pour les certificats HTTPS}
+      TLS_LOCAL: ${TLS_LOCAL:-}
+    volumes:
+      - caddy-donnees:/data
+      - caddy-config:/config
+    networks: [public, application]
+    depends_on:
+      api: { condition: service_healthy }
+
+  api:
+    <<: *durcissement
+    build: { context: ../.., dockerfile: infra/production/Dockerfile, target: api }
+    image: dbs-api:${VERSION:-local}
+    read_only: true
+    tmpfs: [/tmp]
+    env_file: [api.env]
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "3000"
+      # Caddy est le seul intermédiaire : il donne l'adresse réelle du client
+      PROXYS_DE_CONFIANCE: "1"
+      ANTIVIRUS_ADRESSE: clamav:3310
+    networks: [application, donnees, sortie]
+    depends_on:
+      clamav: { condition: service_started }
+
+  clamav:
+    <<: *durcissement
+    image: clamav/clamav:1.4
+    # L'image démarre en root pour préparer ses dossiers, puis passe sur le compte clamav
+    cap_add: [CHOWN, SETUID, SETGID, DAC_OVERRIDE, FOWNER]
+    volumes: [clamav-signatures:/var/lib/clamav]
+    networks: [application, sortie]
+
+  base:
+    <<: *durcissement
+    profiles: [base-locale]
+    image: postgres:16-alpine
+    cap_add: [CHOWN, SETUID, SETGID, DAC_OVERRIDE, FOWNER]
+    shm_size: 256m
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Mot de passe du superutilisateur de la base locale}
+    volumes: [base-donnees:/var/lib/postgresql/data]
+    networks: [donnees]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  sauvegarde:
+    <<: *durcissement
+    build: { context: ../.., dockerfile: infra/sauvegardes/Dockerfile }
+    image: dbs-sauvegarde:${VERSION:-local}
+    read_only: true
+    tmpfs: [/tmp]
+    environment:
+      PGHOST: ${PGHOST:-base}
+      PGPORT: ${PGPORT:-5432}
+      PGDATABASE: ${PGDATABASE:-dbs}
+      PGUSER: dbs_sauvegarde
+      PGPASSWORD: ${SAUVEGARDE_MOT_DE_PASSE_BASE:?Mot de passe du compte dbs_sauvegarde}
+      SAUVEGARDE_CLE_PUBLIQUE: ${SAUVEGARDE_CLE_PUBLIQUE:?Clé publique age des sauvegardes}
+      SAUVEGARDE_HEURE: ${SAUVEGARDE_HEURE:-02:00}
+      SAUVEGARDE_DESTINATION: ${SAUVEGARDE_DESTINATION:-}
+    # Destination hors site : configuration rclone par variables (RCLONE_CONFIG_HORSSITE_TYPE, …)
+    env_file:
+      - path: sauvegarde.env
+        required: false
+    volumes: [sauvegardes:/sauvegardes]
+    networks: [donnees, sortie]
+
+  # Outils lancés à la main (README) :
+  #   docker compose -f infra/production/compose.yml --profile outils run --rm initialisation
+  #   docker compose -f infra/production/compose.yml --profile outils run --rm migrations
+  initialisation:
+    profiles: [outils]
+    image: postgres:16-alpine
+    security_opt: ["no-new-privileges:true"]
+    entrypoint: ["/infra/initialiser-base.sh"]
+    environment:
+      PGHOST: ${PGHOST:-base}
+      PGPORT: ${PGPORT:-5432}
+      PGUSER: ${PGUSER_ADMIN:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-}
+      PGDATABASE: postgres
+      BASE: ${PGDATABASE:-dbs}
+      PROPRIETAIRE_MOT_DE_PASSE_BASE: ${PROPRIETAIRE_MOT_DE_PASSE_BASE:?Mot de passe du compte dbs_proprietaire}
+      APPLICATION_MOT_DE_PASSE_BASE: ${APPLICATION_MOT_DE_PASSE_BASE:?Mot de passe du compte dbs_application}
+      SAUVEGARDE_MOT_DE_PASSE_BASE: ${SAUVEGARDE_MOT_DE_PASSE_BASE:?Mot de passe du compte dbs_sauvegarde}
+    volumes:
+      - "../../database:/database:ro"
+      - "./initialiser-base.sh:/infra/initialiser-base.sh:ro"
+    networks: [donnees]
+
+  migrations:
+    profiles: [outils]
+    image: postgres:16-alpine
+    security_opt: ["no-new-privileges:true"]
+    entrypoint: ["/database/migrer.sh"]
+    environment:
+      PGHOST: ${PGHOST:-base}
+      PGPORT: ${PGPORT:-5432}
+      PGDATABASE: ${PGDATABASE:-dbs}
+      PGUSER: dbs_proprietaire
+      PGPASSWORD: ${PROPRIETAIRE_MOT_DE_PASSE_BASE:-}
+    volumes: ["../../database:/database:ro"]
+    networks: [donnees]
+
+volumes:
+  caddy-donnees:
+  caddy-config:
+  clamav-signatures:
+  base-donnees:
+  sauvegardes:
+
+networks:
+  public:
+  application:
+    internal: true
+  donnees:
+    internal: true
+  sortie:

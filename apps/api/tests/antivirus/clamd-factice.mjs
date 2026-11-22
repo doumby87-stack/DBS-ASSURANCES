@@ -42,6 +42,8 @@ export function creerClamdFactice(surFichier) {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  // Port, puis adresse d'écoute (127.0.0.1 par défaut ; 0.0.0.0 dans un conteneur d'essai, infra/production/compose.essai.yml)
   const port = Number(process.argv[2] ?? 3310);
-  creerClamdFactice().listen(port, "127.0.0.1", () => console.log(`clamd factice sur 127.0.0.1:${port}`));
+  const hote = process.argv[3] ?? "127.0.0.1";
+  creerClamdFactice().listen(port, hote, () => console.log(`clamd factice sur ${hote}:${port}`));
 }
