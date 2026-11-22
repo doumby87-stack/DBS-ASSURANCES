@@ -5,7 +5,8 @@
 //   · page d'accueil (http://localhost:8080) : liens, comptes de démonstration, codes de connexion en direct.
 //
 // Rien ne sort de l'ordinateur : les codes de l'espace client s'affichent sur la page d'accueil au lieu de partir
-// sur WhatsApp, le paiement Mobile Money est simulé, les relances aussi, et un antivirus de démonstration remplace
+// sur WhatsApp, le paiement Mobile Money est simulé, les relances aussi ; la lecture automatique des documents est la
+// vraie (gratuite, sur l'ordinateur même), avec des documents fictifs à télécharger ; un antivirus de démonstration remplace
 // ClamAV (il refuse seulement le fichier de test EICAR). Les clés et mots de passe ci-dessous sont publics : ils ne
 // servent qu'à cette démonstration et ne doivent jamais être utilisés ailleurs.
 //
@@ -278,6 +279,7 @@ async function demarrerApi() {
     URL_SITE_VITRINE: ADRESSES.site,
     ANTIVIRUS_ADRESSE: "127.0.0.1:3311",
     PAIEMENT_PRESTATAIRE: "simulation",
+    LECTURE_PRESTATAIRE: "local",
     RELANCES_SIMULATION: "true",
     VERIFIER_MOTS_DE_PASSE_DIVULGUES: "false",
     HOST: "0.0.0.0",
@@ -337,6 +339,10 @@ async function demarrerAccueil() {
     "/": { type: "text/html; charset=utf-8", contenu: page },
     "/accueil.js": { type: "text/javascript; charset=utf-8", contenu: readFileSync(`${RACINE}demo/accueil.js`, "utf8") },
     "/accueil.css": { type: "text/css; charset=utf-8", contenu: readFileSync(`${RACINE}demo/accueil.css`, "utf8") },
+    // Documents fictifs pour essayer la lecture automatique (les mêmes que dans les tests de l'API)
+    ...Object.fromEntries(["carte-grise-2023-recto", "carte-grise-2023-verso", "cni-recto", "cni-verso", "passeport-photo"].map((nom) => [
+      `/exemples/${nom}.jpg`, { type: "image/jpeg", contenu: readFileSync(`${RACINE}apps/api/tests/donnees/lecture/${nom}.jpg`) },
+    ])),
   };
   const enTetes = {
     "Content-Security-Policy": "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; base-uri 'none'; frame-ancestors 'none'",

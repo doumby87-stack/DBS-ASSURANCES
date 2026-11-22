@@ -30,6 +30,7 @@ Le site publié n'enregistre rien : le formulaire prépare un message que le vis
 | Sinistres | Déclaration et suivi | Circonstances, photos, constats, parfois données médicales | Agence, SanlamAllianz, experts | Clôture + 10 ans | ADR 0006 |
 | Relances | Prévenir des échéances, des devis restés sans réponse et de l'avancement des sinistres | Nom, téléphone, branche, n° de police, dates ; accord ou refus du client et sa preuve | Agence, Meta (WhatsApp), opérateur SMS | Durée du contrat ; preuve du consentement : tant que la relation dure, puis 5 ans | Hors de Côte d'Ivoire (Meta) |
 | Lutte contre le blanchiment | Obligation légale | Identification, bénéficiaires effectifs, alertes | Agence, correspondant LBC/FT de SanlamAllianz | Fin de relation + 10 ans | ADR 0006 |
+| Lecture automatique des documents (si activée) | Pré-remplir les fiches, vérifiées par une personne | Image de la carte grise, de la pièce d'identité ou du constat, le temps de la lecture ; journal : qui, quand, quel document | Agence | Images et valeurs lues : rien n'est gardé en dehors des fiches enregistrées ; journal : comme le journal de sécurité | Serveurs de l'agence (ADR 0006) ; aucun tiers |
 | Comptes du personnel | Sécurité des accès | Nom, e-mail, rôle, journaux de connexion | Agence | Départ + 1 an (journal d'audit : 10 ans) | ADR 0006 |
 
 ## Relances et consentement
@@ -41,6 +42,12 @@ Aucune relance automatique sans l'**accord du client pour le canal** (WhatsApp o
 Le visiteur coche une case pour accepter que l'agence utilise ses informations ; le texte exact de cette case est enregistré avec la demande, comme preuve. Une seconde case, facultative, recueille son accord pour les rappels sur WhatsApp : il devient un consentement de sa fiche quand la demande est convertie, avec la case, le numéro et la date de la demande comme preuve. La carte grise est chiffrée dès sa réception ; seuls le gérant, les chargés de clientèle et les commerciaux peuvent la télécharger, et chaque téléchargement est consigné. L'adresse IP n'est pas conservée, seulement une empreinte qui sert à limiter les envois. La carte grise est analysée par un antivirus installé chez l'agence (ClamAV), sans quitter ses serveurs.
 
 Une demande qui n'est pas devenue un devis est **supprimée automatiquement 12 mois** après son classement sans suite, ou après sa réception si personne ne l'a traitée, avec sa carte grise. Pour un rappel d'échéance jamais traité, le délai court à partir de l'échéance donnée par le visiteur ; la case qu'il coche dit qu'il accepte que l'agence garde ses informations jusque-là. Un rendez-vous qui n'est rattaché à aucun client est supprimé 12 mois après sa clôture (tâche 13). Le journal d'audit ne recopie pas les données personnelles des demandes : après la purge, il ne reste que la trace de qui a reçu, traité et supprimé quelle demande, et quand.
+
+## Lecture automatique des documents
+
+La lecture se fait sur les serveurs de l'agence : par l'API elle-même, ou par un modèle installé sur une machine de l'agence ([ADR 0015](../architecture/adr/0015-lecture-automatique.md)). **Aucune image ne part chez un tiers**, il n'y a ni transfert hors de Côte d'Ivoire ni sous-traitant de plus.
+
+Une personne de l'agence choisit de faire lire un document précis, après une analyse antivirus. Les valeurs lues pré-remplissent un formulaire, qu'elle vérifie et enregistre elle-même. Ni l'image ni les valeurs ne sont gardées en dehors de ce qui est enregistré dans la fiche. Le journal de sécurité note qui a fait lire quel document, sans les valeurs.
 
 ## Droits des personnes
 

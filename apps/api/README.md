@@ -4,7 +4,7 @@
 
 L'API reçoit toutes les demandes du back-office et de l'espace client, vérifie qui les fait, puis interroge la base. Aucun navigateur ne parle directement à la base de données ([ADR 0003](../../docs/architecture/adr/0003-api-seule-porte-d-acces.md)).
 
-Pile : Node.js 22, TypeScript, Fastify, PostgreSQL ([ADR 0002](../../docs/architecture/adr/0002-pile-technique.md)). Dépendances de production limitées à quatre : `fastify`, `@fastify/cookie`, `pg`, `@node-rs/argon2`.
+Pile : Node.js 22, TypeScript, Fastify, PostgreSQL ([ADR 0002](../../docs/architecture/adr/0002-pile-technique.md)). Dépendances de production limitées à sept : `fastify`, `@fastify/cookie`, `pg`, `@node-rs/argon2`, et pour la lecture automatique des documents `tesseract.js`, son modèle français `@tesseract.js-data/fra` et `sharp` pour préparer les images (logiciels libres ; une quinzaine de paquets en tout, verrouillés).
 
 ## Lancer
 
@@ -23,6 +23,9 @@ npm run dev -w @dbs/api                  # rechargement automatique
 | `URL_SITE_VITRINE` | non | Adresse du site vitrine : ouvre la route publique des demandes de devis à ce seul site ([ADR 0009](../../docs/architecture/adr/0009-demandes-de-devis-du-site.md)). Sans elle, la route n'existe pas. HTTPS en production. **À renseigner après la déclaration à l'ARTCI.** |
 | `URL_PORTAIL` | non | Adresse de l'espace client (portail) : ouvre ses routes (`/portail/…`), qui n'acceptent que cette origine ([ADR 0011](../../docs/architecture/adr/0011-portail-des-entreprises.md)). Sans elle, les routes du portail n'existent pas. HTTPS en production, avec l'accès à WhatsApp (codes de connexion) et l'antivirus (attestations, pièces des sinistres). |
 | `PAIEMENT_PRESTATAIRE` | non | Prestataire du paiement en ligne des primes ([ADR 0012](../../docs/architecture/adr/0012-espace-client-et-paiement-en-ligne.md)). Seule valeur pour l'instant : `simulation` (rien n'est débité ; **refusé en production**). Sans elle, le paiement en ligne n'est pas proposé : le client paie à l'agence. |
+| `LECTURE_PRESTATAIRE` | non | Lecture automatique des documents ([ADR 0015](../../docs/architecture/adr/0015-lecture-automatique.md)), gratuite et sans rien envoyer à l'extérieur : `local` (reconnaissance de caractères dans l'API, rien d'autre à installer ; recommandé) ou `ollama` (modèle de vision ouvert sur une machine de l'agence). Sans elle, la lecture n'est pas proposée : tout se saisit à la main. En production, exige `ANTIVIRUS_ADRESSE`. |
+| `LECTURE_MODELE` | avec `LECTURE_PRESTATAIRE=ollama` | Nom du modèle de vision installé dans Ollama (`ollama list`). |
+| `LECTURE_OLLAMA_ADRESSE` | non | Adresse d'Ollama, `http://127.0.0.1:11434` par défaut. En production, HTTP seulement sur la machine même ou le réseau privé de l'agence (Ollama n'a pas d'authentification). |
 | `PAIEMENT_MONTANT_MAX` | non | Montant maximal d'un paiement en ligne, en F CFA : `2000000` par défaut (de 100 à 10 000 000). |
 | `HOST`, `PORT` | non | `127.0.0.1` et `3000` par défaut. |
 | `PROXYS_DE_CONFIANCE` | non | Nombre de proxys devant l'API (répartiteur, pare-feu applicatif), pour retrouver l'adresse IP réelle. `0` par défaut. |
@@ -184,6 +187,8 @@ Le mot de passe provisoire s'affiche une seule fois. Ensuite, tous les comptes s
 | `GET /rendez-vous` | gérant, chargé, commercial, auditeur | Agenda : demandes du site à confirmer, rendez-vous à venir, à clôturer, clos depuis 30 jours, personnes qui peuvent recevoir. |
 | `POST /rendez-vous` | gérant, chargé, commercial | Rendez-vous fixé par l'agence (jour et heure d'Abidjan, durée, avec qui), pour un client (`clientId`) ou un prospect ; chevauchement refusé. |
 | `POST /rendez-vous/:id/traitement` | gérant, chargé, commercial | `confirmer` (ou déplacer), `honore`, `manque`, `annuler` (motif), `rattacher` à une fiche client. |
+| `GET /lecture-automatique` | gérant, chargé, commercial | `{ disponible, prestataire }` : le back-office n'affiche la lecture que si elle est activée. |
+| `POST /lecture-automatique` | gérant, chargé, commercial (carte grise) ; gérant, chargé (pièce d'identité, constat) | Lit un document : une ou deux photos envoyées, recto et verso (`fichiers`, analysées par l'antivirus), ou une pièce enregistrée et saine (`justificatifId`, `pieceSinistreId`, `demandeSiteId`), une seule source. Renvoie les valeurs lues, les contrôles (zone lisible par machine, pièce expirée, châssis…) et un avertissement ; **n'enregistre rien**. Consignée au journal de sécurité sans les valeurs ; 30 par heure et par personne (429 `trop_de_lectures`) ; 503 `lecture_indisponible` si elle n'est pas activée. |
 | `GET /webhooks/whatsapp` | public (jeton de vérification) | Activation des notifications par Meta. |
 | `POST /webhooks/whatsapp` | public, **signature de Meta exigée** | Accusés de remise et de lecture, « STOP » des clients. |
 
@@ -201,7 +206,8 @@ Le mot de passe provisoire s'affiche une seule fois. Ensuite, tous les comptes s
 | Protection CSRF : toute modification doit venir de l'origine du back-office, en JSON uniquement | `src/securite/protection.ts` |
 | Champs inattendus refusés ; erreurs sans détail interne ; en-têtes de sécurité sur toutes les réponses | `src/application.ts`, `src/commun/erreurs.ts` |
 | Chaque requête métier déclare l'utilisateur à la base, qui applique ses propres droits | `src/base-de-donnees/connexion.ts` |
-| Journal de sécurité en ajout seul : connexions, échecs, blocages, créations et modifications de comptes, exports de données | `securite.evenements` |
+| Journal de sécurité en ajout seul : connexions, échecs, blocages, créations et modifications de comptes, exports de données, lectures automatiques de documents | `securite.evenements` |
+| Lecture automatique : rien ne sort des serveurs de l'agence ; antivirus avant toute lecture ; JPEG et PNG seulement, taille en pixels bornée avant décodage ; image préparée par `sharp` puis lue dans le bac à sable WebAssembly de Tesseract, sans réseau ni fichier écrit ; valeurs revérifiées champ par champ, zone lisible par machine corrigée et recontrôlée ; ni image ni valeur lue gardée ou journalisée ; rien n'est enregistré sans la personne | `src/integrations/lecture/`, `src/modules/lecture/` |
 | Exports CSV : réservés au gérant, cellules qui commencent par `=`, `+`, `-`, `@` neutralisées (pas de formule exécutée par Excel) | `src/commun/csv.ts` |
 | Notifications de WhatsApp : signature HMAC-SHA256 de Meta vérifiée sur le corps exact reçu, en temps constant, avant toute lecture ; seule route sans contrôle d'origine | `src/integrations/whatsapp/` |
 | Relances : jamais sans l'accord du client, revérifié avant chaque envoi ; planificateur sans utilisateur connecté, limité à cinq fonctions de la base ; verrou de la base contre deux cycles simultanés ; ni nom, ni numéro, ni contenu de message dans les journaux | `src/modules/relances/` |
@@ -222,7 +228,7 @@ npm run verifier-types -w @dbs/api
 
 | Dossier | Contenu |
 | --- | --- |
-| `tests/unitaires/` | Vecteurs officiels de la RFC 6238, chiffrement, politique des mots de passe, vérification des fuites, configuration, traduction des erreurs, montant en lettres, CSV ; WhatsApp (appel de l'API, erreurs, signature, notifications, « STOP »), textes des relances identiques aux modèles soumis à Meta. |
+| `tests/unitaires/` | Vecteurs officiels de la RFC 6238, chiffrement, politique des mots de passe, vérification des fuites, configuration, traduction des erreurs, montant en lettres, CSV ; WhatsApp (appel de l'API, erreurs, signature, notifications, « STOP »), textes des relances identiques aux modèles soumis à Meta ; lecture automatique (zone lisible par machine sur les spécimens de l'OACI et sa correction, analyse du texte reconnu, vraie lecture des documents fictifs de `tests/donnees/lecture` (carte grise récente recto et verso, carte d'identité, passeport, régénérables par `generer.mjs`), requête à Ollama et ses erreurs, sans réseau). |
 | `tests/securite/` | Parcours de connexion, rejeu d'un code, blocages, CSRF, cookies, expiration, secrets jamais en clair. |
 | `tests/integration/` | Gestion des comptes par le gérant et limites de chaque rôle ; clients et contrats ; caisse, clôtures, reversements et commissions ; relances (consentements, planification et envoi, notifications signées, « STOP », annulation, heures d'envoi, verrou). |
 
@@ -234,7 +240,7 @@ npm run verifier-types -w @dbs/api
 | `src/securite/` | Connexion, deuxième facteur, sessions, limitation des tentatives, protections HTTP. |
 | `src/base-de-donnees/` | Connexions à PostgreSQL et transactions qui déclarent l'utilisateur. |
 | `src/modules/` | Un dossier par domaine métier : `utilisateurs`, `clients`, `contrats` (et échéances), `vehicules`, `devis`, `encaissements` (et caisse), `reversements`, `commissions`, `relances` (planificateur, textes, consentements), `demandes-site` (et outils du site), `rendez-vous`, `flottes` (import, export, avenants) en place ; les autres viendront avec leurs tâches. |
-| `src/integrations/` | Services extérieurs : WhatsApp (API Cloud de Meta) en place ; SMS : interface prête, opérateur à choisir ; paiement, FNE, fichiers : à venir. |
+| `src/integrations/` | Services extérieurs : WhatsApp (API Cloud de Meta) en place ; lecture automatique des documents (Tesseract dans l'API, ou Ollama) ; SMS : interface prête, opérateur à choisir ; paiement, FNE, fichiers : à venir. |
 | `src/commun/` | Erreurs, formats, montant en lettres, CSV, identité de l'agence imprimée sur les reçus. |
 | `src/outils/` | Outils d'installation (`premier-acces`). |
 

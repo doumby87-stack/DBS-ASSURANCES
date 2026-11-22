@@ -1,5 +1,6 @@
 // Vérifie une démonstration démarrée (demo/compose.yml) : chaque espace répond, un compte du personnel se connecte
-// avec le code affiché sur la page d'accueil, et une cliente reçoit son code puis entre dans son espace.
+// avec le code affiché sur la page d'accueil et fait lire la carte grise d'exemple, et une cliente reçoit son code
+// puis entre dans son espace.
 // Lancé par l'intégration continue ; utilisable à la main : node demo/verifier.mjs
 
 const ACCUEIL = "http://localhost:8080";
@@ -37,6 +38,17 @@ const mfa = await poster(GESTION, "/auth/mfa", { code: gerante.code }, { Cookie:
 verifier(mfa.ok, "puis celle du code à 6 chiffres affiché sur la page d'accueil");
 const clientsGestion = await fetch(`${GESTION}/api/clients`, { headers: { Cookie: cookie(mfa) } });
 verifier(clientsGestion.ok && JSON.stringify(await clientsGestion.json()).includes("Transports Kouassi"), "elle voit les clients d'exemple");
+const lecture = await fetch(`${GESTION}/api/lecture-automatique`, { headers: { Cookie: cookie(mfa) } });
+verifier(lecture.ok && (await lecture.json()).prestataire === "local", "la lecture automatique des documents est proposée");
+const face = async (nom) => ({
+  type: "image/jpeg", contenu: Buffer.from(await (await fetch(`${ACCUEIL}/exemples/${nom}.jpg`)).arrayBuffer()).toString("base64"),
+});
+const lue = await poster(GESTION, "/lecture-automatique", {
+  document: "carte_grise", fichiers: [await face("carte-grise-2023-recto"), await face("carte-grise-2023-verso")],
+}, { Cookie: cookie(mfa) });
+const champsLus = lue.ok ? (await lue.json()).champs : {};
+verifier(champsLus.immatriculation === "CD-123-EF-01" && champsLus.numeroChassis === "WDB9634031L123456",
+  "elle lit le recto et le verso de la carte grise d'exemple de la page d'accueil");
 
 // Espace client : le code qui partirait sur WhatsApp apparaît sur la page d'accueil
 const mariam = clients.find((c) => c.nom === "Koné Mariam");

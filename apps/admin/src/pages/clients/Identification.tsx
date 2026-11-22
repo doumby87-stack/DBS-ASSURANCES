@@ -5,6 +5,7 @@
 //   · l'auditeur lit la fiche, sans le n° en entier.
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { LectureAutomatique, type PieceLisible, type ResultatLecture } from "../../composants/LectureAutomatique";
 import { Alerte, Badge, Champ, Chargement, Section, Vide } from "../../composants/communs";
 import { api, messageErreur } from "../../services/api";
 import { dateCourte, dateHeure } from "../../services/format";
@@ -151,7 +152,7 @@ export function Identification({ clientId, entreprise }: { clientId: string; ent
       {!fiche && !gestion && <Vide>Fiche pas encore remplie.</Vide>}
 
       {gestion && edition && (
-        <FormulaireFiche clientId={clientId} entreprise={entreprise} fiche={fiche}
+        <FormulaireFiche clientId={clientId} entreprise={entreprise} fiche={fiche} justificatifs={donnees.justificatifs}
           apres={async () => { setEdition(false); setNumero(""); setMessage("Fiche enregistrée."); await charger(); }} />
       )}
 
@@ -167,7 +168,9 @@ export function Identification({ clientId, entreprise }: { clientId: string; ent
   );
 }
 
-function FormulaireFiche({ clientId, entreprise, fiche, apres }: { clientId: string; entreprise: boolean; fiche: Fiche | null; apres: () => Promise<void> }) {
+function FormulaireFiche({ clientId, entreprise, fiche, justificatifs, apres }: {
+  clientId: string; entreprise: boolean; fiche: Fiche | null; justificatifs: Justificatif[]; apres: () => Promise<void>;
+}) {
   const [s, setS] = useState({
     niveauRisque: fiche?.niveauRisque ?? "normal", motifRisque: fiche?.motifRisque ?? "", ppe: fiche?.personnePolitiquementExposee ?? false,
     typePiece: fiche?.typePiece ?? "cni", numeroPiece: "", pieceExpireLe: fiche?.pieceExpireLe ?? "", dateNaissance: fiche?.dateNaissance ?? "",
@@ -175,7 +178,27 @@ function FormulaireFiche({ clientId, entreprise, fiche, apres }: { clientId: str
     numeroContribuable: fiche?.numeroContribuable ?? "", formeJuridique: fiche?.formeJuridique ?? "", origineFonds: fiche?.origineFonds ?? "",
   });
   const [erreur, setErreur] = useState("");
-  const maj = (champ: keyof typeof s) => (e: { target: { value: string } }) => setS({ ...s, [champ]: e.target.value });
+  // Champs pré-remplis par la lecture automatique : surlignés jusqu'à ce que la personne les modifie ou enregistre
+  const [lus, setLus] = useState<Set<string>>(new Set());
+  const maj = (champ: keyof typeof s) => (e: { target: { value: string } }) => {
+    setS({ ...s, [champ]: e.target.value });
+    setLus((l) => new Set([...l].filter((c) => c !== champ)));
+  };
+  const lu = (champ: string) => (lus.has(champ) ? "saisie-lue" : undefined);
+
+  function reporter({ champs }: ResultatLecture) {
+    const valeurs: Partial<typeof s> = {};
+    if (typeof champs.typePiece === "string" && champs.typePiece in TYPES_PIECE) valeurs.typePiece = champs.typePiece;
+    if (typeof champs.numero === "string") valeurs.numeroPiece = champs.numero;
+    if (typeof champs.dateExpiration === "string") valeurs.pieceExpireLe = champs.dateExpiration;
+    if (typeof champs.dateNaissance === "string") valeurs.dateNaissance = champs.dateNaissance;
+    if (typeof champs.nationalite === "string") valeurs.nationalite = champs.nationalite;
+    setS((avant) => ({ ...avant, ...valeurs }));
+    setLus(new Set(Object.keys(valeurs)));
+  }
+  const piecesLisibles: PieceLisible[] = justificatifs
+    .filter((j) => j.etatAnalyse === "saine" && j.nature === "piece_identite")
+    .map((j) => ({ id: j.id, libelle: `Justificatif : ${j.nom}`, source: "justificatifId" }));
 
   async function soumettre(evenement: FormEvent) {
     evenement.preventDefault();
@@ -200,18 +223,20 @@ function FormulaireFiche({ clientId, entreprise, fiche, apres }: { clientId: str
   }
 
   return (
+    <>
+    {!entreprise && <LectureAutomatique document="piece_identite" pieces={piecesLisibles} libelleReport="Pré-remplir la fiche avec ces valeurs" onLu={reporter} />}
     <form className="formulaire formulaire--grille" aria-label="Fiche d'identification" onSubmit={(e) => void soumettre(e)}>
       {!entreprise && (
         <>
           <Champ libelle="Type de pièce">
-            <select value={s.typePiece} onChange={maj("typePiece")}>{Object.entries(TYPES_PIECE).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+            <select className={lu("typePiece")} value={s.typePiece} onChange={maj("typePiece")}>{Object.entries(TYPES_PIECE).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
           </Champ>
           <Champ libelle="N° de la pièce" aide={fiche?.numeroPieceFin ? `Enregistré (••••${fiche.numeroPieceFin}) : ne le saisissez que pour le remplacer.` : "Chiffré dès l'enregistrement."}>
-            <input autoComplete="off" maxLength={40} value={s.numeroPiece} onChange={maj("numeroPiece")} />
+            <input className={lu("numeroPiece")} autoComplete="off" maxLength={40} value={s.numeroPiece} onChange={maj("numeroPiece")} />
           </Champ>
-          <Champ libelle="Expire le"><input type="date" value={s.pieceExpireLe} onChange={maj("pieceExpireLe")} /></Champ>
-          <Champ libelle="Date de naissance"><input type="date" value={s.dateNaissance} onChange={maj("dateNaissance")} /></Champ>
-          <Champ libelle="Nationalité"><input maxLength={60} value={s.nationalite} onChange={maj("nationalite")} /></Champ>
+          <Champ libelle="Expire le"><input className={lu("pieceExpireLe")} type="date" value={s.pieceExpireLe} onChange={maj("pieceExpireLe")} /></Champ>
+          <Champ libelle="Date de naissance"><input className={lu("dateNaissance")} type="date" value={s.dateNaissance} onChange={maj("dateNaissance")} /></Champ>
+          <Champ libelle="Nationalité"><input className={lu("nationalite")} maxLength={60} value={s.nationalite} onChange={maj("nationalite")} /></Champ>
           <Champ libelle="Activité (profession)"><input maxLength={120} value={s.activite} onChange={maj("activite")} /></Champ>
         </>
       )}
@@ -234,6 +259,7 @@ function FormulaireFiche({ clientId, entreprise, fiche, apres }: { clientId: str
       <button className="bouton bouton--principal">Enregistrer la fiche</button>
       <Alerte>{erreur}</Alerte>
     </form>
+    </>
   );
 }
 

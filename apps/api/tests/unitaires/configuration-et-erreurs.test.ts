@@ -83,6 +83,33 @@ describe("Configuration des relances", () => {
   });
 });
 
+describe("Configuration de la lecture automatique", () => {
+  it("désactivée par défaut ; locale sans autre réglage ; Ollama avec son modèle, à l'adresse habituelle par défaut", () => {
+    expect(chargerConfiguration(valide).lecture).toBeNull();
+    expect(chargerConfiguration({ ...valide, LECTURE_PRESTATAIRE: "local" }).lecture).toEqual({ prestataire: "local" });
+    expect(chargerConfiguration({ ...valide, LECTURE_PRESTATAIRE: "ollama", LECTURE_MODELE: "modele-de-test:7b" }).lecture)
+      .toEqual({ prestataire: "ollama", adresse: "http://127.0.0.1:11434", modele: "modele-de-test:7b" });
+    expect(() => chargerConfiguration({ ...valide, LECTURE_PRESTATAIRE: "ollama" })).toThrow("LECTURE_MODELE est obligatoire");
+    expect(() => chargerConfiguration({ ...valide, LECTURE_PRESTATAIRE: "ollama", LECTURE_MODELE: "modèle avec espaces" })).toThrow("LECTURE_MODELE");
+    expect(() => chargerConfiguration({ ...valide, LECTURE_PRESTATAIRE: "anthropic" })).toThrow("« local » ou « ollama »");
+  });
+
+  it("Ollama n'a pas d'authentification : en production, HTTP seulement sur la machine même ou le réseau privé", () => {
+    const ollama = { ...valide, NODE_ENV: "production", ANTIVIRUS_ADRESSE: "clamav:3310", LECTURE_PRESTATAIRE: "ollama", LECTURE_MODELE: "modele-de-test" };
+    for (const adresse of ["http://127.0.0.1:11434", "http://ollama:11434", "http://192.168.1.20:11434", "https://lecture.exemple.ci"]) {
+      expect(chargerConfiguration({ ...ollama, LECTURE_OLLAMA_ADRESSE: adresse }).lecture).toMatchObject({ adresse: new URL(adresse).origin });
+    }
+    for (const adresse of ["http://lecture.exemple.ci:11434", "ftp://127.0.0.1", "http://moi:secret@127.0.0.1:11434", "pas une adresse"]) {
+      expect(() => chargerConfiguration({ ...ollama, LECTURE_OLLAMA_ADRESSE: adresse })).toThrow("LECTURE_OLLAMA_ADRESSE");
+    }
+  });
+
+  it("antivirus obligatoire en production : chaque document est analysé avant d'être lu", () => {
+    expect(() => chargerConfiguration({ ...valide, NODE_ENV: "production", LECTURE_PRESTATAIRE: "local" }))
+      .toThrow("ANTIVIRUS_ADRESSE est obligatoire en production avec la lecture automatique");
+  });
+});
+
 describe("Erreurs renvoyées au navigateur", () => {
   it("transmet le message d'une règle métier de la base, pas celui d'une contrainte technique", () => {
     const regle = traduireErreur({ code: "23514", severity: "ERROR", message: "Plafond des espèces dépassé : …" });

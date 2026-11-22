@@ -44,6 +44,8 @@ L = lire · C = créer · M = modifier · — = aucun accès
 | Demandes reçues par le site (devis, rappels d'échéance, appels d'offres) | L, traitement | L, traitement | — | L, traitement | — | L |
 | Rendez-vous (agenda) | L, fixer, confirmer, clôturer, annuler | L, fixer, confirmer, clôturer, annuler | — | L, fixer, confirmer, clôturer, annuler | — | L |
 | Cartes grises jointes aux demandes | L (téléchargement consigné) | L (téléchargement consigné) | — | L (téléchargement consigné) | — | — |
+| Lecture automatique : carte grise | lecture consignée | lecture consignée | — | lecture consignée | — | — |
+| Lecture automatique : pièce d'identité, constat amiable | lecture consignée | lecture consignée | — | — | — | — |
 | Accès à l'espace client (entreprises, professionnels, particuliers) | L C M (retrait, rétablissement) | L C M (retrait, rétablissement) | — | L | — | L |
 | Attestations des véhicules (PDF) | L (téléchargement consigné) C M | L (téléchargement consigné) C M | — | L (téléchargement consigné) | — | L |
 | Journal du portail (connexions, téléchargements) | L | — | — | — | — | L |
@@ -64,6 +66,8 @@ Personne, pas même le gérant, ne modifie un encaissement, ne valide son propre
 Personne ne crée une relance à la main ni ne réécrit un consentement : les relances sont créées par le planificateur de l'API, qui travaille sans utilisateur connecté au moyen de cinq fonctions de la base limitées à cet usage ([ADR 0007](../architecture/adr/0007-relances-whatsapp-et-sms.md)). Un « STOP » reçu sur WhatsApp est enregistré par la base sans auteur, comme réponse du client.
 
 Personne ne crée ni ne modifie une demande reçue par le site : elle entre par une seule fonction de la base, appelée par la route publique du formulaire, qui limite les envois par adresse et par jour ([ADR 0009](../architecture/adr/0009-demandes-de-devis-du-site.md)). Les rappels d'échéance, les appels d'offres et les demandes de rendez-vous ont chacun leur fonction, avec les mêmes limites, communes à tous ([ADR 0014](../architecture/adr/0014-outils-du-site.md)). Un rendez-vous ne se modifie que par les fonctions de l'agenda, au nom de la personne connectée ; il ne se supprime pas, sauf par la purge des rendez-vous de prospects. Son traitement (conversion en client et devis, ou classement sans suite avec un motif) porte le nom de la personne qui l'a fait et ne revient pas en arrière. L'empreinte de l'adresse IP du visiteur ne sert qu'aux limites : l'application ne peut pas la lire. Personne ne supprime une demande : seule la purge automatique le fait, 12 mois après son classement sans suite. Une carte grise n'est remise qu'après une analyse antivirus réussie.
+
+La lecture automatique d'un document est réservée par l'API aux rôles ci-dessus ; elle ne lit une pièce enregistrée que si la base la laisse lire à la personne connectée, et seulement après une analyse antivirus réussie. Elle n'enregistre rien : la personne vérifie les valeurs proposées et enregistre la fiche avec ses propres droits ([ADR 0015](../architecture/adr/0015-lecture-automatique.md)).
 
 ## Espace client (portail)
 

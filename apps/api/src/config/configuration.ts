@@ -55,6 +55,12 @@ export interface Configuration {
    * Sans prestataire, le paiement en ligne n'est pas proposé (le client paie à l'agence).
    */
   paiement: { prestataire: "simulation"; montantMax: number } | null;
+  /**
+   * Lecture automatique des documents (tâche 14) : carte grise, pièce d'identité, constat amiable. « local »
+   * (reconnaissance de caractères dans l'API) ou « ollama » (modèle de vision ouvert sur une machine de l'agence).
+   * Gratuites, rien ne part chez un tiers. Sans elle, la lecture n'est pas proposée et tout se saisit à la main.
+   */
+  lecture: { prestataire: "local" } | { prestataire: "ollama"; adresse: string; modele: string } | null;
   /** Démon ClamAV qui analyse les pièces jointes (hôte et port). Obligatoire en production si le site envoie des demandes. */
   antivirus: AdresseAntivirus | null;
   /** Nombre de proxys (répartiteur, pare-feu applicatif) devant l'API, pour retrouver l'adresse IP réelle. */
@@ -222,6 +228,27 @@ export function chargerConfiguration(env: NodeJS.ProcessEnv = process.env): Conf
       paiement = { prestataire, montantMax: entier("PAIEMENT_MONTANT_MAX", 2_000_000, 100, 10_000_000) };
     }
   }
+  let lecture: Configuration["lecture"] = null;
+  const lecteur = env.LECTURE_PRESTATAIRE?.trim();
+  if (lecteur === "local") {
+    lecture = { prestataire: "local" };
+  } else if (lecteur === "ollama") {
+    // Le modèle est un choix d'exploitation, noté dans le registre des traitements : aucun n'est imposé par défaut
+    const modele = env.LECTURE_MODELE?.trim() ?? "";
+    const adresse = lireAdresseOllama(env.LECTURE_OLLAMA_ADRESSE?.trim() || "http://127.0.0.1:11434", environnement === "production");
+    if (!/^[a-z0-9][a-z0-9._:/-]{1,99}$/i.test(modele)) {
+      problemes.push("LECTURE_MODELE est obligatoire avec LECTURE_PRESTATAIRE=ollama : le nom du modèle de vision installé dans Ollama");
+    }
+    if (!adresse) {
+      problemes.push("LECTURE_OLLAMA_ADRESSE doit ressembler à http://127.0.0.1:11434 ; en production, HTTPS sauf sur la machine même ou le réseau privé de l'agence");
+    }
+    if (adresse && modele) lecture = { prestataire: "ollama", adresse, modele };
+  } else if (lecteur) {
+    problemes.push("LECTURE_PRESTATAIRE : « local » ou « ollama »");
+  }
+  if (lecture && environnement === "production" && !antivirus) {
+    problemes.push("ANTIVIRUS_ADRESSE est obligatoire en production avec la lecture automatique : chaque document est analysé avant d'être lu");
+  }
   if (originePortail && environnement === "production" && !whatsapp) {
     problemes.push("Le portail (URL_PORTAIL) envoie les codes de connexion sur WhatsApp : renseignez les variables WHATSAPP_*");
   }
@@ -248,6 +275,7 @@ export function chargerConfiguration(env: NodeJS.ProcessEnv = process.env): Conf
     origineSite,
     originePortail,
     paiement,
+    lecture,
     antivirus,
     proxysDeConfiance: entier("PROXYS_DE_CONFIANCE", 0, 0, 5),
     verifierMotsDePasseDivulgues: verification !== "false",
@@ -257,4 +285,26 @@ export function chargerConfiguration(env: NodeJS.ProcessEnv = process.env): Conf
 
   if (problemes.length > 0) throw new ErreurConfiguration(problemes);
   return configuration;
+}
+
+/**
+ * Adresse d'Ollama : http(s), sans identifiants. Ollama n'a pas d'authentification et les images sont des pièces
+ * d'identité : en production, HTTP n'est accepté que sur la machine même, une adresse privée ou un nom de service
+ * interne (sans point).
+ */
+function lireAdresseOllama(valeur: string, production: boolean): string | null {
+  let url: URL;
+  try {
+    url = new URL(valeur);
+  } catch {
+    return null;
+  }
+  if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.search || url.hash) return null;
+  if (production && url.protocol === "http:") {
+    const hote = url.hostname.replace(/^\[|\]$/g, "");
+    const interne = hote === "localhost" || hote === "::1" || !hote.includes(".") && !hote.includes(":")
+      || /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(hote);
+    if (!interne) return null;
+  }
+  return url.origin;
 }

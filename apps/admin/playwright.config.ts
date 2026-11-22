@@ -37,6 +37,8 @@ export default defineConfig({
             VERIFIER_MOTS_DE_PASSE_DIVULGUES: "false",
             // Relances lancées à la main dans le parcours, à toute heure, sans qu'aucun message ne parte
             RELANCES_SIMULATION: "true",
+            // Lecture automatique des documents (tâche 14) : reconnaissance de caractères dans l'API, rien ne sort
+            LECTURE_PRESTATAIRE: "local",
             RELANCES_HEURES_ENVOI: "0-24",
             NIVEAU_JOURNAL: "warn",
           },

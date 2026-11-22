@@ -21,6 +21,7 @@ flowchart LR
     API["API<br/>apps/api"]
     DB[("PostgreSQL<br/>contrôle d'accès ligne par ligne<br/>journal d'audit chaîné")]
     F[("Stockage des fichiers<br/>chiffré")]
+    IA["Lecture des documents<br/>(Ollama, facultatif)"]
   end
 
   subgraph Tiers["Services extérieurs"]
@@ -42,6 +43,7 @@ flowchart LR
   API --> WA
   API --> SMS
   API --> FNE
+  API -.->|"image analysée par l'antivirus"| IA
   PAY -.->|"notification signée, puis vérification auprès du prestataire"| API
   WA -.->|"notification signée"| API
 ```

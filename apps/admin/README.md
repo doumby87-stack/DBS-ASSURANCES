@@ -38,6 +38,7 @@ Vite transmet les appels `/api/…` à l'API (variable `API_URL` si l'API n'est 
 | Reversements (`/reversements`) | Primes à verser avec le compte à rebours des 30 jours, préparation d'un bordereau, liste des bordereaux | gérant, caissier, auditeur |
 | Bordereau (`/reversements/:id`) | Détail imprimable, validation (pas par son auteur), versement, annulation, export pour Excel | validation, versement, export : gérant |
 | Commissions (`/commissions`) | Rapprochement mensuel avec le relevé de SanlamAllianz et la facture FNE du mois (« À émettre » sinon), factures FNE de l'agence et leur annulation, taux par branche, contrats sans prime nette | gérant, auditeur (lecture) |
+| Lecture automatique (panneau, si l'API l'active) | Sur la fiche client (« Ajouter un véhicule » : carte grise, recto et verso), l'identification (pièce d'identité, depuis un justificatif enregistré ou des photos), la fiche d'un sinistre (constat amiable, résumé ajouté à la note interne) et une demande du site (carte grise jointe) : contrôles affichés (zone lisible par machine, pièce expirée, châssis), valeurs proposées, report dans le formulaire avec les champs surlignés ; rien n'est enregistré avant que la personne vérifie et enregistre ([ADR 0015](../../docs/architecture/adr/0015-lecture-automatique.md)) | carte grise : gérant, chargé, commercial ; pièce d'identité et constat : gérant, chargé |
 | Personnel (`/personnel`) | Comptes, rôles, désactivation, réinitialisation de l'accès ; mot de passe provisoire montré une seule fois | gérant |
 | Mon compte (`/mon-compte`) | Changement de mot de passe | tous |
 
@@ -73,7 +74,7 @@ PGHOST=localhost PGUSER=postgres PGPASSWORD=… npm run test:e2e -w @dbs/admin
 Il construit l'API et le back-office, prépare une base de test neuve (`tests/e2e/preparer.mjs`), démarre les deux, puis joue dans Chromium le parcours d'un gérant :
 
 1. première connexion, avec le deuxième facteur et le mot de passe personnel ;
-2. création d'un client et d'un contrat, puis note d'un échange ;
+2. création d'un client et d'un contrat, puis note d'un échange ; lecture du recto et du verso d'une carte grise fictive par le vrai lecteur local, report dans « Ajouter un véhicule », puis enregistrement du véhicule ;
 3. encaissement au guichet : reçu n° 000001 avec le montant en lettres, contrat mis en vigueur ;
 4. relance à faire à la main faute d'accord, accord du client noté sur sa fiche, puis relance automatique (l'API tourne en simulation : rien ne part) ;
 5. relance et renouvellement depuis le tableau des échéances ;

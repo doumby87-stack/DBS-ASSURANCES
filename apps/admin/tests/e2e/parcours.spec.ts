@@ -85,6 +85,23 @@ test("parcours du gérant, de la première connexion à la caisse et au reversem
   await page.getByRole("button", { name: "Noter" }).click();
   await expect(page.getByText("Appelé pour confirmer la liste des véhicules")).toBeVisible();
 
+  // --- Lecture automatique d'une carte grise (tâche 14, vrai lecteur local sur le recto et le verso d'une carte
+  // fictive, photographiés comme sur WhatsApp) : valeurs proposées, vérifiées, puis enregistrées
+  await page.getByRole("button", { name: "Ajouter un véhicule" }).click();
+  const lecture = page.getByRole("group", { name: "Lecture automatique de la carte grise" });
+  const face = (nom: string) => ({
+    name: `${nom}.jpg`, mimeType: "image/jpeg", buffer: readFileSync(new URL(`../../../api/tests/donnees/lecture/${nom}.jpg`, import.meta.url)),
+  });
+  await lecture.getByLabel(/Photos ou PDF : recto, et verso/).setInputFiles([face("carte-grise-2023-recto"), face("carte-grise-2023-verso")]);
+  await lecture.getByRole("button", { name: "Lire le document" }).click();
+  await expect(lecture.getByText(/vérifiez chacune avec le document/)).toBeVisible({ timeout: 30_000 });
+  await lecture.getByRole("button", { name: "Pré-remplir le véhicule avec ces valeurs" }).click();
+  await expect(page.getByLabel("Immatriculation", { exact: true })).toHaveValue("CD-123-EF-01");
+  await expect(page.getByLabel("N° de châssis (VIN)")).toHaveValue("WDB9634031L123456");
+  await expect(page.getByLabel("Immatriculation", { exact: true })).toHaveClass(/saisie-lue/);
+  await page.getByRole("button", { name: "Ajouter le véhicule" }).click();
+  await expect(page.getByText("CD-123-EF-01").first()).toBeVisible();
+
   // --- Encaissement au guichet : le reçu s'ouvre, le contrat entre en vigueur de lui-même
   await ligneContrat.getByRole("link", { name: "Encaisser" }).click();
   await expect(page.getByRole("heading", { name: /SA-2026-0042/ })).toBeVisible();
