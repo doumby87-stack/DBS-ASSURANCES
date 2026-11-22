@@ -33,6 +33,7 @@ import { routesIdentification } from "./modules/conformite/identification.js";
 import { routesRegistres } from "./modules/conformite/registres.js";
 import { routesReclamations, routesReclamationsPortail } from "./modules/reclamations/routes.js";
 import { creerLecteur, type LecteurDocuments } from "./integrations/lecture/lecteur.js";
+import { routesExploitation } from "./modules/exploitation/routes.js";
 import { routesLecture } from "./modules/lecture/routes.js";
 import { routesRendezVous } from "./modules/rendez-vous/routes.js";
 import { routesStatistiques } from "./modules/statistiques/routes.js";
@@ -60,7 +61,8 @@ export interface DependancesApplication {
   prestatairePaiement?: PrestatairePaiement | null;
   /** Lecteur de documents (tâche 14) ; sinon, d'après la configuration. */
   lecteur?: LecteurDocuments | null;
-  journal?: boolean;
+  /** Journal technique : false pour aucun ; sinon sur la sortie standard, ou sur ce flux (tests). */
+  journal?: false | { write(ligne: string): void };
 }
 
 export async function construireApplication(dependances: DependancesApplication): Promise<FastifyInstance> {
@@ -77,6 +79,15 @@ export async function construireApplication(dependances: DependancesApplication)
               paths: ["req.headers.cookie", "req.headers.authorization", 'res.headers["set-cookie"]', "*.motDePasse", "*.actuel", "*.nouveau"],
               censor: "[masqué]",
             },
+            // L'adresse sans ses paramètres : une recherche peut contenir le nom ou le téléphone d'un client
+            serializers: {
+              req: (requete: { method: string; url: string; ip: string }) => ({
+                method: requete.method,
+                url: requete.url.split("?")[0],
+                remoteAddress: requete.ip,
+              }),
+            },
+            ...(dependances.journal ? { stream: dependances.journal } : {}),
           },
     // Adresse IP réelle : seuls les N premiers proxys devant l'API sont crus
     trustProxy: (_adresse: string, saut: number) => saut < config.proxysDeConfiance,
@@ -168,9 +179,10 @@ export async function construireApplication(dependances: DependancesApplication)
   await app.register(routesReclamations, { pool, gardes });
   await app.register(routesStatistiques, { pool, gardes });
   await app.register(routesRendezVous, { pool, gardes });
-  await app.register(routesLecture, {
-    pool, gardes, cleChiffrement: config.cleChiffrement, antivirus,
-    lecteur: dependances.lecteur !== undefined ? dependances.lecteur : creerLecteur(config.lecture),
+  const lecteur = dependances.lecteur !== undefined ? dependances.lecteur : creerLecteur(config.lecture);
+  await app.register(routesLecture, { pool, gardes, cleChiffrement: config.cleChiffrement, antivirus, lecteur });
+  await app.register(routesExploitation, {
+    pool, gardes, config, antivirus, lectureActive: lecteur !== null, ...(dependances.horloge ? { horloge: dependances.horloge } : {}),
   });
   await app.register(routesExportDonnees, { pool, gardes });
   await app.register(routesRelances, {

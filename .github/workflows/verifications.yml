@@ -227,6 +227,19 @@ jobs:
         if: always()
         run: docker compose -f demo/compose.yml down -v
 
+  production:
+    name: Pile de production
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Outil de chiffrement des sauvegardes (clé jetable de l'essai)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq age
+      - name: Images de production, base préparée par les outils de production, HTTPS, en-têtes, réseaux, premier gérant, sauvegarde chiffrée et test de restauration
+        run: ./infra/production/essai.sh
+
   secrets:
     name: Recherche de secrets
     runs-on: ubuntu-latest

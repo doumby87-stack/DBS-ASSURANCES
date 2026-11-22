@@ -12,7 +12,7 @@ Deux journaux distincts, aux usages différents.
 - l'application n'a aucun accès au schéma `audit`, ni en lecture ni en écriture ;
 - chaque ligne contient l'empreinte SHA-256 de la précédente : `audit.verifier_chaine()` signale la première ligne modifiée ou supprimée.
 
-**Limite et parade** : un administrateur qui supprimerait les *dernières* lignes ne casse pas la chaîne. C'est pourquoi la dernière empreinte (`derniere_empreinte`, renvoyée par `audit.verifier_chaine()`) est copiée **chaque jour hors de la base** (e-mail au gérant et stockage hors site). Si la chaîne du lendemain ne prolonge pas l'empreinte de la veille, il y a eu suppression.
+**Limite et parade** : un administrateur qui supprimerait les *dernières* lignes ne casse pas la chaîne. C'est pourquoi, à chaque sauvegarde de la nuit, la base vérifie que la dernière empreinte vue la nuit précédente s'y trouve toujours (sinon, alerte grave sur la page Exploitation), et la nouvelle dernière empreinte est copiée **hors de la base**, dans un fichier à part envoyé avec la sauvegarde sur le stockage hors site en écriture unique. Un superutilisateur qui effacerait aussi le compte rendu des sauvegardes ne pourrait pas effacer ces fichiers : le test de restauration du mois vérifie que l'empreinte notée s'y trouve ([sauvegardes](../../infra/sauvegardes/README.md)).
 
 **Qui le lit** : le rôle `dbs_audit` (gérant via un outil dédié, expert-comptable, contrôleur). Le back-office affichera l'historique d'une fiche au gérant (tâche 4).
 
@@ -33,7 +33,7 @@ Les événements de sécurité sont aussi enregistrés dans la base, dans `secur
 - notifications de paiement rejetées (signature invalide, doublon) ;
 - lectures automatiques de documents : document, issue (lu, refusé, illisible, indisponible) et durée, sans les valeurs lues.
 
-**Ce qu'il ne contient jamais** : mots de passe, codes de connexion, jetons, numéros de pièce d'identité, contenu des messages clients, données médicales.
+**Ce qu'il ne contient jamais** : mots de passe, codes de connexion, jetons, cookies, numéros de pièce d'identité, contenu des messages clients, données médicales, paramètres des adresses (une recherche peut contenir un nom ou un téléphone : l'API, comme le serveur web, n'en garde que le chemin).
 
 **Conservation** : 12 mois, puis suppression automatique.
 
@@ -41,6 +41,6 @@ Les événements de sécurité sont aussi enregistrés dans la base, dans `secur
 
 | Fréquence | Contrôle | Qui |
 | --- | --- | --- |
-| Chaque jour (automatique) | `audit.verifier_chaine()` et copie de la dernière empreinte | Script programmé, alerte au gérant |
+| Chaque nuit (automatique) | `audit.verifier_chaine()` à chaque sauvegarde, présence de la dernière empreinte de la veille, copie de la nouvelle hors site avec la sauvegarde | Service de sauvegarde ; alerte grave sur la page Exploitation, et plus de battement de cœur envoyé à la surveillance ([surveillance](../../infra/surveillance/README.md)) |
 | Chaque semaine | Échecs de connexion, comptes bloqués, exports | Gérant |
 | Chaque trimestre | Revue des comptes et des rôles ([contrôle des accès](controle-des-acces.md)) | Gérant |

@@ -58,6 +58,7 @@ L = lire · C = créer · M = modifier · — = aucun accès
 | Réclamations | L C, traitement, export | L C, traitement | celles qu'il enregistre : L C | celles qu'il enregistre : L C | — | L, export |
 | Factures FNE de l'agence | L C, annulation | — | — | — | — | L |
 | Statistiques | L | — | — | — | — | L |
+| Exploitation : état des services, sauvegardes, tests de restauration, événements de sécurité de la semaine | L | — | — | — | — | L |
 | Export de toutes les données d'un client (droit d'accès, consigné) | L | — | — | — | — | — |
 | Journal d'audit | via le rôle `dbs_audit` | — | — | — | — | via le rôle `dbs_audit` |
 
@@ -103,6 +104,8 @@ Personne, pas même le gérant, n'enregistre un paiement en ligne à la main : s
 | Accès | Qui | Comment |
 | --- | --- | --- |
 | Compte propriétaire de la base | Prestataire technique désigné | Migrations uniquement, par l'intégration continue ou en présence du gérant |
+| Compte de sauvegarde (`dbs_sauvegarde`) | Le service de sauvegarde du serveur | Lit toute la base pour la sauvegarder, en lecture seule ; n'écrit que le compte rendu des sauvegardes et des tests de restauration, en ajout seul ([ADR 0016](../architecture/adr/0016-mise-en-production.md)) |
+| Clé privée des sauvegardes | Gérant et une seconde personne désignée | Hors ligne ; sortie seulement pour le test de restauration du mois ou une reprise après sinistre, sur un poste de test |
 | Serveurs et hébergeur | Prestataire technique, gérant | Deuxième facteur, clé SSH personnelle, liste revue chaque trimestre |
 | Dépôt GitHub | Contributeurs nommés | Deuxième facteur obligatoire, pas d'envoi direct sur `main` ([paramètres GitHub](parametres-github.md)) |
 | Hébergement du site vitrine | Gérant, prestataire | Deuxième facteur, déploiement depuis GitHub uniquement |

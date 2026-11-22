@@ -1,6 +1,6 @@
 # Back-office de l'agence (espace de gestion)
 
-**Statut :** connexion avec deuxième facteur, tableau des échéances, clients, fiche client, personnel (tâche 4) ; caisse, reçus, reversements et commissions (tâche 5) ; relances automatiques et accord des clients (tâche 6) ; demandes du site (tâche 7) ; flottes (tâche 8) ; accès à l'espace client (tâche 10) ; sinistres et paiements en ligne (tâche 9) ; conformité, réclamations, factures FNE et statistiques (tâche 12) — [feuille de route](../../docs/feuille-de-route.md).
+**Statut :** connexion avec deuxième facteur, tableau des échéances, clients, fiche client, personnel (tâche 4) ; caisse, reçus, reversements et commissions (tâche 5) ; relances automatiques et accord des clients (tâche 6) ; demandes du site (tâche 7) ; flottes (tâche 8) ; accès à l'espace client (tâche 10) ; sinistres et paiements en ligne (tâche 9) ; conformité, réclamations, factures FNE et statistiques (tâche 12) ; exploitation (tâche 11) — [feuille de route](../../docs/feuille-de-route.md).
 
 L'outil de travail quotidien de l'agence. Il ne contient aucune donnée : il affiche ce que l'[API](../api/README.md) lui autorise à voir.
 
@@ -40,6 +40,7 @@ Vite transmet les appels `/api/…` à l'API (variable `API_URL` si l'API n'est 
 | Commissions (`/commissions`) | Rapprochement mensuel avec le relevé de SanlamAllianz et la facture FNE du mois (« À émettre » sinon), factures FNE de l'agence et leur annulation, taux par branche, contrats sans prime nette | gérant, auditeur (lecture) |
 | Lecture automatique (panneau, si l'API l'active) | Sur la fiche client (« Ajouter un véhicule » : carte grise, recto et verso), l'identification (pièce d'identité, depuis un justificatif enregistré ou des photos), la fiche d'un sinistre (constat amiable, résumé ajouté à la note interne) et une demande du site (carte grise jointe) : contrôles affichés (zone lisible par machine, pièce expirée, châssis), valeurs proposées, report dans le formulaire avec les champs surlignés ; rien n'est enregistré avant que la personne vérifie et enregistre ([ADR 0015](../../docs/architecture/adr/0015-lecture-automatique.md)) | carte grise : gérant, chargé, commercial ; pièce d'identité et constat : gérant, chargé |
 | Personnel (`/personnel`) | Comptes, rôles, désactivation, réinitialisation de l'accès ; mot de passe provisoire montré une seule fois | gérant |
+| Exploitation (`/exploitation`) | À regarder chaque matin : alertes en clair (sauvegarde absente ou en échec, copie hors site manquante, anomalie du journal d'audit, test de restauration en retard, antivirus arrêté, comptes bloqués, rafale de connexions refusées), état des services, sauvegardes de la nuit, tests de restauration du mois, événements de sécurité de la semaine ([surveillance](../../infra/surveillance/README.md)) | gérant, auditeur |
 | Mon compte (`/mon-compte`) | Changement de mot de passe | tous |
 
 Masquer un bouton n'est qu'un confort : les droits sont appliqués par l'API et par la base ([matrice des accès](../../docs/securite/controle-des-acces.md)).

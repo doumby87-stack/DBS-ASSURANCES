@@ -311,9 +311,11 @@ Les rappels d'échéance et les appels d'offres sont des demandes du site d'une 
 
 Chaque lecture automatique d'un document ajoute un événement `lecture_automatique` à `securite.evenements` (qui, quand, quel document de quel client, jamais les valeurs lues) ; l'index `evenements_lectures_idx` sert à compter les lectures de la dernière heure ([ADR 0015](adr/0015-lecture-automatique.md)).
 
+Le schéma `exploitation` garde le compte rendu de chaque sauvegarde (`sauvegardes` : fichier chiffré, taille, empreinte, copie hors site, vérification du journal d'audit, dernière empreinte de la chaîne, dernières lignes disparues) et de chaque test de restauration (`tests_restauration` : durée, chaîne d'audit intacte, totaux, auteur). Seul le compte de sauvegarde y écrit, par `exploitation.enregistrer_sauvegarde` et `exploitation.enregistrer_test_restauration`, en ajout seul ; le gérant et l'auditeur les lisent par `exploitation.sauvegardes_recentes` et `exploitation.tests_restauration_recents` ([ADR 0016](adr/0016-mise-en-production.md)).
+
 ## À venir
 
-Documents des contrats (stockage de fichiers, tâche 11) ; purge des fiches d'identification à la fin de la durée légale de conservation, une fois celle-ci confirmée.
+Documents des contrats (dans la base, chiffrés, comme les autres pièces : [ADR 0016](adr/0016-mise-en-production.md)) ; purge des fiches d'identification à la fin de la durée légale de conservation, une fois celle-ci confirmée.
 
 Les demandes du site n'entrent que par la fonction `app.enregistrer_demande_site`, appelée sans utilisateur connecté par la route publique du formulaire : elle limite les envois par adresse (5 par heure) et par jour (300), et range la carte grise chiffrée dans `app.pieces_demandes_site`, en ajout seul et hors du journal d'audit. Le verdict de l'antivirus ne s'enregistre que par `app.enregistrer_analyse_piece` ; la maintenance de l'API retrouve les pièces à analyser par `app.pieces_a_analyser` et supprime les demandes sans suite depuis 12 mois par `app.purger_demandes_site`, seule à pouvoir supprimer dans ces tables ([ADR 0009](adr/0009-demandes-de-devis-du-site.md)).
 

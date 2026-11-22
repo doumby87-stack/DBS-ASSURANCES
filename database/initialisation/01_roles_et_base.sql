@@ -16,6 +16,10 @@
 --   dbs_api           groupe sans connexion : droits de l'application, filtrés ligne par ligne.
 --   dbs_application   compte de connexion de l'API ; hérite de dbs_api, rien de plus.
 --   dbs_audit         groupe sans connexion : lecture et vérification du journal d'audit.
+--   dbs_sauvegarde    compte des sauvegardes (tâche 11) : lit toute la base, lignes protégées comprises
+--                     (BYPASSRLS), en lecture seule par défaut ; n'écrit que le compte rendu de ses sauvegardes.
+--
+-- Sur une installation existante, relancez ce script avant les migrations : il n'ajoute que ce qui manque.
 -- =====================================================================
 
 \set ON_ERROR_STOP on
@@ -35,6 +39,10 @@ BEGIN
   -- il ne voit que les données de l'entreprise de la personne connectée (sécurité ligne par ligne)
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'dbs_portail') THEN
     CREATE ROLE dbs_portail NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+  END IF;
+  -- Sauvegardes : pg_dump doit lire toutes les lignes, y compris celles que la sécurité ligne par ligne cache
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'dbs_sauvegarde') THEN
+    CREATE ROLE dbs_sauvegarde LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION BYPASSRLS CONNECTION LIMIT 3;
   END IF;
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'dbs_application') THEN
     CREATE ROLE dbs_application LOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS
@@ -59,12 +67,15 @@ $$;
 ALTER ROLE dbs_application SET statement_timeout = '15s';
 ALTER ROLE dbs_application SET idle_in_transaction_session_timeout = '30s';
 ALTER ROLE dbs_application SET lock_timeout = '5s';
+-- Le compte de sauvegarde lit sans rien bloquer : lecture seule par défaut (il ne repasse en écriture que pour
+-- inscrire le compte rendu de sa sauvegarde, par une fonction dédiée)
+ALTER ROLE dbs_sauvegarde SET default_transaction_read_only = on;
 
 SELECT format('CREATE DATABASE %I OWNER dbs_proprietaire ENCODING ''UTF8''', :'base')
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = :'base') \gexec
 
 -- Personne ne se connecte à la base sans y être autorisé explicitement
 SELECT format('REVOKE ALL ON DATABASE %I FROM PUBLIC', :'base') \gexec
-SELECT format('GRANT CONNECT ON DATABASE %I TO dbs_api, dbs_audit', :'base') \gexec
+SELECT format('GRANT CONNECT ON DATABASE %I TO dbs_api, dbs_audit, dbs_sauvegarde', :'base') \gexec
 -- Dates et échéances calculées à l'heure d'Abidjan
 SELECT format('ALTER DATABASE %I SET timezone TO %L', :'base', 'Africa/Abidjan') \gexec

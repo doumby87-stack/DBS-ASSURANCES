@@ -8,6 +8,7 @@ import { FicheClient } from "./pages/clients/FicheClient";
 import { ListeClients } from "./pages/clients/ListeClients";
 import { Commissions } from "./pages/commissions/Commissions";
 import { DemandeSite, DemandesSite } from "./pages/demandes-site/DemandesSite";
+import { Exploitation } from "./pages/exploitation/Exploitation";
 import { Flotte } from "./pages/flottes/Flotte";
 import { Contrat } from "./pages/contrats/Contrat";
 import { Personnel } from "./pages/parametres/Personnel";
@@ -80,6 +81,7 @@ function Page() {
   const demande = /^\/demandes-site\/([0-9a-f-]{36})$/.exec(chemin);
   if (demande) return <DemandeSite key={demande[1]} id={demande[1]!} />;
   if (chemin === "/personnel") return <Personnel />;
+  if (chemin === "/exploitation") return <Exploitation />;
   if (chemin === "/mon-compte") {
     return (
       <>
@@ -118,6 +120,7 @@ function MiseEnPage({ children }: { children: ReactNode }) {
             {peut("gerant", "charge_clientele", "caissier", "commercial", "auditeur") && <Lien href="/conformite" aria-current={actif("/conformite")}>Conformité</Lien>}
             {peut("gerant", "auditeur") && <Lien href="/statistiques" aria-current={actif("/statistiques")}>Statistiques</Lien>}
             {peut("gerant") && <Lien href="/personnel" aria-current={actif("/personnel")}>Personnel</Lien>}
+            {peut("gerant", "auditeur") && <Lien href="/exploitation" aria-current={actif("/exploitation")}>Exploitation</Lien>}
           </nav>
           <div className="entete__compte">
             <Lien href="/mon-compte">{session?.utilisateur.nom}</Lien>

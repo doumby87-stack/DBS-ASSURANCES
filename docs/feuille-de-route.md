@@ -102,9 +102,18 @@ Nouvelle application `apps/portail`, sur sa propre adresse, pour les entreprises
 - relancer `database/initialisation/01_roles_et_base.sql` sur la base installée (nouveau rôle) ;
 - servir le portail sur sa propre adresse, avec l'API derrière `/api`, et la renseigner dans `URL_PORTAIL`.
 
-## ⏳ Tâche 11 — Mise en production
+## ✅ Tâche 11 — Mise en production
 
-Hébergement, sauvegardes testées, surveillance, test d'intrusion par un prestataire indépendant, formation du personnel (hameçonnage, mots de passe, procédure d'incident).
+([ADR 0016](architecture/adr/0016-mise-en-production.md), [liste de mise en service](exploitation/mise-en-service.md))
+
+- **pile de production prête** pour n'importe quel hébergeur ([pas à pas](../infra/production/README.md)) : Caddy (HTTPS automatique, en-têtes de sécurité), API, antivirus, base, sauvegarde, en conteneurs durcis sur des réseaux séparés ; base sans aucun port ouvert ni accès à Internet. Essayée de bout en bout par l'intégration continue à chaque modification ;
+- **sauvegardes chiffrées chaque nuit** par clé publique (le serveur ne peut pas les relire), copiées hors site en écriture unique, avec la vérification du journal d'audit, y compris la suppression de ses dernières lignes ([sauvegardes](../infra/sauvegardes/README.md)) ;
+- **test de restauration mensuel** en une commande, inscrit dans la production ; procédure de reprise après sinistre ;
+- **page Exploitation** du gérant et de l'auditeur : alertes en clair, services, sauvegardes, tests de restauration, événements de sécurité ; signaux externes gratuits (disponibilité, battement de cœur de la sauvegarde) ([surveillance](../infra/surveillance/README.md)) ;
+- **cahier des charges du test d'intrusion** ([test d'intrusion](securite/test-d-intrusion.md)) et **kit de formation** du personnel avec questionnaire ([formation](securite/formation-du-personnel.md)) ;
+- journal technique de l'API sans les paramètres des adresses.
+
+*À faire par l'agence :* choisir l'hébergeur après la réponse de l'ARTCI ; ouvrir le stockage hors site (verrouillage des objets) ; créer la clé des sauvegardes et ranger ses deux copies ; brancher les deux signaux de surveillance ; faire faire le test d'intrusion ; former le personnel avant d'ouvrir les comptes ; suivre la [liste de mise en service](exploitation/mise-en-service.md). *Plus tard :* archivage continu (perte de données de quelques minutes au lieu d'une journée) avec une base gérée ou pgBackRest ; alerte de connexion depuis un nouvel appareil.
 
 ## ✅ Tâche 12 — Conformité et pilotage
 

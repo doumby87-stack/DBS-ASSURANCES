@@ -16,7 +16,13 @@ Un secret est tout ce qui donne un accès : mot de passe, clé d'API, clé de ch
 | --- | --- | --- |
 | Mot de passe `dbs_proprietaire` | Migrations | Gestionnaire de secrets de l'hébergeur (production), coffre-fort |
 | Mot de passe `dbs_application` | API | Gestionnaire de secrets de l'hébergeur |
-| Clé de chiffrement (`CLE_CHIFFREMENT_DONNEES` : secrets du deuxième facteur, pièces d'identité) | API | Gestionnaire de secrets ; copie de secours scellée, hors ligne. Sa perte oblige à réinitialiser l'accès de tout le personnel. |
+| Mot de passe `dbs_sauvegarde` | Sauvegarde de la nuit ; inscription des tests de restauration | `infra/production/.env` sur le serveur (lisible par son propriétaire seulement), coffre-fort |
+| Mot de passe du superutilisateur de la base installée sur le serveur (ou du compte d'administration de la base gérée) | Initialisation de la base, reprise après sinistre | `infra/production/.env`, coffre-fort |
+| **Clé privée des sauvegardes** (age) | Test de restauration du mois, reprise après sinistre | **Jamais sur le serveur ni dans le coffre-fort en ligne** : deux clés USB (ou un papier au coffre) chez deux personnes. Sa perte rend toutes les sauvegardes illisibles ; on en crée alors une nouvelle et on refait aussitôt une sauvegarde. |
+| Clé publique des sauvegardes (`age1…`) | Sauvegarde de la nuit | `infra/production/.env` (elle ne permet que de chiffrer) |
+| Accès au stockage hors site (rclone) | Copie hors site | `infra/production/sauvegarde.env`, coffre-fort. Écriture seule, sans droit de suppression ; un accès distinct, en lecture, pour le poste du test mensuel |
+| Adresse du battement de cœur de la sauvegarde (`SAUVEGARDE_SIGNAL_URL`) | Surveillance | `infra/production/sauvegarde.env` (qui la connaît pourrait faire croire que tout va bien) |
+| Clé de chiffrement (`CLE_CHIFFREMENT_DONNEES` : secrets du deuxième facteur, numéros et justificatifs d'identité, pièces et photos reçues, attestations) | API | Gestionnaire de secrets ; copie de secours scellée, hors ligne. Sa perte oblige à réinitialiser l'accès de tout le personnel et rend illisibles les pièces enregistrées, même restaurées d'une sauvegarde. |
 | Clés du prestataire de paiement | API | Gestionnaire de secrets |
 | Jeton WhatsApp Business (`WHATSAPP_JETON`), secret de l'application Meta qui signe les notifications (`WHATSAPP_SECRET_APPLICATION`), jeton de vérification des notifications (`WHATSAPP_JETON_VERIFICATION`) | API | Gestionnaire de secrets ; jeton d'un utilisateur système Meta, réservé à l'envoi de messages |
 | Accès FNE (DGI) | API | Gestionnaire de secrets |

@@ -25,6 +25,13 @@
 - [Sauvegardes et reprise](securite/sauvegardes-et-reprise.md)
 - [Réponse aux incidents](securite/reponse-aux-incidents.md)
 - [Paramètres GitHub](securite/parametres-github.md)
+- [Test d'intrusion](securite/test-d-intrusion.md) — le cahier des charges du prestataire indépendant.
+- [Formation du personnel](securite/formation-du-personnel.md) — hameçonnage, mots de passe, procédure d'incident, données personnelles, questionnaire.
+
+## Exploitation
+
+- [Mise en service](exploitation/mise-en-service.md) — la liste à cocher avant l'ouverture, puis le rythme de l'exploitation.
+- [Mise en production pas à pas](../infra/production/README.md), [sauvegardes et restauration](../infra/sauvegardes/README.md), [surveillance](../infra/surveillance/README.md).
 
 ## Conformité
 
