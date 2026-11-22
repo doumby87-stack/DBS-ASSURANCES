@@ -34,7 +34,7 @@ rem Le detail de l'erreur : construction (rejouee, le cache la rend rapide), eta
 > journal-demarrage.log echo Demonstration DBS-ASSURANCES : journal du demarrage
 >> journal-demarrage.log docker version 2>&1
 >> journal-demarrage.log docker compose version 2>&1
->> journal-demarrage.log docker compose -f compose.yml build --progress plain 2>&1
+>> journal-demarrage.log docker compose --progress plain -f compose.yml build 2>&1
 >> journal-demarrage.log docker compose -f compose.yml ps -a 2>&1
 >> journal-demarrage.log docker compose -f compose.yml logs --no-color --tail 200 2>&1
 echo.

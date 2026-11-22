@@ -21,7 +21,7 @@ if ! docker compose -f compose.yml up -d --build --wait; then
     echo "Démonstration DBS-ASSURANCES : journal du démarrage"
     docker version
     docker compose version
-    docker compose -f compose.yml build --progress plain
+    docker compose --progress plain -f compose.yml build
     docker compose -f compose.yml ps -a
     docker compose -f compose.yml logs --no-color --tail 200
   } > journal-demarrage.log 2>&1
