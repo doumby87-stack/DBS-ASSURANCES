@@ -17,6 +17,8 @@ id_ed25519*
 *.sql.gz
 sauvegardes-locales/
 exports/
+# Fichiers de reprise des données (docs/demarches/reprise-des-donnees.md)
+/reprise/
 
 # --- Dépendances et constructions ---
 node_modules/
