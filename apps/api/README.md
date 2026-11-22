@@ -102,7 +102,7 @@ npm run build -w @dbs/api
 DATABASE_URL_PROPRIETAIRE=postgres://dbs_proprietaire@…/dbs npm run premier-acces -w @dbs/api -- prenom.nom@exemple.ci
 ```
 
-Le mot de passe provisoire s'affiche une seule fois. Ensuite, tous les comptes sont créés depuis l'application par un gérant.
+Le mot de passe provisoire s'affiche une seule fois. Ensuite, tous les comptes sont créés depuis l'application par un gérant. En production, avec Docker : [infra/production/README.md](../../infra/production/README.md), étape 8.
 
 ## Routes
 
@@ -189,6 +189,7 @@ Le mot de passe provisoire s'affiche une seule fois. Ensuite, tous les comptes s
 | `POST /rendez-vous/:id/traitement` | gérant, chargé, commercial | `confirmer` (ou déplacer), `honore`, `manque`, `annuler` (motif), `rattacher` à une fiche client. |
 | `GET /lecture-automatique` | gérant, chargé, commercial | `{ disponible, prestataire }` : le back-office n'affiche la lecture que si elle est activée. |
 | `POST /lecture-automatique` | gérant, chargé, commercial (carte grise) ; gérant, chargé (pièce d'identité, constat) | Lit un document : une ou deux photos envoyées, recto et verso (`fichiers`, analysées par l'antivirus), ou une pièce enregistrée et saine (`justificatifId`, `pieceSinistreId`, `demandeSiteId`), une seule source. Renvoie les valeurs lues, les contrôles (zone lisible par machine, pièce expirée, châssis…) et un avertissement ; **n'enregistre rien**. Consignée au journal de sécurité sans les valeurs ; 30 par heure et par personne (429 `trop_de_lectures`) ; 503 `lecture_indisponible` si elle n'est pas activée. |
+| `GET /exploitation` | gérant, auditeur | État des services (l'antivirus analyse réellement un petit fichier), 10 dernières sauvegardes et 6 derniers tests de restauration (inscrits par le compte de sauvegarde), événements de sécurité des 7 derniers jours (compteurs, et le détail des blocages, accès réinitialisés, comptes créés ou modifiés, exports), et des alertes en clair, les graves d'abord ([ADR 0016](../../docs/architecture/adr/0016-mise-en-production.md)). |
 | `GET /webhooks/whatsapp` | public (jeton de vérification) | Activation des notifications par Meta. |
 | `POST /webhooks/whatsapp` | public, **signature de Meta exigée** | Accusés de remise et de lecture, « STOP » des clients. |
 
@@ -205,6 +206,7 @@ Le mot de passe provisoire s'affiche une seule fois. Ensuite, tous les comptes s
 | Même réponse et même durée pour un compte inconnu, désactivé, bloqué ou un mauvais mot de passe | `src/securite/routes-authentification.ts` |
 | Protection CSRF : toute modification doit venir de l'origine du back-office, en JSON uniquement | `src/securite/protection.ts` |
 | Champs inattendus refusés ; erreurs sans détail interne ; en-têtes de sécurité sur toutes les réponses | `src/application.ts`, `src/commun/erreurs.ts` |
+| Journal technique sans cookie, sans mot de passe, sans les paramètres des adresses (une recherche peut contenir un nom) | `src/application.ts` |
 | Chaque requête métier déclare l'utilisateur à la base, qui applique ses propres droits | `src/base-de-donnees/connexion.ts` |
 | Journal de sécurité en ajout seul : connexions, échecs, blocages, créations et modifications de comptes, exports de données, lectures automatiques de documents | `securite.evenements` |
 | Lecture automatique : rien ne sort des serveurs de l'agence ; antivirus avant toute lecture ; JPEG et PNG seulement, taille en pixels bornée avant décodage ; image préparée par `sharp` puis lue dans le bac à sable WebAssembly de Tesseract, sans réseau ni fichier écrit ; valeurs revérifiées champ par champ, zone lisible par machine corrigée et recontrôlée ; ni image ni valeur lue gardée ou journalisée ; rien n'est enregistré sans la personne | `src/integrations/lecture/`, `src/modules/lecture/` |
@@ -214,7 +216,7 @@ Le mot de passe provisoire s'affiche une seule fois. Ensuite, tous les comptes s
 
 **Risques connus :**
 
-- Quelqu'un qui connaît l'adresse e-mail d'un membre du personnel peut bloquer son compte en se trompant volontairement de mot de passe. Un autre gérant le débloque en réinitialisant son accès. Le pare-feu applicatif prévu en production (tâche 11) limitera aussi ces tentatives.
+- Quelqu'un qui connaît l'adresse e-mail d'un membre du personnel peut bloquer son compte en se trompant volontairement de mot de passe. Un autre gérant le débloque en réinitialisant son accès. En production, un pare-feu applicatif de l'hébergeur, s'il en propose un, limitera aussi ces tentatives (infra/README.md).
 - Le personnel qui travaille derrière la même connexion Internet (la box de l'agence) partage le compteur par adresse IP : 20 échecs en 15 minutes, toutes personnes confondues, suspendent les connexions depuis l'agence pendant 15 minutes.
 
 ## Tests

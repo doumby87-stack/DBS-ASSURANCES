@@ -62,7 +62,7 @@ export interface Contexte {
 export async function demarrer(
   options: {
     verifierFuite?: VerificateurFuite | null; env?: Record<string, string>; messagerie?: Messagerie; envoiCodes?: EnvoiCodes;
-    prestatairePaiement?: PrestatairePaiement;
+    prestatairePaiement?: PrestatairePaiement; journal?: { write(ligne: string): void };
   } = {},
 ): Promise<Contexte> {
   const antivirus = antivirusDeTest();
@@ -77,7 +77,7 @@ export async function demarrer(
   const base = creerPool(inject("urlSuperutilisateur"));
   const horloge = { ms: Date.now() };
   const app = await construireApplication({
-    config, pool, journal: false, horloge: () => horloge.ms, verifierFuite: options.verifierFuite ?? null, antivirus,
+    config, pool, journal: options.journal ?? false, horloge: () => horloge.ms, verifierFuite: options.verifierFuite ?? null, antivirus,
     ...(options.messagerie ? { messagerie: options.messagerie } : {}),
     ...(options.envoiCodes ? { envoiCodes: options.envoiCodes } : {}),
     ...(options.prestatairePaiement ? { prestatairePaiement: options.prestatairePaiement } : {}),
