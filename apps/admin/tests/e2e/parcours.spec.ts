@@ -4,7 +4,7 @@
 // bordereau de reversement, demande de devis reçue du site, commissions, flotte d'un transporteur (import,
 // avenants d'incorporation et de retrait au prorata, annulation, attestation, sinistre suivi depuis la page
 // Sinistres, accès à l'espace client), facture FNE, identification d'un client, réclamation traitée, conformité et
-// statistiques, création d'un compte.
+// statistiques, exploitation, création d'un compte.
 // Aucune violation de la politique de sécurité du contenu n'est tolérée.
 
 import { expect, test, type Page } from "@playwright/test";
@@ -470,6 +470,12 @@ test("parcours du gérant, de la première connexion à la caisse et au reversem
   await navigation.getByRole("link", { name: "Statistiques", exact: true }).click();
   await expect(page.getByRole("heading", { name: `Statistiques ${new Date().getFullYear()}` })).toBeVisible();
   await expect(page.getByRole("img", { name: /Primes émises et encaissements/ })).toBeVisible();
+
+  // Exploitation : pas encore de sauvegarde sur ce poste, l'alerte le dit
+  await navigation.getByRole("link", { name: "Exploitation", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Exploitation", level: 1 })).toBeVisible();
+  await expect(page.getByText(/Aucune sauvegarde enregistrée : la sauvegarde quotidienne/)).toBeVisible();
+  await expect(page.getByRole("row", { name: /Base de données/ })).toContainText("En marche");
 
   // --- Nouveau compte : mot de passe provisoire affiché une seule fois
   await page.getByRole("link", { name: "Personnel" }).click();

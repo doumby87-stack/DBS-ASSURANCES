@@ -308,3 +308,7 @@ details.avenant[open] > summary { margin-bottom: 0.75rem; }
 .controle--ok { border-color: #1a7f43; background: #e8f5ec; }
 .controle--attention { border-color: #e08a00; background: #fff4e0; }
 .saisie-lue { background: #fff8e1; border-color: #e5b53a; box-shadow: 0 0 0 2px #f7e2a3; }
+
+/* --- Exploitation (tâche 11) --- */
+.liste-alertes { list-style: none; margin: 0; padding: 0; }
+.liste-alertes .alerte { margin: 0 0 0.5rem; }
