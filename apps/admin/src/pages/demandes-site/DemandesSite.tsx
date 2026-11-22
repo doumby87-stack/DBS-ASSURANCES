@@ -51,18 +51,27 @@ interface Demande {
   devisId: string | null;
   traiteeLe: string | null;
   traiteePar: string | null;
-  aUnePiece?: boolean;
+  /** Réponses aux questions de l'assurance choisie, avec leurs libellés */
+  details?: { libelle: string; valeur: string }[];
+  /** Documents joints, dans l'ordre d'envoi (liste seulement) */
+  naturesPieces?: string[];
+}
+
+interface Piece {
+  id: string;
+  rang: number;
+  nature: string;
+  libelle: string;
+  type: string;
+  taille: number;
+  etatAnalyse: "a_analyser" | "saine" | "infectee";
+  analyseeLe: string | null;
+  signatureDetectee: string | null;
 }
 
 interface Detail {
   demande: Demande;
-  piece: {
-    type: string;
-    taille: number;
-    etatAnalyse: "a_analyser" | "saine" | "infectee";
-    analyseeLe: string | null;
-    signatureDetectee: string | null;
-  } | null;
+  pieces: Piece[];
   clientsMemeNumero: { id: string; nom: string; type: string }[];
 }
 
@@ -79,7 +88,17 @@ const STATUTS: Record<Statut, { libelle: string; ton: "bleu" | "vert" | "gris" }
   sans_suite: { libelle: "Sans suite", ton: "gris" },
 };
 
-const FORMATS_PIECE: Record<string, string> = { "image/jpeg": "photo JPEG", "image/png": "image PNG", "application/pdf": "PDF" };
+const FORMATS_PIECE: Record<string, string> = {
+  "image/jpeg": "photo JPEG", "image/png": "image PNG", "application/pdf": "PDF",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "classeur Excel",
+};
+
+/** « Carte grise jointe », « 3 documents joints » */
+function documentsJoints(natures: string[] | undefined): string | null {
+  if (!natures || natures.length === 0) return null;
+  if (natures.length === 1 && natures[0] === "carte_grise") return "Carte grise jointe";
+  return natures.length === 1 ? "1 document joint" : `${natures.length} documents joints`;
+}
 
 function taille(octets: number): string {
   return octets >= 1024 * 1024 ? `${(octets / 1024 / 1024).toFixed(1).replace(".", ",")} Mo` : `${Math.max(1, Math.round(octets / 1024))} Ko`;
@@ -93,7 +112,9 @@ function Resume({ d }: { d: Demande }) {
   if (d.nature === "appel_offres" && d.appelOffres && d.dateLimiteOffre) {
     return <>{d.appelOffres.maitreOuvrage} : {d.appelOffres.objet}<br /><DateLimite jour={d.dateLimiteOffre} /></>;
   }
-  return <span className="message-relance">{d.besoin ?? "—"}</span>;
+  // Sans texte libre, les premières réponses au questionnaire disent l'essentiel (« Nombre de véhicules : 6 · … »)
+  const reponses = d.details?.slice(0, 3).map((r) => `${r.libelle} : ${r.valeur}`).join(" · ");
+  return <span className="message-relance">{d.besoin ?? (reponses || "—")}</span>;
 }
 
 /** Date limite de dépôt d'une offre, en rouge à moins de 10 jours */
@@ -164,7 +185,7 @@ export function DemandesSite() {
                   <td>
                     {BRANCHES[d.branche] ?? d.branche}
                     {d.nature !== "devis" && <><br /><Badge ton="bleu">{NATURES_DEMANDE_SITE[d.nature]}</Badge></>}
-                    {d.aUnePiece && <><br /><Badge ton="bleu">Carte grise jointe</Badge></>}
+                    {documentsJoints(d.naturesPieces) && <><br /><Badge ton="bleu">{documentsJoints(d.naturesPieces)}</Badge></>}
                   </td>
                   <td>
                     {statut === "nouvelle" || statut === "a_venir" ? (
@@ -196,7 +217,8 @@ export function DemandeSite({ id }: { id: string }) {
   const [doublons, setDoublons] = useState<{ id: string; nom: string }[] | null>(null);
   const [motif, setMotif] = useState("");
   const [envoi, setEnvoi] = useState(false);
-  const [telechargement, setTelechargement] = useState(false);
+  // Document en cours d'analyse et de téléchargement
+  const [telechargement, setTelechargement] = useState<string | null>(null);
 
   const charger = useCallback(async () => {
     try {
@@ -237,18 +259,18 @@ export function DemandeSite({ id }: { id: string }) {
 
   // L'API analyse la pièce de nouveau avant de la remettre : un refus (menace trouvée, antivirus indisponible)
   // doit s'afficher comme un message, pas se télécharger comme un fichier
-  async function telecharger() {
+  async function telecharger(piece: Piece) {
     setErreur("");
-    setTelechargement(true);
+    setTelechargement(piece.id);
     try {
-      const reponse = await fetch(`/api/demandes-site/${id}/piece`, { credentials: "same-origin" });
+      const reponse = await fetch(`/api/demandes-site/${id}/pieces/${piece.id}`, { credentials: "same-origin" });
       if (!reponse.ok) {
         const donnees = (await reponse.json().catch(() => ({}))) as { message?: string };
         setErreur(donnees.message ?? "Téléchargement impossible. Réessayez.");
         await charger();
         return;
       }
-      const nom = /filename="([^"]+)"/.exec(reponse.headers.get("content-disposition") ?? "")?.[1] ?? "carte-grise";
+      const nom = /filename="([^"]+)"/.exec(reponse.headers.get("content-disposition") ?? "")?.[1] ?? "document";
       const adresse = URL.createObjectURL(await reponse.blob());
       const lien = document.createElement("a");
       lien.href = adresse;
@@ -259,7 +281,7 @@ export function DemandeSite({ id }: { id: string }) {
     } catch (e) {
       setErreur(messageErreur(e));
     } finally {
-      setTelechargement(false);
+      setTelechargement(null);
     }
   }
 
@@ -276,7 +298,8 @@ export function DemandeSite({ id }: { id: string }) {
   }
 
   if (!detail) return erreur ? <Alerte>{erreur}</Alerte> : <Chargement />;
-  const { demande: d, piece } = detail;
+  const { demande: d, pieces } = detail;
+  const cartesGrises = pieces.filter((p) => p.nature === "carte_grise" && p.etatAnalyse === "saine");
   const peutTraiter = d.statut === "nouvelle" && peut("gerant", "charge_clientele", "commercial");
   const memeNumero = doublons ?? detail.clientsMemeNumero;
   const optionsBranches = Object.entries(BRANCHES).map(([valeur, libelle]) => <option key={valeur} value={valeur}>{libelle}</option>);
@@ -320,35 +343,51 @@ export function DemandeSite({ id }: { id: string }) {
             <div><dt>Échéance de son contrat actuel</dt><dd>{dateCourte(d.echeanceActuelle)} ({joursRestants(ecartEnJours(d.echeanceActuelle)).replace("expiré depuis", "passée depuis")})</dd></div>
           )}
           {d.appelOffres && d.dateLimiteOffre && <DetailsMarche m={d.appelOffres} dateLimite={d.dateLimiteOffre} />}
-          <div><dt>Besoin</dt><dd className="texte-libre">{d.besoin ?? "Non précisé"}</dd></div>
+          {d.details?.map((r) => <div key={r.libelle}><dt>{r.libelle}</dt><dd>{r.valeur}</dd></div>)}
+          <div><dt>{d.details && d.details.length > 0 ? "Autres précisions" : "Besoin"}</dt><dd className="texte-libre">{d.besoin ?? "Non précisé"}</dd></div>
           <div>
-            <dt>Carte grise</dt>
+            <dt>Documents joints</dt>
             <dd>
-              {!piece ? (
-                peut("auditeur") ? "Non consultable avec votre rôle" : "Aucune"
-              ) : piece.etatAnalyse === "infectee" ? (
-                <span className="texte-libre">
-                  <Badge ton="rouge">Supprimée</Badge> L'antivirus y a trouvé une menace ({piece.signatureDetectee}) le {piece.analyseeLe && dateHeure(piece.analyseeLe)}.
-                  Demandez une autre photo au client.
-                </span>
+              {pieces.length === 0 ? (
+                peut("auditeur") ? "Non consultables avec votre rôle" : "Aucun"
               ) : (
-                <>
-                  <button type="button" className="bouton bouton--petit" disabled={telechargement} onClick={() => void telecharger()}>
-                    {telechargement ? "Analyse et téléchargement…" : `Télécharger (${FORMATS_PIECE[piece.type] ?? piece.type}, ${taille(piece.taille)})`}
-                  </button>
-                  <br />
-                  <span className="note">
-                    {piece.etatAnalyse === "saine" && piece.analyseeLe
-                      ? `Aucune menace trouvée par l'antivirus (dernière analyse le ${dateHeure(piece.analyseeLe)}) ; analysée de nouveau à chaque téléchargement.`
-                      : "En attente d'analyse antivirus : elle ne peut pas être ouverte avant."}
-                  </span>
-                </>
+                <ul className="liste-simple">
+                  {pieces.map((p) => (
+                    <li key={p.id}>
+                      <strong>{p.libelle}</strong>{" "}
+                      {p.etatAnalyse === "infectee" ? (
+                        <span className="texte-libre">
+                          <Badge ton="rouge">Supprimé</Badge> L'antivirus y a trouvé une menace ({p.signatureDetectee}) le {p.analyseeLe && dateHeure(p.analyseeLe)}.
+                          Demandez un autre fichier au client.
+                        </span>
+                      ) : (
+                        <>
+                          <button type="button" className="bouton bouton--petit" disabled={telechargement !== null} onClick={() => void telecharger(p)}>
+                            {telechargement === p.id ? "Analyse et téléchargement…" : `Télécharger (${FORMATS_PIECE[p.type] ?? p.type}, ${taille(p.taille)})`}
+                          </button>
+                          <br />
+                          <span className="note">
+                            {p.etatAnalyse === "saine" && p.analyseeLe
+                              ? `Aucune menace trouvée par l'antivirus (dernière analyse le ${dateHeure(p.analyseeLe)}) ; analysé de nouveau à chaque téléchargement.`
+                              : "En attente d'analyse antivirus : il ne peut pas être ouvert avant."}
+                          </span>
+                        </>
+                      )}
+                    </li>
+                  ))}
+                </ul>
               )}
             </dd>
           </div>
         </dl>
-        {piece && piece.etatAnalyse === "saine" && peut("gerant", "charge_clientele", "commercial") && (
-          <LectureAutomatique document="carte_grise" pieces={[{ id: d.id, libelle: "Carte grise jointe à la demande", source: "demandeSiteId" }]} />
+        {cartesGrises.length > 0 && peut("gerant", "charge_clientele", "commercial") && (
+          <LectureAutomatique
+            document="carte_grise"
+            pieces={cartesGrises.map((p, i) => ({
+              id: p.id, source: "pieceDemandeSiteId" as const,
+              libelle: cartesGrises.length === 1 ? "Carte grise jointe à la demande" : `Carte grise jointe n° ${i + 1}`,
+            }))}
+          />
         )}
         <h3>Accords donnés sur le site</h3>
         <ul className="liste-simple">

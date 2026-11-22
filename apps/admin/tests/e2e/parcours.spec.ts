@@ -212,6 +212,36 @@ test("parcours du gérant, de la première connexion à la caisse et au reversem
   await expect(page.getByText("demande reçue par le site")).toBeVisible();
   await expect(page.locator(".consentements li", { hasText: "WhatsApp" })).toContainText(/Accepté.*Case « rappels WhatsApp » cochée sur le site/);
 
+  // --- Devis d'une flotte : réponses aux questions propres à l'assurance, documents téléchargés un par un
+  const classeur = readFileSync(new URL("../../../api/tests/fixtures/flotte-libreoffice.xlsx", import.meta.url));
+  const envoiFlotte = await page.request.post("http://127.0.0.1:3100/site/demandes-devis", {
+    headers: { Origin: "http://localhost:4321" },
+    data: {
+      assurance: "flotte", profil: "entreprise", nom: "Transports Yao", telephone: "07 08 09 10 22",
+      accordTraitement: "J'accepte que DBS-ASSURANCES utilise ces informations pour répondre à ma demande.",
+      details: { nombreVehicules: 8, typesVehicules: ["camions", "remorques"], zones: ["interieur"] },
+      pieces: [
+        { nature: "liste_vehicules", type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", contenu: classeur.toString("base64") },
+        { nature: "carte_grise", type: "image/png", contenu: png.toString("base64") },
+      ],
+    },
+  });
+  expect(envoiFlotte.status()).toBe(201);
+  await page.getByRole("link", { name: "Demandes du site" }).click();
+  await expect(page.getByRole("row", { name: /Transports Yao/ })).toContainText("2 documents joints");
+  await page.getByRole("row", { name: /Transports Yao/ }).getByRole("link").click();
+  await expect(page.locator(".details div", { hasText: "Nombre de véhicules" })).toContainText("8");
+  await expect(page.locator(".details div", { hasText: "Types de véhicules" })).toContainText("Camions porteurs, Semi-remorques et remorques");
+  await expect(page.locator(".details div", { hasText: "Zones de circulation" })).toContainText("Intérieur du pays");
+  await expect(page.getByRole("button", { name: /^Télécharger/ })).toHaveCount(2);
+  const [liste] = await Promise.all([page.waitForEvent("download"), page.getByRole("listitem").filter({ hasText: "Liste des véhicules" }).getByRole("button").click()]);
+  expect(liste.suggestedFilename()).toMatch(/^liste-des-vehicules-demande-\d+\.xlsx$/);
+  expect(readFileSync(await liste.path()).equals(classeur)).toBe(true);
+  await expect(page.getByRole("group", { name: "Lecture automatique de la carte grise" })).toBeVisible();
+  await page.getByLabel("Motif").fill("Essai du parcours : demande en double");
+  await page.getByRole("button", { name: "Classer sans suite" }).click();
+  await expect(page.getByText("Demande classée sans suite.")).toBeVisible();
+
   // --- Outils du site (tâche 13) : appel d'offres à traiter, rappel d'échéance qui attend son heure, rendez-vous à confirmer
   const site = (chemin: string, data: object) =>
     page.request.post(`http://127.0.0.1:3100${chemin}`, { headers: { Origin: "http://localhost:4321" }, data });

@@ -16,7 +16,7 @@ export interface ResultatLecture {
   controles: Controle[];
   avertissement: string;
 }
-export interface PieceLisible { id: string; libelle: string; source: "justificatifId" | "pieceSinistreId" | "demandeSiteId" }
+export interface PieceLisible { id: string; libelle: string; source: "justificatifId" | "pieceSinistreId" | "demandeSiteId" | "pieceDemandeSiteId" }
 
 const NOMS: Record<DocumentLisible, string> = { carte_grise: "la carte grise", piece_identite: "la pièce d'identité", constat_amiable: "le constat amiable" };
 const TYPES: Record<string, string> = { "image/jpeg": "image/jpeg", "image/png": "image/png", "application/pdf": "application/pdf" };
