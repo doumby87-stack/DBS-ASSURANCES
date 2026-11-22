@@ -8,9 +8,10 @@ import { connecter, creerCompte, demarrer, envoyer, type Compte, type Contexte }
 
 const exemple = (nom: string) => readFileSync(new URL(`../donnees/lecture/${nom}`, import.meta.url));
 const EICAR = "X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*";
-const carteGrise = { type: "image/jpeg", contenu: exemple("carte-grise-photo.jpg").toString("base64") };
-const passeport = { type: "image/jpeg", contenu: exemple("passeport-photo.jpg").toString("base64") };
-const photo = carteGrise;
+const jpeg = (nom: string) => ({ type: "image/jpeg", contenu: exemple(nom).toString("base64") });
+const carteGrise = [jpeg("carte-grise-2023-recto.jpg"), jpeg("carte-grise-2023-verso.jpg")];
+const passeport = [jpeg("passeport-photo.jpg")];
+const photo = [jpeg("carte-grise-photo.jpg")];
 
 let ctx: Contexte;
 const cookies: Record<string, string> = {};
@@ -33,34 +34,39 @@ const lire = (cookie: string | undefined, corps: object) => envoyer(ctx, { url: 
 describe("lecture automatique", () => {
   it("se signale disponible, et lit une carte grise envoyée en photo, avec les contrôles", async () => {
     expect((await envoyer(ctx, { url: "/lecture-automatique", cookie: cookies.commercial })).json()).toEqual({ disponible: true, prestataire: "local" });
-    const reponse = await lire(cookies.commercial, { document: "carte_grise", fichier: carteGrise });
+    const reponse = await lire(cookies.commercial, { document: "carte_grise", fichiers: carteGrise });
     expect(reponse.statusCode).toBe(200);
     expect(reponse.json()).toMatchObject({
       document: "carte_grise", prestataire: "local",
-      champs: { immatriculation: "4521 KM 01", numeroChassis: "JTDBR32E720123456", puissanceFiscale: 8 },
+      champs: { immatriculation: "CD-123-EF-01", numeroChassis: "WDB9634031L123456", puissanceFiscale: 26 },
       controles: [],
       avertissement: expect.stringContaining("vérifiez chacune avec le document"),
     });
   });
 
   it("pièce d'identité : la zone lisible par machine confirme le numéro et les dates", async () => {
-    const reponse = await lire(cookies.charge_clientele, { document: "piece_identite", fichier: passeport });
+    const reponse = await lire(cookies.charge_clientele, { document: "piece_identite", fichiers: passeport });
     expect(reponse.json().controles).toContainEqual(expect.objectContaining({ champ: "numero", niveau: "ok" }));
   });
 
   it("chacun ne fait lire que les documents des fiches qu'il saisit", async () => {
-    expect((await lire(cookies.commercial, { document: "piece_identite", fichier: photo })).statusCode).toBe(403);
-    expect((await lire(cookies.caissier, { document: "carte_grise", fichier: photo })).statusCode).toBe(403);
-    expect((await lire(cookies.commercial, { document: "constat_amiable", fichier: photo })).statusCode).toBe(403);
+    expect((await lire(cookies.commercial, { document: "piece_identite", fichiers: photo })).statusCode).toBe(403);
+    expect((await lire(cookies.caissier, { document: "carte_grise", fichiers: photo })).statusCode).toBe(403);
+    expect((await lire(cookies.commercial, { document: "constat_amiable", fichiers: photo })).statusCode).toBe(403);
   });
 
-  it("un seul document à la fois ; un fichier inattendu ou infecté n'est pas lu", async () => {
+  it("un seul document à la fois, deux faces au plus ; un fichier inattendu ou infecté n'est pas lu", async () => {
     expect((await lire(cookies.gerant, { document: "carte_grise" })).statusCode).toBe(400);
-    expect((await lire(cookies.gerant, { document: "carte_grise", fichier: photo, demandeSiteId: "00000000-0000-4000-8000-000000000000" })).statusCode).toBe(400);
-    const texte = await lire(cookies.gerant, { document: "carte_grise", fichier: { type: "image/png", contenu: Buffer.from("bonjour").toString("base64") } });
+    expect((await lire(cookies.gerant, { document: "carte_grise", fichiers: [] })).statusCode).toBe(400);
+    expect((await lire(cookies.gerant, { document: "carte_grise", fichiers: [...photo, ...photo, ...photo] })).statusCode).toBe(400);
+    expect((await lire(cookies.gerant, { document: "carte_grise", fichiers: photo, demandeSiteId: "00000000-0000-4000-8000-000000000000" })).statusCode).toBe(400);
+    const texte = await lire(cookies.gerant, { document: "carte_grise", fichiers: [{ type: "image/png", contenu: Buffer.from("bonjour").toString("base64") }] });
     expect(texte.statusCode).toBe(422);
     const pdfPiege = Buffer.from(`%PDF-1.4\n${EICAR}\n%%EOF\n`, "latin1").toString("base64");
-    const infecte = await lire(cookies.gerant, { document: "constat_amiable", fichier: { type: "application/pdf", contenu: pdfPiege } });
+    // Une seule face infectée suffit à refuser la lecture des deux
+    const infecte = await lire(cookies.gerant, {
+      document: "constat_amiable", fichiers: [photo[0], { type: "application/pdf", contenu: pdfPiege }],
+    });
     expect(infecte.statusCode).toBe(422);
     expect(infecte.json().code).toBe("piece_infectee");
   });
@@ -83,6 +89,10 @@ describe("lecture automatique", () => {
       [comptes.charge_clientele!.id],
     );
     expect(rows.map((r) => r.objet)).toEqual(["Pièce d'identité (photo envoyée)", "Pièce d'identité, justificatif de Lecture Test"]);
+    const parCommercial = await ctx.base.query<{ objet: string }>(
+      "SELECT objet FROM securite.evenements WHERE type = 'lecture_automatique' AND utilisateur_id = $1", [comptes.commercial!.id],
+    );
+    expect(parCommercial.rows.map((r) => r.objet)).toContain("Carte grise (2 photos envoyées)");
     expect(rows.some((r) => r.objet.includes("L898902C3"))).toBe(false);
     expect((await lire(cookies.charge_clientele, { document: "piece_identite", justificatifId: "00000000-0000-4000-8000-000000000000" })).statusCode).toBe(404);
   });
@@ -92,7 +102,7 @@ describe("lecture automatique", () => {
       "INSERT INTO securite.evenements (type, utilisateur_id, objet) SELECT 'lecture_automatique', $1, 'Remplissage du test' FROM generate_series(1, 30)",
       [comptes.gerant!.id],
     );
-    const reponse = await lire(cookies.gerant, { document: "carte_grise", fichier: photo });
+    const reponse = await lire(cookies.gerant, { document: "carte_grise", fichiers: photo });
     expect(reponse.statusCode).toBe(429);
     expect(reponse.json().code).toBe("trop_de_lectures");
   });
@@ -103,7 +113,7 @@ describe("lecture automatique", () => {
       const compte = await creerCompte(sansLecteur, "gerant");
       const cookie = await connecter(sansLecteur, compte);
       expect((await envoyer(sansLecteur, { url: "/lecture-automatique", cookie })).json()).toEqual({ disponible: false, prestataire: null });
-      const reponse = await envoyer(sansLecteur, { url: "/lecture-automatique", cookie, corps: { document: "carte_grise", fichier: photo } });
+      const reponse = await envoyer(sansLecteur, { url: "/lecture-automatique", cookie, corps: { document: "carte_grise", fichiers: photo } });
       expect(reponse.statusCode).toBe(503);
     } finally {
       await sansLecteur.fermer();

@@ -117,7 +117,10 @@ const MASQUES: Record<"TD1" | "TD3", string[]> = {
 const VERS_CHIFFRE: Record<string, string> = { O: "0", Q: "0", D: "0", I: "1", L: "1", Z: "2", S: "5", G: "6", T: "7", B: "8" };
 const VERS_LETTRE: Record<string, string> = { "0": "O", "1": "I", "2": "Z", "4": "A", "5": "S", "6": "G", "7": "T", "8": "B" };
 /** Caractères que la reconnaissance confond, dans les champs qui mêlent lettres et chiffres */
-const SOSIES: Record<string, string> = { "0": "O", O: "0", "1": "I", I: "1", "2": "Z", Z: "2", "5": "S", S: "5", "6": "G", G: "6", "8": "B", B: "8" };
+const SOSIES: Record<string, string[]> = {
+  "0": ["O", "D", "Q"], O: ["0"], D: ["0"], Q: ["0"], "1": ["I", "L"], I: ["1"], L: ["1"], "2": ["Z"], Z: ["2"], "5": ["S"], S: ["5"],
+  "6": ["G"], G: ["6"], "8": ["B"], B: ["8"],
+};
 
 function appliquerMasque(ligne: string, masque: string): string {
   let resultat = "";
@@ -133,34 +136,35 @@ function appliquerMasque(ligne: string, masque: string): string {
   return resultat;
 }
 
-/** Variantes d'un champ obtenues en échangeant ses caractères sosies (au plus 2⁸) */
+/** Variantes d'un champ obtenues en échangeant ses caractères sosies (8 positions au plus) */
 function variantes(champ: string): string[] {
+  let resultats = [champ];
   const positions = [...champ].flatMap((c, i) => (SOSIES[c] ? [i] : [])).slice(0, 8);
-  const resultats: string[] = [];
-  for (let combinaison = 0; combinaison < 1 << positions.length; combinaison += 1) {
-    const caracteres = [...champ];
-    positions.forEach((p, bit) => {
-      if (combinaison & (1 << bit)) caracteres[p] = SOSIES[caracteres[p]!]!;
-    });
-    resultats.push(caracteres.join(""));
+  for (const p of positions) {
+    resultats = resultats.flatMap((v) => [v, ...SOSIES[champ[p]!]!.map((autre) => v.slice(0, p) + autre + v.slice(p + 1))]);
   }
   return resultats;
 }
 
 /**
- * Le numéro du document mêle lettres et chiffres : parmi les variantes que son chiffre de contrôle accepte, on garde
- * celle qui change le moins de caractères, si elle est seule dans ce cas (sinon, on ne devine pas).
+ * Le numéro du document mêle lettres et chiffres. Parmi les variantes que son chiffre de contrôle accepte, on garde
+ * celle que confirme le numéro imprimé ailleurs sur le document ; à défaut, celle qui change le moins de
+ * caractères, si elle est seule dans ce cas (sinon, on ne devine pas).
  */
-function corrigerNumero(lignes: string[], format: "TD1" | "TD3"): string[] {
+function corrigerNumero(lignes: string[], format: "TD1" | "TD3", indices: string[]): string[] {
   const [ligne, debut] = format === "TD3" ? [1, 0] : [0, 5];
   const courant = lignes[ligne]!;
   const numero = courant.slice(debut, debut + 9);
   const chiffre = courant[debut + 9]!;
-  if (!/\d/.test(chiffre) || chiffreControle(numero) === Number(chiffre)) return lignes;
+  if (!/\d/.test(chiffre)) return lignes;
   const ecarts = (v: string) => [...v].filter((c, i) => c !== numero[i]).length;
   const justes = variantes(numero).filter((v) => chiffreControle(v) === Number(chiffre));
+  const imprimes = new Set(indices.map((i) => i.replace(/[^A-Z0-9]/gi, "").toUpperCase().padEnd(9, "<").slice(0, 9)));
+  const confirmee = justes.filter((v) => imprimes.has(v));
+  // Un L lu 1 (ou l'inverse) en tête de numéro ne change pas le chiffre de contrôle : le numéro imprimé tranche
+  if (chiffreControle(numero) === Number(chiffre) && (imprimes.has(numero) || confirmee.length !== 1)) return lignes;
   const minimum = Math.min(...justes.map(ecarts));
-  const meilleures = justes.filter((v) => ecarts(v) === minimum);
+  const meilleures = confirmee.length === 1 ? confirmee : justes.filter((v) => ecarts(v) === minimum);
   if (meilleures.length !== 1) return lignes;
   const copie = [...lignes];
   copie[ligne] = courant.slice(0, debut) + meilleures[0] + courant.slice(debut + 9);
@@ -170,10 +174,12 @@ function corrigerNumero(lignes: string[], format: "TD1" | "TD3"): string[] {
 /**
  * Retrouve la zone lisible par machine parmi les lignes reconnues (elle est en bas du document), remet chaque
  * caractère dans la catégorie attendue à sa position (un O dans une date devient 0, un 0 dans un nom devient O),
- * puis corrige le numéro si un seul échange de sosies le rend juste. Rend null s'il n'y a pas de zone.
+ * puis corrige le numéro d'après son chiffre de contrôle et, s'il y en a, les numéros imprimés ailleurs sur le
+ * document (`indices`). Rend null s'il n'y a pas de zone.
  */
-export function extraireMrz(lignesLues: string[]): string[] | null {
-  const propres = lignesLues.map((l) => l.toUpperCase().replace(/\s+/g, "").replace(/[«‹(\[{]/g, "<"));
+export function extraireMrz(lignesLues: string[], indices: string[] = []): string[] | null {
+  // Les traits et les points parasites autour de la zone (bord de la carte, reflet) ne sont pas des caractères
+  const propres = lignesLues.map((l) => l.toUpperCase().replace(/[«‹(\[{]/g, "<").replace(/[^A-Z0-9<]/g, ""));
   const candidates = propres.map((l) => /^[A-Z0-9<]{26,48}$/.test(l) && l.includes("<"));
   // Dernier groupe de lignes candidates consécutives
   const fin = candidates.lastIndexOf(true);
@@ -185,11 +191,11 @@ export function extraireMrz(lignesLues: string[]): string[] | null {
   const ajuster = (l: string, longueur: number) => (l.length > longueur ? l.slice(0, longueur) : l.padEnd(longueur, "<"));
   if (groupe.length >= 3 && groupe.slice(-3).every((l) => l.length >= 27 && l.length <= 33)) {
     const lignes = groupe.slice(-3).map((l, i) => appliquerMasque(ajuster(l, 30), MASQUES.TD1[i]!));
-    return corrigerNumero(lignes, "TD1");
+    return corrigerNumero(lignes, "TD1", indices);
   }
   if (groupe.length >= 2 && groupe.slice(-2).every((l) => l.length >= 40 && l.length <= 48)) {
     const lignes = groupe.slice(-2).map((l, i) => appliquerMasque(ajuster(l, 44), MASQUES.TD3[i]!));
-    return corrigerNumero(lignes, "TD3");
+    return corrigerNumero(lignes, "TD3", indices);
   }
   return null;
 }

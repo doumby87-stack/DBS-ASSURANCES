@@ -1,5 +1,5 @@
 // Lecture automatique d'un document (tâche 14, ADR 0015) : carte grise, pièce d'identité ou constat amiable.
-// Le document vient d'une photo envoyée à l'instant, ou d'une pièce déjà enregistrée (justificatif d'identité,
+// Le document vient d'une ou deux photos envoyées à l'instant (recto et verso), ou d'une pièce déjà enregistrée (justificatif d'identité,
 // photo jointe à un sinistre, carte grise jointe à une demande du site). Il est analysé par l'antivirus, lu, puis
 // les valeurs sont contrôlées et renvoyées pour pré-remplir un formulaire : rien n'est enregistré, la personne
 // vérifie chaque champ avec le document. Chaque lecture est consignée au journal de sécurité, sans les valeurs,
@@ -14,7 +14,7 @@ import { texteCourt } from "../../commun/schemas.js";
 import type { Antivirus } from "../../integrations/antivirus/clamav.js";
 import { controler } from "../../integrations/lecture/controles.js";
 import { DOCUMENTS, LIBELLES_DOCUMENTS, type TypeDocument } from "../../integrations/lecture/documents.js";
-import type { LecteurDocuments } from "../../integrations/lecture/lecteur.js";
+import { FACES_MAX, type FichierLu, type LecteurDocuments } from "../../integrations/lecture/lecteur.js";
 import { dechiffrer } from "../../securite/chiffrement.js";
 import type { Gardes } from "../../securite/gardes.js";
 import { utilisateurDe } from "../../securite/gardes.js";
@@ -40,7 +40,8 @@ const MESSAGES_FICHIER = {
 
 interface Corps {
   document: TypeDocument;
-  fichier?: { type: TypePiece; contenu: string };
+  /** Recto, et verso s'il y a lieu */
+  fichiers?: { type: TypePiece; contenu: string }[];
   justificatifId?: string;
   pieceSinistreId?: string;
   demandeSiteId?: string;
@@ -66,7 +67,7 @@ export async function routesLecture(
     "/lecture-automatique",
     {
       preHandler: gardes.roles("gerant", "charge_clientele", "commercial"),
-      bodyLimit: LONGUEUR_BASE64_MAX + 4096,
+      bodyLimit: FACES_MAX * LONGUEUR_BASE64_MAX + 4096,
       schema: {
         body: {
           type: "object",
@@ -74,11 +75,16 @@ export async function routesLecture(
           additionalProperties: false,
           properties: {
             document: { type: "string", enum: DOCUMENTS },
-            fichier: {
-              type: "object",
-              required: ["type", "contenu"],
-              additionalProperties: false,
-              properties: { type: { type: "string", enum: TYPES_PIECE }, contenu: texteCourt(LONGUEUR_BASE64_MAX, 4) },
+            fichiers: {
+              type: "array",
+              minItems: 1,
+              maxItems: FACES_MAX,
+              items: {
+                type: "object",
+                required: ["type", "contenu"],
+                additionalProperties: false,
+                properties: { type: { type: "string", enum: TYPES_PIECE }, contenu: texteCourt(LONGUEUR_BASE64_MAX, 4) },
+              },
             },
             justificatifId: { type: "string", format: "uuid" },
             pieceSinistreId: { type: "string", format: "uuid" },
@@ -92,11 +98,11 @@ export async function routesLecture(
       const d = requete.body;
       if (!lecteur) throw new ErreurApi(503, "lecture_indisponible", "La lecture automatique n'est pas activée : saisissez les champs à la main.");
       if (!ROLES[d.document].includes(moi.role)) throw erreurs.accesRefuse();
-      const sources = [d.fichier, d.justificatifId, d.pieceSinistreId, d.demandeSiteId].filter((s) => s !== undefined);
+      const sources = [d.fichiers, d.justificatifId, d.pieceSinistreId, d.demandeSiteId].filter((s) => s !== undefined);
       if (sources.length !== 1) throw new ErreurApi(400, "source_invalide", "Indiquez un seul document à lire.");
 
       // Document à lire, et ce qui sera consigné au journal (jamais son contenu)
-      const { fichier, objet } = await transactionUtilisateur(pool, moi.id, async (client) => {
+      const { fichiers, aAnalyser, objet } = await transactionUtilisateur(pool, moi.id, async (client): Promise<{ fichiers: FichierLu[]; aAnalyser: boolean; objet: string }> => {
         const { rows: [compte] } = await client.query<{ lectures: number }>(
           `SELECT count(*)::int AS lectures FROM securite.evenements
            WHERE type = 'lecture_automatique' AND utilisateur_id = $1 AND horodatage > now() - interval '1 hour'`,
@@ -107,10 +113,13 @@ export async function routesLecture(
         }
         const libelle = LIBELLES_DOCUMENTS[d.document];
 
-        if (d.fichier) {
-          const verifiee = verifierPiece(d.fichier.type, d.fichier.contenu);
-          if (!verifiee.ok) throw new ErreurApi(422, "fichier_invalide", MESSAGES_FICHIER[verifiee.raison]);
-          return { fichier: { contenu: verifiee.contenu, type: verifiee.type, aAnalyser: true }, objet: `${libelle} (photo envoyée)` };
+        if (d.fichiers) {
+          const verifies = d.fichiers.map((f) => {
+            const verifiee = verifierPiece(f.type, f.contenu);
+            if (!verifiee.ok) throw new ErreurApi(422, "fichier_invalide", MESSAGES_FICHIER[verifiee.raison]);
+            return { contenu: verifiee.contenu, type: verifiee.type };
+          });
+          return { fichiers: verifies, aAnalyser: true, objet: `${libelle} (${verifies.length === 1 ? "photo envoyée" : `${verifies.length} photos envoyées`})` };
         }
         if (d.justificatifId) {
           const { rows } = await client.query<{ contenu_chiffre: Buffer | null; empreinte: Buffer; type: TypePiece; etat_analyse: string; client: string }>(
@@ -124,7 +133,7 @@ export async function routesLecture(
           if (j.etat_analyse !== "saine") throw enAttente();
           const contenu = dechiffrer(cleChiffrement, j.contenu_chiffre, `justificatif-identification:${d.justificatifId}`);
           if (!createHash("sha256").update(contenu).digest().equals(j.empreinte)) throw new Error("Empreinte du justificatif incorrecte");
-          return { fichier: { contenu, type: j.type, aAnalyser: false }, objet: `${libelle}, justificatif de ${j.client}` };
+          return { fichiers: [{ contenu, type: j.type }], aAnalyser: false, objet: `${libelle}, justificatif de ${j.client}` };
         }
         if (d.pieceSinistreId) {
           const { rows } = await client.query<{ contenu_chiffre: Buffer | null; empreinte: Buffer; type: TypePiece; etat_analyse: string; police: string | null }>(
@@ -138,7 +147,8 @@ export async function routesLecture(
           if (p.etat_analyse === "infectee" || !p.contenu_chiffre) throw infecte();
           if (p.etat_analyse !== "saine") throw enAttente();
           return {
-            fichier: { contenu: dechiffrerPieceSinistre(cleChiffrement, d.pieceSinistreId, p.contenu_chiffre, p.empreinte), type: p.type, aAnalyser: false },
+            fichiers: [{ contenu: dechiffrerPieceSinistre(cleChiffrement, d.pieceSinistreId, p.contenu_chiffre, p.empreinte), type: p.type }],
+            aAnalyser: false,
             objet: `${libelle}, sinistre du contrat ${p.police ?? "sans numéro"}`,
           };
         }
@@ -152,23 +162,26 @@ export async function routesLecture(
         if (p.etat_analyse === "infectee" || !p.contenu_chiffre) throw infecte();
         if (p.etat_analyse !== "saine") throw enAttente();
         return {
-          fichier: { contenu: dechiffrerPiece(cleChiffrement, p.id, p.contenu_chiffre, p.empreinte), type: p.type, aAnalyser: false },
+          fichiers: [{ contenu: dechiffrerPiece(cleChiffrement, p.id, p.contenu_chiffre, p.empreinte), type: p.type }],
+          aAnalyser: false,
           objet: `${libelle}, demande du site n° ${p.numero}`,
         };
       });
 
       // Une photo envoyée à l'instant passe d'abord par l'antivirus ; les pièces enregistrées l'ont déjà été
-      if (fichier.aAnalyser) {
-        const verdict = await antivirus.analyser(fichier.contenu);
-        if (verdict.etat === "infectee") throw infecte();
-        if (verdict.etat !== "saine") throw enAttente();
+      if (aAnalyser) {
+        for (const fichier of fichiers) {
+          const verdict = await antivirus.analyser(fichier.contenu);
+          if (verdict.etat === "infectee") throw infecte();
+          if (verdict.etat !== "saine") throw enAttente();
+        }
       }
 
       await transactionUtilisateur(pool, moi.id, (client) =>
         consignerEvenement(client, "lecture_automatique", { utilisateurId: moi.id, ip: requete.ip, objet }),
       );
       const debut = Date.now();
-      const resultat = await lecteur.lire(d.document, { contenu: fichier.contenu, type: fichier.type });
+      const resultat = await lecteur.lire(d.document, fichiers);
       // Jamais les valeurs lues dans le journal de l'application : seulement le document, l'issue et la durée
       requete.log.info({ document: d.document, prestataire: lecteur.nom, issue: resultat.ok ? "lu" : resultat.raison, duree: Date.now() - debut },
         "lecture automatique");

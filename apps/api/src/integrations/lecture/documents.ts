@@ -165,8 +165,8 @@ Règles :
 - Une personne de l'agence vérifiera chaque valeur avec le document avant de l'enregistrer.`;
 
 export const DEMANDES: Record<TypeDocument, string> = {
-  carte_grise: "Ce document devrait être une carte grise (certificat d'immatriculation) d'un véhicule. Recopie ses champs.",
-  piece_identite: "Ce document devrait être une pièce d'identité (carte nationale d'identité, passeport, carte de résident, carte consulaire ou permis de conduire). Recopie ses champs, et la zone lisible par machine si elle est visible.",
+  carte_grise: "Ce document devrait être une carte grise (certificat d'immatriculation) d'un véhicule, recto et éventuellement verso. Recopie ses champs ; l'immatriculation telle qu'elle est imprimée, et pas l'immatriculation précédente.",
+  piece_identite: "Ce document devrait être une pièce d'identité (carte nationale d'identité, passeport, carte de résident, carte consulaire ou permis de conduire), recto et éventuellement verso. Recopie ses champs, et la zone lisible par machine si elle est visible.",
   constat_amiable: "Ce document devrait être un constat amiable d'accident automobile, rempli à la main. Recopie ses champs, véhicule par véhicule, avec les numéros des cases de circonstances cochées.",
 };
 
