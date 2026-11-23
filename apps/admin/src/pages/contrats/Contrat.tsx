@@ -87,7 +87,10 @@ export function Contrat({ id }: { id: string }) {
       </dl>
       <Alerte>{erreur}</Alerte>
 
-      {peut("gerant", "caissier") && contrat.resteAPayer > 0 && <Encaisser contrat={contrat} echeancier={echeancier} />}
+      {/* La clé recrée le formulaire quand le montant proposé change (échéancier défini, modifié ou retiré) */}
+      {peut("gerant", "caissier") && contrat.resteAPayer > 0 && (
+        <Encaisser key={montantPropose(contrat, echeancier)} contrat={contrat} echeancier={echeancier} />
+      )}
       {contrat.resteAPayer === 0 && contrat.aRembourser === 0 && (
         <Alerte type="succes">
           {contrat.primesAvenants === 0 ? "Prime entièrement payée : le contrat est en vigueur." : "Prime et avenants entièrement payés."}

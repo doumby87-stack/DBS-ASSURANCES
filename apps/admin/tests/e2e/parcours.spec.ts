@@ -448,6 +448,38 @@ test("parcours du gérant, de la première connexion à la caisse et au reversem
   await expect(page.getByRole("row", { name: /Awa Flotte/ })).toContainText("Titulaire");
   await expect(page.getByRole("row", { name: /Awa Flotte/ })).toContainText("Jamais");
 
+  // Second contrat de la flotte, payé en trois fois (ADR 0017) : échéancier proposé et enregistré, première échéance
+  // encaissée, qui met le contrat en vigueur ; les deux autres restent à venir
+  await page.getByRole("button", { name: "Nouveau contrat" }).click();
+  await page.getByLabel("Branche").first().selectOption("flotte");
+  await page.getByLabel("N° de police (facultatif)").fill("FLT-2026-0008");
+  await page.getByLabel("Date d'effet").fill(dans(10));
+  await page.getByLabel("Échéance").fill(dans(374));
+  await page.getByLabel("Prime TTC (F CFA)").fill("1200000");
+  await page.getByRole("button", { name: "Créer le contrat" }).click();
+  const contratEnTroisFois = page.getByRole("row", { name: /FLT-2026-0008/ });
+  await expect(contratEnTroisFois).toContainText("En attente de paiement");
+  await contratEnTroisFois.getByRole("link", { name: "Encaisser" }).click();
+  await page.getByRole("button", { name: "Découper la prime" }).click();
+  const echeancier = page.getByRole("form", { name: "Échéancier de paiement" });
+  await echeancier.getByRole("button", { name: "3 fois" }).click();
+  for (const rang of [1, 2, 3]) await expect(echeancier.getByLabel(`Montant de l'échéance ${rang}`)).toHaveValue("400000");
+  await expect(echeancier.getByLabel("Date de l'échéance 1")).toHaveValue(dans(10));
+  await echeancier.getByRole("button", { name: "Enregistrer l'échéancier" }).click();
+  await expect(page.getByRole("row", { name: /^3 \/ 3/ })).toContainText("À venir");
+  // Le montant proposé à l'encaissement est la première échéance, pas toute la prime
+  await expect(page.getByLabel("Montant (F CFA)")).toHaveValue("400000");
+  await page.getByLabel("Mode de paiement").selectOption("virement");
+  await page.getByLabel("Référence").fill("VIR-FLT-0008-1");
+  await page.getByRole("button", { name: "Encaisser et imprimer le reçu" }).click();
+  await expect(page.getByRole("heading", { name: /^Reçu n° / })).toBeVisible();
+  await page.getByRole("link", { name: "Retour au contrat" }).click();
+  await expect(page.getByRole("row", { name: /^1 \/ 3/ })).toContainText("Payée");
+  await expect(page.getByRole("row", { name: /^2 \/ 3/ })).toContainText("À venir");
+  await expect(page.getByText(/Prochaine échéance : 400\s000\sF CFA le/)).toBeVisible();
+  await page.getByRole("link", { name: "Transports Flotte Express" }).first().click();
+  await expect(page.getByRole("row", { name: /FLT-2026-0008/ })).toContainText("En vigueur");
+
   // --- Conformité (tâche 12) : identification d'un client, avec sa pièce et l'original vu
   await navigation.getByRole("link", { name: "Clients", exact: true }).click();
   await page.getByLabel("Rechercher un client").fill("Kouamé");

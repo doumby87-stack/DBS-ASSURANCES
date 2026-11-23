@@ -99,7 +99,7 @@ export function SectionEcheancier({ contrat, echeancier, modifiable, apres }: Pr
             </table>
           </div>
           <p className="note">
-            Le contrat est entré en vigueur au paiement de la première échéance (Code CIMA, art. 13). Une échéance en retard ne suspend
+            Le contrat entre en vigueur au paiement de la première échéance (Code CIMA, art. 13). Une échéance en retard ne suspend
             pas le contrat d'elle-même : la suspension suit une mise en demeure. Le client est relancé 7 jours avant chaque échéance,
             puis une fois en cas de retard.
           </p>
