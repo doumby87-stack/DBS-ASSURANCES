@@ -6,6 +6,7 @@
 - [Dossier des démarches](demarches/README.md) — chaque démarche de l'agence préparée : courriers, déclaration à l'ARTCI, questions aux fournisseurs, reprise des données.
 - [Audit du site, novembre 2026](audit/2026-11-audit-du-site.md) — ce qui a été corrigé, ce qui reste à décider.
 - [Audit UX du site, novembre 2026](audit/2026-11-audit-ux-site.md) — parcours des visiteurs, refonte en neuf pages.
+- [Questionnaires des compagnies et formulaire de devis, novembre 2026](audit/2026-11-questionnaires-des-compagnies.md) — ce que le site demande, ce que les compagnies demandent, ce qu'il faut ajouter.
 - [Pratiques des leaders](benchmark/pratiques-des-leaders.md) — ce que font les plus grands, et ce que nous en reprenons.
 
 ## Architecture
