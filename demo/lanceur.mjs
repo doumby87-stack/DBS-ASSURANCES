@@ -163,7 +163,7 @@ async function remplir() {
     const commeUtilisateur = (role) => base.query("SELECT set_config('app.utilisateur_id', $1, true)", [ids[role]]);
     await commeUtilisateur("charge_clientele");
 
-    // Transports Kouassi & Fils : flotte de trois camions, payée, une attestation, un sinistre, un espace client
+    // Transports Kouassi & Fils : flotte de trois camions payée en trois fois, une attestation, un sinistre, un espace client
     const { rows: [transport] } = await base.query(
       `INSERT INTO app.clients (type, nom, telephone, email, commune, rccm)
        VALUES ('entreprise', 'Transports Kouassi & Fils', '+2250701020300', 'contact@kouassi-transports.test', 'Yopougon', 'CI-ABJ-2024-B-0042') RETURNING id`);
@@ -188,7 +188,11 @@ async function remplir() {
         [flotte.id, camion, jour(-30)]);
       lignes.push(l.id);
     }
-    await base.query("INSERT INTO app.encaissements (contrat_id, montant, mode, reference_externe) VALUES ($1, 900000, 'virement', 'VIR-KF-2026')", [flotte.id]);
+    // Prime payée en trois fois (ADR 0017) : la première échéance est réglée, la deuxième tombe dans 10 jours
+    await base.query("SELECT app.definir_echeancier($1, $2::jsonb)", [flotte.id, JSON.stringify([
+      { exigible_le: jour(-30), montant: 300000 }, { exigible_le: jour(10), montant: 300000 }, { exigible_le: jour(150), montant: 300000 },
+    ])]);
+    await base.query("INSERT INTO app.encaissements (contrat_id, montant, mode, reference_externe) VALUES ($1, 300000, 'virement', 'VIR-KF-2026-1')", [flotte.id]);
     const attestation = Buffer.from("%PDF-1.4\n% Attestation de demonstration (fictive) - 1001 KF 01\n%%EOF\n");
     await base.query("UPDATE app.contrats_vehicules SET numero_attestation = 'ASACI-DEMO-0001' WHERE id = $1", [lignes[0]]);
     await base.query(
