@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { api, ErreurApi, messageErreur } from "../api";
 import { Alerte, Badge, Champ, Chargement, Ligne } from "../composants";
-import { arrondiPaiement, dateHeure, montant, MOYENS_PAIEMENT, STATUTS_PAIEMENT, TELEPHONE_AGENCE } from "../format";
+import { arrondiPaiement, dateHeure, type EcheancierPortail, montant, montantAPayer, MOYENS_PAIEMENT, STATUTS_PAIEMENT, TELEPHONE_AGENCE } from "../format";
 import { Lien } from "../routeur";
 
 interface ContratPayable {
@@ -14,6 +14,7 @@ interface ContratPayable {
   statut: string;
   resteAPayer: number;
   paiementEnCours: string | null;
+  echeancier: EcheancierPortail | null;
 }
 
 interface Paiement {
@@ -52,7 +53,8 @@ export function Payer({ contratId }: { contratId: string }) {
         if (!trouve) setErreur("Ce contrat ne fait pas partie de vos contrats en cours.");
         else {
           setContrat(trouve);
-          setSaisie(String(arrondiPaiement(Math.max(trouve.resteAPayer, 0))));
+          // Paiement en plusieurs fois : l'échéance due est proposée, le client peut payer plus
+          setSaisie(String(arrondiPaiement(montantAPayer(trouve.resteAPayer, trouve.echeancier))));
         }
       })
       .catch((e: unknown) => setErreur(messageErreur(e)));

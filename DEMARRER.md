@@ -111,7 +111,7 @@ Cette page d'accueil réunit tout ce qu'il faut pour tester : les liens vers cha
 - **Une demande du site.** Sur le site, prenez un rendez-vous ou demandez un devis. Connecté en gérante, retrouvez-la dans la gestion, rubrique « Rendez-vous » ou « Demandes du site ».
 - **Un devis selon l'assurance.** Sur le site, demandez un devis pour une flotte : les questions et les documents à joindre (liste des véhicules en Excel, cartes grises…) s'adaptent à l'assurance choisie. Dans la gestion, la demande de Transports Bamba & Frères montre les réponses et les documents.
 - **Payer une prime en ligne.** Dans l'espace client, connectez-vous comme Koné Mariam, puis payez une partie de sa prime. Le paiement est simulé. Il apparaît dans la gestion : sur son contrat, et dans « Caisse ».
-- **La flotte d'un transporteur.** Dans l'espace client, connectez-vous comme Awa Kouassi (07 01 02 03 04) : camions, documents à renouveler, attestation à télécharger.
+- **La flotte d'un transporteur.** Dans l'espace client, connectez-vous comme Awa Kouassi (07 01 02 03 04) : camions, documents à renouveler, attestation à télécharger, et la prime payée en trois fois, avec la prochaine échéance à régler. Dans la gestion, le contrat FLT-KF-2026 montre l'échéancier.
 - **Les droits de chacun.** Connectez-vous comme caissière, puis comme auditrice : chacun ne voit que ce que son rôle permet.
 
 ## Arrêter, relancer, repartir de zéro
