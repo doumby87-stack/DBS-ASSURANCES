@@ -1,8 +1,10 @@
 ---
 import EntetePage from "../composants/EntetePage.astro";
 import Icone from "../composants/Icone.astro";
+import PiecesDevis from "../composants/PiecesDevis.astro";
+import QuestionsDevis from "../composants/QuestionsDevis.astro";
 import { AGENCE, LIEN_EMAIL, LIEN_TELEPHONE, lienWhatsApp } from "../donnees/agence";
-import { ACCORD_TRAITEMENT, ACCORD_WHATSAPP, ADRESSE_DEMANDES, ASSURANCES_AVEC_CARTE_GRISE } from "../donnees/formulaire";
+import { ACCORD_TRAITEMENT, ACCORD_WHATSAPP, ADRESSE_DEMANDES } from "../donnees/formulaire";
 import { AUTRE_BESOIN, OFFRES } from "../donnees/offres";
 import Base from "../mises-en-page/Base.astro";
 
@@ -34,7 +36,6 @@ const enregistre = ADRESSE_DEMANDES !== null;
         data-aides={JSON.stringify(aides)}
         data-coordonnees={JSON.stringify(coordonnees)}
         data-api={ADRESSE_DEMANDES ?? undefined}
-        data-carte-grise={JSON.stringify(ASSURANCES_AVEC_CARTE_GRISE)}
       >
         <ol class="progression" data-progression>
           <li aria-current="step"><span class="visuellement-cache">Étape 1 sur 3 : </span>Votre besoin</li>
@@ -79,9 +80,10 @@ const enregistre = ADRESSE_DEMANDES !== null;
 
         <fieldset class="etape-formulaire" data-etape="2" tabindex="-1" hidden>
           <legend>Parlez-nous de votre besoin</legend>
-          <p class="etape-formulaire__aide">Quelques détails suffisent : nous vous rappellerons pour le reste.</p>
+          <p class="etape-formulaire__aide">Les questions dépendent de l'assurance choisie. Répondez à ce que vous savez : nous vous rappellerons pour le reste. Les champs marqués d'un astérisque (*) sont obligatoires.</p>
+          <QuestionsDevis />
           <div class="champ">
-            <label for="champ-besoin">Votre besoin <span class="champ__facultatif">(facultatif)</span></label>
+            <label for="champ-besoin"><span data-libelle-besoin>Votre besoin</span> <span class="champ__facultatif">(facultatif)</span></label>
             <textarea class="saisie" id="champ-besoin" name="besoin" rows="5" maxlength="1500" placeholder="Décrivez votre besoin en quelques mots…" aria-describedby="aide-besoin"></textarea>
             <p class="champ__aide" id="aide-besoin" data-aide-besoin>Précisez ce qui vous paraît utile.</p>
           </div>
@@ -89,13 +91,8 @@ const enregistre = ADRESSE_DEMANDES !== null;
             <label for="champ-commune">Commune ou ville <span class="champ__facultatif">(facultatif)</span></label>
             <input class="saisie" id="champ-commune" name="commune" type="text" maxlength="80" autocomplete="address-level2" placeholder="Yopougon, Cocody, Bouaké…" />
           </div>
-          {enregistre && (
-            <div class="champ" data-champ-carte-grise hidden>
-              <label for="champ-carte-grise">Carte grise <span class="champ__facultatif">(facultatif)</span></label>
-              <input class="saisie saisie--fichier" id="champ-carte-grise" name="carteGrise" type="file" accept="image/jpeg,image/png,application/pdf,.jpg,.jpeg,.png,.pdf" aria-describedby="aide-carte-grise erreur-carte-grise" />
-              <p class="champ__aide" id="aide-carte-grise">Une photo nette ou un PDF, 5 Mo au plus : nous n'aurons pas à vous la redemander.</p>
-              <p class="champ__erreur" id="erreur-carte-grise"></p>
-            </div>
+          {enregistre ? <PiecesDevis /> : (
+            <p class="champ__aide documents-utiles" data-documents-utiles hidden></p>
           )}
           <div class="formulaire__actions">
             <button class="bouton bouton--contour" type="button" data-precedent>Retour</button>
@@ -163,7 +160,7 @@ const enregistre = ADRESSE_DEMANDES !== null;
           <p class="formulaire__note">
             <Icone nom="cadenas" />
             {enregistre ? (
-              <span>Votre demande est enregistrée par l'agence, uniquement pour vous répondre ; la carte grise est analysée par notre antivirus, chiffrée, et seuls les conseillers qui traitent votre demande y ont accès. <a href="/mentions-legales/#donnees">Vos données</a></span>
+              <span>Votre demande est enregistrée par l'agence, uniquement pour vous répondre ; vos documents sont analysés par notre antivirus, chiffrés, et seuls les conseillers qui traitent votre demande y ont accès. <a href="/mentions-legales/#donnees">Vos données</a></span>
             ) : (
               <span>Rien n'est enregistré sur ce site : votre demande nous parvient uniquement quand vous l'envoyez depuis WhatsApp ou votre messagerie.</span>
             )}

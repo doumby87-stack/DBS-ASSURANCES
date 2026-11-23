@@ -137,6 +137,7 @@ function preparerBase(reinitialiser) {
 async function remplir() {
   const { hacherMotDePasse } = await dist("securite/mots-de-passe.js");
   const { chiffrer } = await dist("securite/chiffrement.js");
+  const { chiffrerPiece } = await dist("modules/demandes-site/piece.js");
   const empreinteMotDePasse = await hacherMotDePasse(MOT_DE_PASSE);
   const base = new pg.Client({ connectionString: urlSuper(BASE) });
   await base.connect();
@@ -246,6 +247,23 @@ async function remplir() {
     await base.query(
       `SELECT app.enregistrer_demande_site('habitation', 'particulier', 'Séka Paul', '+2250102030405', NULL, 'Bingerville',
         'Maison de 4 pièces, je voudrais une assurance habitation.', $1, NULL, $2, NULL, NULL, NULL, NULL, NULL)`, [accord, ip(1)]);
+    // Devis d'une flotte : réponses aux questions de l'assurance, liste des véhicules en Excel et une carte grise
+    // (déjà analysées par l'antivirus), pour essayer les documents joints et la lecture automatique
+    const documents = [
+      ["liste_vehicules", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", readFileSync(`${RACINE}apps/api/tests/fixtures/flotte-libreoffice.xlsx`)],
+      ["carte_grise", "image/jpeg", readFileSync(`${RACINE}apps/api/tests/donnees/lecture/carte-grise-2023-recto.jpg`)],
+    ].map(([nature, type, contenu]) => ({ nature, type, taille: contenu.length, ...chiffrerPiece(CLE, contenu) }));
+    await base.query(
+      `SELECT app.enregistrer_demande_site('flotte', 'entreprise', 'Transports Bamba & Frères', '+2250102030409', NULL, 'Abobo',
+        'Nous voulons tout regrouper chez un seul assureur avant mars.', $1, NULL, $2, $3::jsonb,
+        $4::uuid[], $5::text[], $6::text[], $7::int[], $8::bytea[], $9::bytea[])`,
+      [accord, ip(5), JSON.stringify({
+        nombreVehicules: 14, typesVehicules: ["tracteurs", "remorques", "camions"], usage: "compte_autrui",
+        zones: ["abidjan", "interieur", "international"], garanties: "conseil", chauffeurs: "oui",
+        assureurActuel: "Une autre compagnie", echeanceActuelle: jour(75),
+      }), documents.map((d) => d.id), documents.map((d) => d.nature), documents.map((d) => d.type),
+      documents.map((d) => d.taille), documents.map((d) => d.contenuChiffre), documents.map((d) => d.empreinte)]);
+    for (const d of documents) await base.query("SELECT app.enregistrer_analyse_piece($1, true, NULL)", [d.id]);
     await base.query(
       `SELECT app.enregistrer_appel_offres('chantier_construction', 'entreprise', 'BTP Lagunes SARL', '+2250102030406', NULL, 'Cocody',
         NULL, $1, $2, $3, NULL, $4)`,

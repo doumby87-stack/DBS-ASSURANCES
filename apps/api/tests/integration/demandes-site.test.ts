@@ -1,6 +1,7 @@
 // Demandes de devis du site (tâche 7) : route publique (origine, CORS, contrôles, limites, piège à robots,
 // carte grise chiffrée), puis traitement au back-office rôle par rôle.
 
+import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { executerMaintenance } from "../../src/modules/demandes-site/maintenance.js";
 import { connecter, creerCompte, demarrer, envoyer, ORIGINE, type Contexte } from "./outils.js";
@@ -157,6 +158,114 @@ describe("route publique du site", () => {
     expect(sixieme.statusCode).toBe(429);
     expect(sixieme.json().code).toBe("trop_de_demandes");
     expect((await envoyerDemande(demande({ assurance: "habitation" }), { ip: "198.51.100.78" })).statusCode).toBe(201);
+  });
+});
+
+describe("devis adapté à l'assurance : réponses et documents", () => {
+  const XLSX = readFileSync(new URL("../fixtures/flotte-libreoffice.xlsx", import.meta.url));
+  const TYPE_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  const PNG_2 = Buffer.concat([PNG, Buffer.from("seconde carte grise")]);
+  const flotte = (champs: Record<string, unknown> = {}) => demande({
+    assurance: "flotte", profil: "entreprise", nom: "Transports Test",
+    details: { nombreVehicules: 12, typesVehicules: ["tracteurs", "remorques"], zones: ["abidjan", "international"], assureurActuel: "  Autre Assureur  " },
+    pieces: [
+      { nature: "liste_vehicules", type: TYPE_XLSX, contenu: XLSX.toString("base64") },
+      { nature: "carte_grise", type: "image/png", contenu: PNG.toString("base64") },
+      { nature: "carte_grise", type: "image/png", contenu: PNG_2.toString("base64") },
+    ],
+    ...champs,
+  });
+
+  it("une flotte : réponses, liste des véhicules en Excel et cartes grises, de la réception au devis", async () => {
+    const recue = await envoyerDemande(flotte({ besoin: "Renouvellement en mars" }));
+    expect(recue.statusCode).toBe(201);
+    const numero = recue.json().numero as number;
+    const id = await idDe(numero);
+
+    const { rows: [enBase] } = await ctx.base.query("SELECT details FROM app.demandes_site WHERE id = $1", [id]);
+    expect(enBase.details).toEqual({ nombreVehicules: 12, typesVehicules: ["tracteurs", "remorques"], zones: ["abidjan", "international"], assureurActuel: "Autre Assureur" });
+
+    const liste = await envoyer(ctx, { url: "/demandes-site", cookie: cookies.commercial });
+    const dansLaListe = liste.json().demandes.find((d: { id: string }) => d.id === id);
+    expect(dansLaListe.naturesPieces).toEqual(["liste_vehicules", "carte_grise", "carte_grise"]);
+    expect(dansLaListe.details[0]).toEqual({ libelle: "Nombre de véhicules", valeur: "12" });
+
+    const vue = (await envoyer(ctx, { url: `/demandes-site/${id}`, cookie: cookies.commercial })).json();
+    expect(vue.demande.details).toEqual([
+      { libelle: "Nombre de véhicules", valeur: "12" },
+      { libelle: "Types de véhicules", valeur: "Tracteurs routiers, Semi-remorques et remorques" },
+      { libelle: "Zones de circulation", valeur: "Abidjan, Pays voisins (CEDEAO)" },
+      { libelle: "Assureur actuel", valeur: "Autre Assureur" },
+    ]);
+    expect(vue.pieces.map((p: { rang: number; libelle: string; type: string; etatAnalyse: string }) => [p.rang, p.libelle, p.type, p.etatAnalyse])).toEqual([
+      [1, "Liste des véhicules", TYPE_XLSX, "saine"], [2, "Carte grise", "image/png", "saine"], [3, "Carte grise", "image/png", "saine"],
+    ]);
+    expect(vue.piece.rang).toBe(2);
+
+    // Chaque document se télécharge à part, intact, sous un nom qui dit ce qu'il est
+    const tableur = await envoyer(ctx, { url: `/demandes-site/${id}/pieces/${vue.pieces[0].id}`, cookie: cookies.commercial });
+    expect(tableur.headers["content-type"]).toBe(TYPE_XLSX);
+    expect(tableur.headers["content-disposition"]).toBe(`attachment; filename="liste-des-vehicules-demande-${numero}.xlsx"`);
+    expect(tableur.rawPayload.equals(XLSX)).toBe(true);
+    const seconde = await envoyer(ctx, { url: `/demandes-site/${id}/pieces/${vue.pieces[2].id}`, cookie: cookies.commercial });
+    expect(seconde.headers["content-disposition"]).toBe(`attachment; filename="carte-grise-demande-${numero}-3.png"`);
+    expect(seconde.rawPayload.equals(PNG_2)).toBe(true);
+    expect((await envoyer(ctx, { url: `/demandes-site/${id}/pieces/${vue.pieces[0].id}`, cookie: cookies.auditeur })).statusCode).toBe(403);
+    // Un document d'une autre demande n'est pas servi par celle-ci
+    const autre = await idDe((await envoyerDemande(demande({ piece: { type: "image/png", contenu: PNG.toString("base64") } }))).json().numero);
+    expect((await envoyer(ctx, { url: `/demandes-site/${autre}/pieces/${vue.pieces[0].id}`, cookie: cookies.commercial })).statusCode).toBe(404);
+    const { rows: [journal] } = await ctx.base.query(
+      "SELECT count(*)::int AS n FROM securite.evenements WHERE type = 'piece_telechargee' AND objet = $1",
+      [`Liste des véhicules, demande du site n° ${numero}`],
+    );
+    expect(journal.n).toBe(1);
+
+    // Le devis créé reprend les réponses
+    const conversion = await envoyer(ctx, { url: `/demandes-site/${id}/conversion`, cookie: cookies.commercial, corps: { confirmerNouveauClient: true } });
+    expect(conversion.statusCode).toBe(201);
+    const { rows: [devis] } = await ctx.base.query("SELECT branche, description FROM app.devis WHERE id = $1", [conversion.json().devisId]);
+    expect(devis.branche).toBe("flotte");
+    expect(devis.description).toBe("Nombre de véhicules : 12.\nTypes de véhicules : Tracteurs routiers, Semi-remorques et remorques.\n"
+      + "Zones de circulation : Abidjan, Pays voisins (CEDEAO).\nAssureur actuel : Autre Assureur.\nRenouvellement en mars");
+  });
+
+  it("refuse une réponse inattendue, mal formée ou obligatoire oubliée, avec un message pour le visiteur", async () => {
+    const reponses = async (details: Record<string, unknown>, assurance = "flotte") => {
+      const reponse = await envoyerDemande(flotte({ assurance, details, pieces: undefined }));
+      return [reponse.statusCode, reponse.json().code, reponse.json().message];
+    };
+    expect(await reponses({ nombreVehicules: 3, typesVehicules: ["taxis"], couleur: "rouge" })).toEqual([422, "details_invalides", expect.stringContaining("réponse inattendue")]);
+    expect(await reponses({ nombreVehicules: 1, typesVehicules: ["taxis"] })).toEqual([422, "details_invalides", "« Nombre de véhicules » : indiquez un nombre entier entre 2 et 5000."]);
+    expect(await reponses({ nombreVehicules: 3 })).toEqual([422, "details_invalides", "« Types de véhicules » : réponse obligatoire."]);
+    expect(await reponses({ nombreVehicules: 3, typesVehicules: ["fusees"] })).toEqual([422, "details_invalides", "« Types de véhicules » : choix invalide."]);
+    expect(await reponses({ nombreVehicules: 3 }, "habitation")).toEqual([422, "details_invalides", expect.stringContaining("réponse inattendue")]);
+    expect((await envoyerDemande(flotte({ details: { nombreVehicules: { $gt: 1 } } }))).statusCode).toBe(400);
+  });
+
+  it("ne prend que les documents prévus pour l'assurance, et un classeur Excel seulement pour une liste", async () => {
+    const code = async (pieces: object[], assurance = "flotte") => {
+      const reponse = await envoyerDemande(flotte({ assurance, details: undefined, pieces }));
+      return [reponse.statusCode, reponse.json().code, reponse.json().message];
+    };
+    const png = (nature: string) => ({ nature, type: "image/png", contenu: PNG.toString("base64") });
+    expect(await code([png("carte_grise")], "habitation")).toEqual([422, "piece_inattendue", "« Carte grise » ne se joint pas à une demande pour cette assurance."]);
+    expect(await code([{ nature: "carte_grise", type: TYPE_XLSX, contenu: XLSX.toString("base64") }]))
+      .toEqual([422, "piece_invalide", "« Carte grise » doit être une photo (JPEG ou PNG) ou un PDF."]);
+    expect(await code([{ nature: "liste_vehicules", type: TYPE_XLSX, contenu: PNG.toString("base64") }]))
+      .toEqual([422, "piece_invalide", expect.stringContaining("n'est pas un classeur Excel lisible")]);
+    const macro = Buffer.concat([XLSX, Buffer.from("xl/vbaProject.bin")]);
+    expect((await code([{ nature: "liste_vehicules", type: TYPE_XLSX, contenu: macro.toString("base64") }]))[2]).toContain("macros");
+    expect((await code(Array.from({ length: 7 }, () => png("carte_grise"))))[0]).toBe(400);
+    // Cinq photos d'un peu plus de 4 Mo : plus de 20 Mo en tout
+    const lourde = Buffer.concat([PNG.subarray(0, 8), Buffer.alloc(4 * 1024 * 1024 + 8 * 1024)]).toString("base64");
+    expect(await code(Array.from({ length: 5 }, () => ({ nature: "carte_grise", type: "image/png", contenu: lourde }))))
+      .toEqual([422, "pieces_trop_volumineuses", expect.stringContaining("20 Mo")]);
+    // Infectée : toute la demande est refusée, rien n'est gardé
+    const telephone = telephoneUnique();
+    const infectee = await envoyerDemande(flotte({ telephone, pieces: [png("carte_grise"), { nature: "attestation_precedente", type: "application/pdf", contenu: PDF_PIEGE.toString("base64") }] }));
+    expect(infectee.json().code).toBe("piece_infectee");
+    const { rows } = await ctx.base.query("SELECT count(*)::int AS n FROM app.demandes_site WHERE telephone = $1", [`+225${telephone}`]);
+    expect(rows[0].n).toBe(0);
   });
 });
 

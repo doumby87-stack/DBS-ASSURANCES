@@ -1,8 +1,9 @@
 // Demandes reçues par le site, au back-office (tâches 7 et 13) : devis, rappels d'échéance, appels d'offres.
-// Liste (un rappel n'est à traiter qu'un mois avant l'échéance), détail avec les clients qui ont déjà ce numéro,
-// carte grise à télécharger, conversion en client et devis, ou classement sans suite.
+// Liste (un rappel n'est à traiter qu'un mois avant l'échéance), détail avec les réponses au questionnaire de
+// l'assurance et les clients qui ont déjà ce numéro, documents joints à télécharger un par un, conversion en client
+// et devis, ou classement sans suite.
 
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { Pool } from "../../base-de-donnees/connexion.js";
 import { transactionUtilisateur } from "../../base-de-donnees/connexion.js";
 import { ErreurApi, erreurs } from "../../commun/erreurs.js";
@@ -12,14 +13,17 @@ import type { Gardes } from "../../securite/gardes.js";
 import { utilisateurDe } from "../../securite/gardes.js";
 import { consignerEvenement } from "../../securite/limitation.js";
 import { exigerClientVisible } from "../clients/visibilite.js";
+import { LIBELLES_NATURE, type NaturePiece } from "./devis-par-assurance.js";
 import { GARANTIES_APPEL_OFFRES, TYPES_MARCHE, type Marche } from "./outils-site.js";
-import { dechiffrerPiece, EXTENSIONS, type TypePiece } from "./piece.js";
+import { dechiffrerPiece } from "./piece.js";
+import { EXTENSIONS_SITE, slugNature, type TypePieceSite } from "./pieces-site.js";
+import { type Details, detailsLisibles } from "./questionnaires.js";
 
 // « a_venir » : rappels d'échéance reçus, pas encore à traiter
 const STATUTS = ["nouvelle", "a_venir", "convertie", "sans_suite"] as const;
 const COLONNES = `d.id, d.numero, d.nature, d.branche, d.profil, d.nom, d.telephone, d.email, d.commune, d.besoin,
   to_char(d.echeance_actuelle, 'YYYY-MM-DD') AS "echeanceActuelle", to_char(d.date_limite_offre, 'YYYY-MM-DD') AS "dateLimiteOffre",
-  d.appel_offres AS "appelOffres", to_char(d.a_traiter_le, 'YYYY-MM-DD') AS "aTraiterLe",
+  d.appel_offres AS "appelOffres", d.details, to_char(d.a_traiter_le, 'YYYY-MM-DD') AS "aTraiterLe",
   d.accord_traitement AS "accordTraitement", d.accord_whatsapp AS "accordWhatsApp", d.recue_le AS "recueLe",
   d.statut, d.motif, d.client_id AS "clientId", d.devis_id AS "devisId", d.traitee_le AS "traiteeLe",
   u.nom AS "traiteePar"`;
@@ -52,7 +56,9 @@ export async function routesDemandesSiteBackOffice(
       const statut = requete.query.statut ?? "nouvelle";
       return transactionUtilisateur(pool, utilisateurDe(requete).id, async (client) => {
         const { rows: demandes } = await client.query(
-          `SELECT ${COLONNES}, EXISTS (SELECT 1 FROM app.pieces_demandes_site p WHERE p.demande_id = d.id AND p.etat_analyse <> 'infectee') AS "aUnePiece"
+          `SELECT ${COLONNES}, EXISTS (SELECT 1 FROM app.pieces_demandes_site p WHERE p.demande_id = d.id AND p.etat_analyse <> 'infectee') AS "aUnePiece",
+                  ARRAY(SELECT p.nature FROM app.pieces_demandes_site p WHERE p.demande_id = d.id AND p.etat_analyse <> 'infectee'
+                        ORDER BY p.rang) AS "naturesPieces"
            FROM app.demandes_site d LEFT JOIN app.utilisateurs u ON u.id = d.traitee_par
            WHERE CASE $1::text
                    WHEN 'nouvelle' THEN d.statut = 'nouvelle' AND d.a_traiter_le <= app.aujourdhui()
@@ -70,7 +76,11 @@ export async function routesDemandesSiteBackOffice(
                   count(*) FILTER (WHERE a_traiter_le > app.aujourdhui())::int AS "aVenir"
            FROM app.demandes_site WHERE statut = 'nouvelle'`,
         );
-        return { demandes, nouvelles: compte[0]?.nouvelles ?? 0, aVenir: compte[0]?.aVenir ?? 0 };
+        return {
+          demandes: demandes.map((d: { branche: Branche; details: Details | null }) => ({ ...d, details: detailsLisibles(d.branche, d.details) })),
+          nouvelles: compte[0]?.nouvelles ?? 0,
+          aVenir: compte[0]?.aVenir ?? 0,
+        };
       });
     },
   );
@@ -84,76 +94,106 @@ export async function routesDemandesSiteBackOffice(
           `SELECT ${COLONNES} FROM app.demandes_site d LEFT JOIN app.utilisateurs u ON u.id = d.traitee_par WHERE d.id = $1`,
           [requete.params.id],
         );
-        const demande = rows[0] as { telephone: string } | undefined;
+        const demande = rows[0] as { telephone: string; branche: Branche; details: Details | null } | undefined;
         if (!demande) return null;
-        // Invisible pour l'auditeur (droits de la base) : la pièce apparaît alors absente
-        const piece = await client.query(
-          `SELECT type_contenu AS type, taille, etat_analyse AS "etatAnalyse", analysee_le AS "analyseeLe",
+        // Invisibles pour l'auditeur (droits de la base) : les pièces apparaissent alors absentes
+        const { rows: pieces } = await client.query<{ nature: NaturePiece } & Record<string, unknown>>(
+          `SELECT id, rang, nature, type_contenu AS type, taille, etat_analyse AS "etatAnalyse", analysee_le AS "analyseeLe",
                   signature_detectee AS "signatureDetectee"
-           FROM app.pieces_demandes_site WHERE demande_id = $1`,
+           FROM app.pieces_demandes_site WHERE demande_id = $1 ORDER BY rang`,
           [requete.params.id],
         );
+        const documents = pieces.map((p) => ({ ...p, libelle: LIBELLES_NATURE[p.nature] ?? p.nature }));
         // Même numéro déjà enregistré : probablement le même client, à rattacher plutôt qu'à recréer
         const clients = await client.query(
           "SELECT id, nom, type FROM app.clients WHERE telephone = $1 ORDER BY nom LIMIT 5",
           [demande.telephone],
         );
-        return { demande, piece: piece.rows[0] ?? null, clientsMemeNumero: clients.rows };
+        return {
+          demande: { ...demande, details: detailsLisibles(demande.branche, demande.details) },
+          pieces: documents,
+          // Ancien affichage : la carte grise seule
+          piece: documents.find((p) => p.nature === "carte_grise") ?? null,
+          clientsMemeNumero: clients.rows,
+        };
       });
       if (!resultat) throw erreurs.introuvable();
       return resultat;
     },
   );
 
-  // Carte grise : déchiffrée à la demande, analysée de nouveau par l'antivirus (signatures du jour), téléchargée
+  // Pièce jointe : déchiffrée à la demande, analysée de nouveau par l'antivirus (signatures du jour), téléchargée
   // (jamais affichée par le navigateur), et consignée. Sans analyse réussie, elle ne sort pas.
+  async function telecharger(
+    requete: FastifyRequest, reponse: FastifyReply, demandeId: string, choix: { pieceId: string } | { nature: NaturePiece },
+  ) {
+    const moi = utilisateurDe(requete);
+    const piece = await transactionUtilisateur(pool, moi.id, async (client) => {
+      const { rows } = await client.query<{
+        id: string; type: TypePieceSite; contenu: Buffer | null; empreinte: Buffer; numero: number; etat: string;
+        nature: NaturePiece; rang: number;
+      }>(
+        `SELECT p.id, p.type_contenu AS type, p.contenu_chiffre AS contenu, p.empreinte, d.numero, p.etat_analyse AS etat,
+                p.nature, p.rang
+         FROM app.pieces_demandes_site p JOIN app.demandes_site d ON d.id = p.demande_id
+         WHERE p.demande_id = $1 AND ($2::uuid IS NULL OR p.id = $2) AND ($3::text IS NULL OR p.nature = $3)
+         ORDER BY p.rang LIMIT 1`,
+        [demandeId, "pieceId" in choix ? choix.pieceId : null, "nature" in choix ? choix.nature : null],
+      );
+      return rows[0] ?? null;
+    });
+    if (!piece) throw erreurs.introuvable();
+    const libelle = LIBELLES_NATURE[piece.nature] ?? piece.nature;
+    if (piece.etat === "infectee" || !piece.contenu) throw pieceInfectee();
+    const contenu = dechiffrerPiece(cleChiffrement, piece.id, piece.contenu, piece.empreinte);
+
+    const verdict = await antivirus.analyser(contenu);
+    if (verdict.etat === "indisponible") {
+      requete.log.warn({ raison: verdict.raison }, "analyse antivirus impossible au téléchargement");
+      // Déjà déclarée saine : elle peut sortir, l'antivirus la reverra au prochain téléchargement
+      if (piece.etat !== "saine") throw analyseEnAttente();
+    }
+    await transactionUtilisateur(pool, moi.id, async (client) => {
+      if (verdict.etat !== "indisponible") {
+        await client.query("SELECT app.enregistrer_analyse_piece($1, $2, $3)", [
+          piece.id, verdict.etat === "saine", verdict.etat === "infectee" ? verdict.signature : null,
+        ]);
+      }
+      if (verdict.etat !== "infectee") {
+        await consignerEvenement(client, "piece_telechargee", {
+          utilisateurId: moi.id, ip: requete.ip, objet: `${libelle}, demande du site n° ${piece.numero}`,
+        });
+      }
+    });
+    if (verdict.etat === "infectee") {
+      requete.log.warn({ signature: verdict.signature, nature: piece.nature }, "pièce infectée découverte au téléchargement");
+      throw pieceInfectee();
+    }
+    const nom = `${slugNature(piece.nature)}-demande-${piece.numero}${piece.rang > 1 ? `-${piece.rang}` : ""}.${EXTENSIONS_SITE[piece.type]}`;
+    return reponse.type(piece.type).header("Content-Disposition", `attachment; filename="${nom}"`).send(contenu);
+  }
+
+  // Ancienne route : la (première) carte grise
   app.get<{ Params: { id: string } }>(
     "/demandes-site/:id/piece",
     { preHandler: gardes.roles("gerant", "charge_clientele", "commercial"), schema: { params: parametreId } },
-    async (requete, reponse) => {
-      const moi = utilisateurDe(requete);
-      const piece = await transactionUtilisateur(pool, moi.id, async (client) => {
-        const { rows } = await client.query<{
-          id: string; type: TypePiece; contenu: Buffer | null; empreinte: Buffer; numero: number; etat: string;
-        }>(
-          `SELECT p.id, p.type_contenu AS type, p.contenu_chiffre AS contenu, p.empreinte, d.numero, p.etat_analyse AS etat
-           FROM app.pieces_demandes_site p JOIN app.demandes_site d ON d.id = p.demande_id
-           WHERE p.demande_id = $1`,
-          [requete.params.id],
-        );
-        return rows[0] ?? null;
-      });
-      if (!piece) throw erreurs.introuvable();
-      if (piece.etat === "infectee" || !piece.contenu) throw pieceInfectee();
-      const contenu = dechiffrerPiece(cleChiffrement, piece.id, piece.contenu, piece.empreinte);
+    async (requete, reponse) => telecharger(requete, reponse, requete.params.id, { nature: "carte_grise" }),
+  );
 
-      const verdict = await antivirus.analyser(contenu);
-      if (verdict.etat === "indisponible") {
-        requete.log.warn({ raison: verdict.raison }, "analyse antivirus impossible au téléchargement");
-        // Déjà déclarée saine : elle peut sortir, l'antivirus la reverra au prochain téléchargement
-        if (piece.etat !== "saine") throw analyseEnAttente();
-      }
-      await transactionUtilisateur(pool, moi.id, async (client) => {
-        if (verdict.etat !== "indisponible") {
-          await client.query("SELECT app.enregistrer_analyse_piece($1, $2, $3)", [
-            piece.id, verdict.etat === "saine", verdict.etat === "infectee" ? verdict.signature : null,
-          ]);
-        }
-        if (verdict.etat !== "infectee") {
-          await consignerEvenement(client, "piece_telechargee", {
-            utilisateurId: moi.id, ip: requete.ip, objet: `Carte grise, demande du site n° ${piece.numero}`,
-          });
-        }
-      });
-      if (verdict.etat === "infectee") {
-        requete.log.warn({ signature: verdict.signature }, "carte grise infectée découverte au téléchargement");
-        throw pieceInfectee();
-      }
-      return reponse
-        .type(piece.type)
-        .header("Content-Disposition", `attachment; filename="carte-grise-demande-${piece.numero}.${EXTENSIONS[piece.type]}"`)
-        .send(contenu);
+  app.get<{ Params: { id: string; pieceId: string } }>(
+    "/demandes-site/:id/pieces/:pieceId",
+    {
+      preHandler: gardes.roles("gerant", "charge_clientele", "commercial"),
+      schema: {
+        params: {
+          type: "object",
+          required: ["id", "pieceId"],
+          additionalProperties: false,
+          properties: { id: { type: "string", format: "uuid" }, pieceId: { type: "string", format: "uuid" } },
+        },
+      },
     },
+    async (requete, reponse) => telecharger(requete, reponse, requete.params.id, { pieceId: requete.params.pieceId }),
   );
 
   // Conversion : client existant (même numéro) ou nouveau client, devis « site », et accord WhatsApp
@@ -185,7 +225,7 @@ export async function routesDemandesSiteBackOffice(
         const { rows } = await client.query<DemandeAConvertir>(
           `SELECT statut, nature, branche, profil, nom, telephone, email, commune, besoin, accord_whatsapp IS NOT NULL AS "accordWhatsApp",
                   to_char(echeance_actuelle, 'DD/MM/YYYY') AS "echeanceActuelle", to_char(date_limite_offre, 'DD/MM/YYYY') AS "dateLimiteOffre",
-                  appel_offres AS "appelOffres"
+                  appel_offres AS "appelOffres", details
            FROM app.demandes_site WHERE id = $1 FOR UPDATE`,
           [requete.params.id],
         );
@@ -275,14 +315,20 @@ export async function routesDemandesSiteBackOffice(
 interface DemandeAConvertir {
   statut: string; nature: "devis" | "rappel_echeance" | "appel_offres"; branche: Branche; profil: string; nom: string; telephone: string;
   email: string | null; commune: string | null; besoin: string | null; accordWhatsApp: boolean;
-  echeanceActuelle: string | null; dateLimiteOffre: string | null; appelOffres: Marche | null;
+  echeanceActuelle: string | null; dateLimiteOffre: string | null; appelOffres: Marche | null; details: Details | null;
 }
 
 const enFrancs = (valeur: number) => `${new Intl.NumberFormat("fr-FR").format(valeur).replace(/\s/g, " ")} F CFA`;
 
-/** Description du devis créé : le besoin du visiteur, précédé de ce que l'outil du site a recueilli */
-export function descriptionDevis(d: Pick<DemandeAConvertir, "nature" | "besoin" | "echeanceActuelle" | "dateLimiteOffre" | "appelOffres">): string | null {
+/** Description du devis créé : le besoin du visiteur, précédé de ce que le formulaire ou l'outil du site a recueilli */
+export function descriptionDevis(
+  d: Pick<DemandeAConvertir, "nature" | "besoin" | "echeanceActuelle" | "dateLimiteOffre" | "appelOffres">
+    & Partial<Pick<DemandeAConvertir, "branche" | "details">>,
+): string | null {
   const lignes: string[] = [];
+  if (d.branche && d.details) {
+    lignes.push(...detailsLisibles(d.branche, d.details).map(({ libelle, valeur }) => `${libelle} : ${valeur}.`));
+  }
   if (d.nature === "rappel_echeance" && d.echeanceActuelle) {
     lignes.push(`Rappel d'échéance demandé sur le site : contrat actuel à échéance le ${d.echeanceActuelle}.`);
   }
