@@ -7,7 +7,8 @@ Comparaison des questionnaires de souscription que l'agence utilise (16 question
 - **Les deux ne font pas le même travail.** Le questionnaire de la compagnie sert à souscrire : de 10 à plus de 100 questions, une déclaration signée, des sanctions en cas de fausse déclaration (articles 18 et 19 du Code CIMA). Le formulaire du site sert à être recontacté : 3 à 9 questions. Il ne s'agit donc pas de recopier les questionnaires sur le site, mais de faire en sorte que la première demande permette à l'agence de **savoir quel questionnaire envoyer**, de **donner un ordre de prix** et de **ne pas redemander ce que le client a déjà dit**.
 - **Deux assurances du site regroupent chacune cinq ou six produits** aux questionnaires différents (« Chantier et construction », « Industrie, PME/PMI et bris de machines »), mais ne posent qu'une seule série de questions. Rien n'indique au conseiller quel produit le client cherche.
 - **Un questionnaire n'a aucune place sur le site** : violence politique et terrorisme.
-- **L'assureur actuel n'est demandé que pour l'automobile et la flotte**, alors que tous les questionnaires demandent les antécédents et l'assurance en cours.
+- **L'assureur actuel n'est demandé que pour l'automobile et la flotte**, alors que tous les questionnaires demandent les antécédents et l'assurance en cours. Ailleurs, seule la pièce facultative « Attestation ou contrat d'assurance actuel » le fait connaître, et elle n'est pas proposée pour le chantier, l'industrie, l'agricole ni l'événementiel.
+- **Le site pose peu de questions en trop.** Les seules sont des questions de chantier pour les assurances d'entreprise (responsabilités civiles des entreprises de travaux et des bureaux d'études) et des valeurs de bâtiments ou de stock pour les produits qui ne les assurent pas (bris de machines, responsabilité civile industrielle, globale de banque). Elles viennent toutes de ce qu'une même série de questions sert à plusieurs produits.
 - **Sept assurances du site n'ont pas de questionnaire** dans le dossier : automobile, deux-roues, flotte, habitation, individuelle accident, incendie et risques divers, transport de marchandises (ainsi que la responsabilité civile familiale).
 
 ## Quel questionnaire pour quelle assurance du site
@@ -29,6 +30,28 @@ Comparaison des questionnaires de souscription que l'agence utilise (16 question
 | Agricole | Assurance des plantations | Agricole |
 | RC Événement 2024 | Responsabilité civile de l'organisateur | Événementiel |
 | PVT | Violence politique et terrorisme | **Aucune** |
+
+## Bilan par questionnaire
+
+Une ligne par questionnaire de la compagnie. « Repris » : ce que le site demande déjà et que la compagnie demande aussi. « Manque » : ce que la compagnie demande pour donner un prix et que le site ne demande pas. « En trop » : ce que le site demande et que ce questionnaire n'utilise pas. Le détail suit, assurance par assurance.
+
+| Questionnaire | Assurance du site | Repris | Manque | En trop |
+| --- | --- | --- | --- | --- |
+| TRC | Chantier et construction | Nature, montant, durée, maître d'ouvrage, lieu | Type d'ouvrage, construction ou réhabilitation, date de début, bureau de contrôle, milieu urbain, assureur actuel | Rien |
+| TRC Routes | Chantier et construction | Nature, montant, durée, maître d'ouvrage, lieu | Les mêmes que le TRC, avec le type d'ouvrage (route, ouvrage d'art) | Rien |
+| TRM OPEX | Chantier et construction | Nature, montant, durée, maître d'ouvrage, lieu | Type d'ouvrage (montage industriel), date de début, bureau de contrôle, assureur actuel | Rien |
+| Décennale | Chantier et construction | Nature, montant | Destination de l'ouvrage, étages et sous-sols, dates d'ouverture et de fin, contrôleur technique | Durée en mois (la compagnie veut des dates), maître d'ouvrage et lieu ne servent qu'à identifier le chantier |
+| RC Entreprise de travaux | Chantier et construction | Rien | Chiffre d'affaires sur trois ans, effectif, corps d'état, part sous-traitée, travaux à risque, assureur actuel | Montant, durée, maître d'ouvrage et lieu d'un chantier |
+| RC BET | Chantier et construction | Rien | Chiffre d'affaires sur trois ans, effectif, part sous-traitée, assureur actuel | Montant, durée, maître d'ouvrage et lieu d'un chantier |
+| Bris de machines | Industrie | Activité, valeur des machines | Propriétaire ou locataire, entretien, assureur actuel, sinistres sur cinq ans, garanties, détail des machines | Valeur des bâtiments, valeur du stock |
+| PME PMI | Industrie | Activité, valeurs des bâtiments, du matériel, du stock | Chiffre d'affaires, propriétaire ou locataire, garanties parmi quatorze, sécurité incendie et vol, antécédents | Rien |
+| MP, MPI | Industrie | Valeur des bâtiments | Nombre de niveaux, surface bâtie, année de construction, nombre de locaux par usage, garanties | Valeur des machines, valeur du stock |
+| RC entreprises industrielles et commerciales | Industrie, Responsabilité civile | Activité ; dans « Responsabilité civile » : effectif et chiffre d'affaires | Chiffre d'affaires sur trois ans par zone, salaires, travaux chez les clients, produits importés, après travaux ou après livraison | Dans « Industrie » : les trois valeurs (bâtiments, machines, stock) |
+| GB | Industrie | Activité | Tout le questionnaire (une centaine de questions), à laisser à la compagnie | Valeur des machines, valeur du stock |
+| MRP | Multirisque professionnelle | Activité, propriétaire ou locataire, valeur du matériel, valeur du stock | Loyer mensuel ou valeur du bâtiment, chiffre d'affaires, effectif, mobilier et informatique, garanties optionnelles, espèces, assureur actuel | Surface (non demandée par la compagnie, utile pour estimer) |
+| Agricole | Agricole | Culture, superficie, localisation | Risques à couvrir, somme assurée ou production, superficie cultivée, âge des plants, irrigation, sinistres | Rien |
+| RC Événement 2024 | Événementiel | Type d'événement, lieu, participants | Nombre de jours, mesures de sécurité, déjà assuré | Rien (la date n'est pas demandée telle quelle, mais sert à la période de garantie) |
+| PVT | Aucune | Rien | Tout : à ajouter comme option de « Incendie et risques divers » | Sans objet |
 
 ## Comparaison par assurance du site
 
