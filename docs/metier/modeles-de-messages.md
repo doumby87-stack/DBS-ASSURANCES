@@ -1,6 +1,6 @@
 # Modèles de messages des relances
 
-Sur WhatsApp, une entreprise ne peut écrire la première à un client qu'avec un **modèle validé par Meta**. Voici les six modèles à soumettre, mot pour mot : l'API les envoie sous ces noms, avec ces textes. Un test (`apps/api/tests/unitaires/relances-modeles.test.ts`) vérifie que ce document et le code restent identiques.
+Sur WhatsApp, une entreprise ne peut écrire la première à un client qu'avec un **modèle validé par Meta**. Voici les sept modèles à soumettre, mot pour mot : l'API les envoie sous ces noms, avec ces textes. Un test (`apps/api/tests/unitaires/relances-modeles.test.ts`) vérifie que ce document et le code restent identiques.
 
 ## Soumettre les modèles (tâche de l'agence)
 
@@ -88,6 +88,23 @@ Bonjour {{1}}, {{2}} : {{3}}. Pour rouler en règle, pensez à les renouveler à
 | `{{1}}` | Nom du client | Transports Yao |
 | `{{2}}` | Nombre de documents et échéance | 3 documents de vos véhicules arrivent à échéance, le premier le 24/11/2026 |
 | `{{3}}` | Les documents (cinq au plus, puis « et N autres ») | visite technique 9011 AB 01 le 24/11, vignette 9011 AB 01 le 29/11 et 1 autre |
+
+### `dbs_echeance_paiement`
+
+Échéance d'une prime payée en plusieurs fois (contrats flotte, [ADR 0017](../architecture/adr/0017-paiement-fractionne.md)) : 7 jours avant la date, puis une fois si l'échéance n'est pas réglée (dans les 15 jours qui suivent). Chaque étape d'une échéance n'est envoyée qu'une fois.
+
+```text
+Bonjour {{1}}, l'échéance de {{2}} de votre assurance {{3}} {{4}}. Vous pouvez la régler à l'agence ou par Mobile Money. Pour toute question, répondez à ce message ou appelez DBS-ASSURANCES au 07 49 36 07 02.
+```
+
+| Variable | Contenu | Exemple pour Meta |
+| --- | --- | --- |
+| `{{1}}` | Nom du client | Transports Yao |
+| `{{2}}` | Montant restant de l'échéance | 312 500 F CFA |
+| `{{3}}` | Branche, et n° de police s'il est connu | flotte (police FLT-2026-01) |
+| `{{4}}` | Étape | est à payer au plus tard le 01/02/2027 |
+
+Étapes possibles : « est à payer au plus tard le … », « n'est pas encore réglée : elle était due le … ».
 
 ### `dbs_code_connexion`
 

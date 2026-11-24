@@ -71,3 +71,18 @@ export function taille(octets: number): string {
 
 export const TELEPHONE_AGENCE = "07 49 36 07 02";
 export const WHATSAPP_AGENCE = "https://wa.me/2250749360702";
+
+/** Prime payée en plusieurs fois (contrats flotte) : l'échéancier tel que l'API le donne */
+export interface EcheancierPortail {
+  echeances: { id: string; rang: number; exigibleLe: string; montant: number; paye: number; reste: number; etat: "payee" | "en_retard" | "bientot" | "a_venir"; jours: number }[];
+  aPayerMaintenant: number | null;
+  prochaine: { rang: number; exigibleLe: string; reste: number; etat: string; jours: number } | null;
+}
+
+/** Montant à proposer au paiement : ce qui est dû maintenant, sinon la prochaine échéance, sinon tout le reste. */
+export function montantAPayer(resteAPayer: number, echeancier: EcheancierPortail | null): number {
+  const reste = Math.max(resteAPayer, 0);
+  if (!echeancier || echeancier.echeances.length === 0) return reste;
+  if (echeancier.aPayerMaintenant) return Math.min(echeancier.aPayerMaintenant, reste);
+  return Math.min(echeancier.prochaine?.reste ?? reste, reste);
+}

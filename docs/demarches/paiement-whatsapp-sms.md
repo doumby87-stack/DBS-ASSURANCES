@@ -30,7 +30,7 @@ Pour les relances automatiques et les codes de connexion à l'espace client ([AD
 2. **Un portefeuille Meta Business** (business.facebook.com) au nom de la société, créé avec un compte personnel du gérant protégé par un deuxième facteur ; ajouter une seconde personne administratrice.
 3. **La vérification de l'entreprise** dans le portefeuille : raison sociale exacte, adresse, téléphone, site internet sur le domaine de l'agence, et un document officiel (extrait RCCM, facture au nom de la société). Le nom doit être identique partout.
 4. **Le compte WhatsApp Business** sur le numéro dédié, avec le **nom d'affichage** « DBS-ASSURANCES » (Meta le valide aussi).
-5. **Les six modèles de messages** à soumettre, textes et marche à suivre dans [modèles de messages](../metier/modeles-de-messages.md#soumettre-les-modèles-tâche-de-lagence).
+5. **Les sept modèles de messages** à soumettre, textes et marche à suivre dans [modèles de messages](../metier/modeles-de-messages.md#soumettre-les-modèles-tâche-de-lagence).
 6. **L'accord des clients existants** pour les relances, au guichet ou par téléphone, noté sur leur fiche avec sa preuve (back-office) : sans accord, aucune relance ne part.
 
 **À remettre au prestataire technique** : l'accès du prestataire au portefeuille (en tant que partenaire ou utilisateur, pas le mot de passe du gérant). Il crée lui-même l'application Meta, l'utilisateur système et ses jetons, et les range dans les réglages du serveur.

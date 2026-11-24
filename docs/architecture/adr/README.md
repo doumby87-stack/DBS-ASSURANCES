@@ -20,6 +20,7 @@ Chaque décision importante est écrite ici, avec son contexte et ses conséquen
 | [0014](0014-outils-du-site.md) | Outils du site : rappel d'échéance gratuit, assistant « appel d'offres », prise de rendez-vous | Acceptée (estimation en attente de SanlamAllianz) |
 | [0015](0015-lecture-automatique.md) | Lecture automatique des documents : gratuite, sur les serveurs de l'agence, toujours validée par une personne | Acceptée |
 | [0016](0016-mise-en-production.md) | Mise en production : un serveur, des conteneurs durcis, des sauvegardes chiffrées vérifiées chaque nuit et restaurées chaque mois | Acceptée (hébergeur à choisir) |
+| [0017](0017-paiement-fractionne.md) | Paiement de la prime d'une flotte en plusieurs fois : échéancier, mise en vigueur à la première échéance, relances | Acceptée (conditions à confirmer avec SanlamAllianz) |
 
 ## Modèle
 
