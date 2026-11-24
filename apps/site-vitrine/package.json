@@ -16,6 +16,6 @@
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",
     "@playwright/test": "1.65.1",
-    "astro": "7.4.12"
+    "astro": "7.4.13"
   }
 }
