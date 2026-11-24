@@ -4,7 +4,7 @@
 
 import { ErreurApi } from "../../commun/erreurs.js";
 import type { Branche } from "../../commun/schemas.js";
-import { QUESTIONNAIRES, type Question } from "./devis-par-assurance.js";
+import { questionPosee, QUESTIONNAIRES, type Question } from "./devis-par-assurance.js";
 
 export type Reponse = string | number | string[];
 export type Details = Record<string, Reponse>;
@@ -40,8 +40,9 @@ function dateValide(texte: string): boolean {
 }
 
 /**
- * Réponses nettoyées (textes rognés, réponses vides retirées), ou refus avec un message pour le visiteur :
- * question inconnue pour cette assurance, réponse de la mauvaise forme, question obligatoire sans réponse.
+ * Réponses nettoyées (textes rognés, réponses vides retirées, réponses à une question qui n'est pas posée retirées :
+ * le loyer d'un propriétaire, par exemple), ou refus avec un message pour le visiteur : question inconnue pour cette
+ * assurance, réponse de la mauvaise forme, question obligatoire sans réponse.
  */
 export function validerDetails(branche: Branche, details: Record<string, unknown>): Details {
   const questions = new Map(questionsDe(branche).map((q) => [q.cle, q]));
@@ -85,11 +86,15 @@ export function validerDetails(branche: Branche, details: Record<string, unknown
       }
     }
   }
+  // Dans l'ordre du formulaire : une condition porte sur une question précédente
+  const posees: Details = {};
   for (const q of questions.values()) {
-    if (q.obligatoire && propres[q.cle] === undefined) throw refus(`« ${q.libelle} » : réponse obligatoire.`);
+    if (!questionPosee(q, posees)) continue;
+    if (propres[q.cle] !== undefined) posees[q.cle] = propres[q.cle]!;
+    else if (q.obligatoire) throw refus(`« ${q.libelle} » : réponse obligatoire.`);
   }
-  if (JSON.stringify(propres).length > TAILLE_MAX) throw refus("Vos réponses sont trop longues : raccourcissez-les.");
-  return propres;
+  if (JSON.stringify(posees).length > TAILLE_MAX) throw refus("Vos réponses sont trop longues : raccourcissez-les.");
+  return posees;
 }
 
 const enChiffres = (n: number) => new Intl.NumberFormat("fr-FR").format(n).replace(/\s/g, " ");

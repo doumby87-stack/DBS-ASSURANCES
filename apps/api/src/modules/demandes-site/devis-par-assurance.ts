@@ -5,13 +5,28 @@
 // reçoit (apps/api/src/modules/demandes-site/devis-par-assurance.ts). Un test de l'API vérifie qu'ils le restent :
 // modifiez l'un, puis recopiez-le sur l'autre. Données seules, sans dépendance.
 
+/**
+ * Condition d'une question : elle n'est posée que si la réponse à une question précédente (un choix ou des cases
+ * cochées) contient l'une de ces valeurs. Exemple : le loyer mensuel, seulement pour un locataire.
+ */
+export interface Condition { cle: string; valeurs: readonly string[] }
+
 /** Une question du formulaire. La clé est celle de la réponse enregistrée avec la demande. */
-export type Question =
+export type Question = (
   | { cle: string; libelle: string; type: "texte"; max: number; exemple?: string; obligatoire?: boolean }
   | { cle: string; libelle: string; type: "nombre"; min: number; max: number; unite?: string; obligatoire?: boolean }
   | { cle: string; libelle: string; type: "date"; obligatoire?: boolean }
   | { cle: string; libelle: string; type: "choix"; options: Record<string, string>; obligatoire?: boolean }
-  | { cle: string; libelle: string; type: "plusieurs"; options: Record<string, string>; obligatoire?: boolean };
+  | { cle: string; libelle: string; type: "plusieurs"; options: Record<string, string>; obligatoire?: boolean }
+) & { si?: Condition };
+
+/** La question est-elle posée, au vu des réponses déjà données ? (toujours, si elle n'a pas de condition) */
+export function questionPosee(q: Question, reponses: Readonly<Record<string, unknown>>): boolean {
+  if (!q.si) return true;
+  const { valeurs } = q.si;
+  const reponse = reponses[q.si.cle];
+  return (Array.isArray(reponse) ? reponse : [reponse]).some((v) => typeof v === "string" && valeurs.includes(v));
+}
 
 const MONTANT_MAX = 100_000_000_000;
 
@@ -25,6 +40,8 @@ const GARANTIES_VEHICULE: Question = {
 };
 const ASSUREUR_ACTUEL: Question = { cle: "assureurActuel", libelle: "Assureur actuel", type: "texte", max: 80, exemple: "Aucun, ou le nom de l'assureur" };
 const ECHEANCE_ACTUELLE: Question = { cle: "echeanceActuelle", libelle: "Échéance du contrat actuel", type: "date" };
+const OUI_NON = { oui: "Oui", non: "Non" };
+const CONSEIL = "Je ne sais pas, conseillez-moi";
 
 /** Questions posées pour chaque assurance (identifiants des branches de la base) */
 export const QUESTIONNAIRES: Record<string, readonly Question[]> = {
@@ -80,9 +97,21 @@ export const QUESTIONNAIRES: Record<string, readonly Question[]> = {
   multirisque_professionnelle: [
     { cle: "activite", libelle: "Activité", type: "texte", max: 120, exemple: "Boutique de vêtements, pharmacie, atelier…", obligatoire: true },
     { cle: "statutLocaux", libelle: "Vos locaux", type: "choix", options: { proprietaire: "Vous en êtes propriétaire", locataire: "Vous êtes locataire" } },
+    { cle: "loyerMensuel", libelle: "Loyer mensuel", type: "nombre", min: 1, max: MONTANT_MAX, unite: "F CFA", si: { cle: "statutLocaux", valeurs: ["locataire"] } },
+    { cle: "valeurBatiment", libelle: "Valeur du bâtiment", type: "nombre", min: 1, max: MONTANT_MAX, unite: "F CFA", si: { cle: "statutLocaux", valeurs: ["proprietaire"] } },
     { cle: "surface", libelle: "Surface des locaux", type: "nombre", min: 1, max: 1_000_000, unite: "m²" },
-    { cle: "valeurMateriel", libelle: "Valeur du matériel et des équipements", type: "nombre", min: 1, max: MONTANT_MAX, unite: "F CFA" },
+    { cle: "valeurMateriel", libelle: "Valeur du matériel et des équipements (mobilier, informatique compris)", type: "nombre", min: 1, max: MONTANT_MAX, unite: "F CFA" },
     { cle: "valeurStock", libelle: "Valeur du stock de marchandises", type: "nombre", min: 1, max: MONTANT_MAX, unite: "F CFA" },
+    { cle: "chiffreAffaires", libelle: "Chiffre d'affaires annuel", type: "nombre", min: 1, max: MONTANT_MAX, unite: "F CFA" },
+    { cle: "employes", libelle: "Nombre d'employés", type: "nombre", min: 0, max: 100_000 },
+    { cle: "garantiesOptionnelles", libelle: "Garanties à ajouter", type: "plusieurs", options: {
+      vol: "Vol des marchandises et du matériel", especes: "Vol des espèces (caisse, coffre-fort, trajet vers la banque)",
+      bris_glaces: "Bris de glaces", degats_eaux: "Dégâts des eaux", dommages_electriques: "Dommages électriques",
+      informatique: "Tous risques informatique", bris_machines: "Bris de machines", pertes_exploitation: "Pertes d'exploitation",
+      rc_exploitation: "Responsabilité civile d'exploitation",
+    } },
+    ASSUREUR_ACTUEL,
+    ECHEANCE_ACTUELLE,
   ],
   incendie_risques_divers: [
     { cle: "biens", libelle: "Biens à assurer", type: "plusieurs", obligatoire: true, options: {
@@ -91,14 +120,30 @@ export const QUESTIONNAIRES: Record<string, readonly Question[]> = {
     { cle: "activite", libelle: "Activité", type: "texte", max: 120 },
     { cle: "valeurBatiments", libelle: "Valeur des bâtiments", type: "nombre", min: 1, max: MONTANT_MAX, unite: "F CFA" },
     { cle: "valeurContenu", libelle: "Valeur des stocks et des équipements", type: "nombre", min: 1, max: MONTANT_MAX, unite: "F CFA" },
+    { cle: "violencePolitique", libelle: "Couvrir aussi les émeutes, le terrorisme et la violence politique", type: "choix", options: { ...OUI_NON, conseil: CONSEIL } },
+    ASSUREUR_ACTUEL,
+    ECHEANCE_ACTUELLE,
   ],
   responsabilite_civile: [
     { cle: "type", libelle: "Responsabilité civile", type: "choix", obligatoire: true, options: {
       familiale: "Familiale (vous et votre famille)", professionnelle: "Professionnelle (votre activité)",
     } },
-    { cle: "activite", libelle: "Activité, pour une responsabilité civile professionnelle", type: "texte", max: 120 },
-    { cle: "employes", libelle: "Nombre d'employés", type: "nombre", min: 0, max: 100_000 },
-    { cle: "chiffreAffaires", libelle: "Chiffre d'affaires annuel", type: "nombre", min: 1, max: MONTANT_MAX, unite: "F CFA" },
+    { cle: "typesProfessionnelle", libelle: "Ce que vous voulez couvrir", type: "plusieurs", si: { cle: "type", valeurs: ["professionnelle"] }, options: {
+      exploitation: "Les dommages causés pendant votre activité (exploitation)",
+      apres_livraison: "Les dommages causés après une livraison ou des travaux",
+      entreprise_travaux: "Une entreprise du bâtiment ou des travaux publics",
+      bureau_etudes: "Un bureau d'études ou d'ingénierie",
+      evenement: "L'organisation d'un événement",
+      conseil: CONSEIL,
+    } },
+    { cle: "activite", libelle: "Activité", type: "texte", max: 120, si: { cle: "type", valeurs: ["professionnelle"] } },
+    { cle: "employes", libelle: "Nombre d'employés", type: "nombre", min: 0, max: 100_000, si: { cle: "type", valeurs: ["professionnelle"] } },
+    { cle: "chiffreAffaires", libelle: "Chiffre d'affaires annuel", type: "nombre", min: 1, max: MONTANT_MAX, unite: "F CFA", si: { cle: "type", valeurs: ["professionnelle"] } },
+    { cle: "zone", libelle: "Zone d'activité", type: "choix", si: { cle: "type", valeurs: ["professionnelle"] }, options: {
+      cote_ivoire: "Côte d'Ivoire", cedeao: "Côte d'Ivoire et pays de la CEDEAO", monde: "Monde entier, sauf États-Unis et Canada",
+    } },
+    ASSUREUR_ACTUEL,
+    ECHEANCE_ACTUELLE,
   ],
   individuelle_accident: [
     { cle: "personnes", libelle: "Personnes à couvrir", type: "plusieurs", obligatoire: true, options: {
@@ -114,30 +159,83 @@ export const QUESTIONNAIRES: Record<string, readonly Question[]> = {
     } },
     { cle: "valeurVoyage", libelle: "Valeur moyenne transportée par voyage", type: "nombre", min: 1, max: MONTANT_MAX, unite: "F CFA" },
     { cle: "voyagesParMois", libelle: "Nombre de voyages par mois", type: "nombre", min: 1, max: 10_000 },
+    ASSUREUR_ACTUEL,
+    ECHEANCE_ACTUELLE,
   ],
   chantier_construction: [
+    { cle: "produits", libelle: "Assurance recherchée", type: "plusieurs", options: {
+      trc_batiment: "Tous risques chantier : bâtiment", trc_routes: "Tous risques chantier : routes et ouvrages d'art",
+      montage: "Tous risques montage-essais (installation de machines)", decennale: "Garantie décennale",
+      rc_travaux: "Responsabilité civile de l'entreprise de travaux", rc_bureau_etudes: "Responsabilité civile du bureau d'études",
+      conseil: CONSEIL,
+    } },
     { cle: "natureTravaux", libelle: "Nature des travaux", type: "texte", max: 120, exemple: "Immeuble R+4, route bitumée, forage…", obligatoire: true },
+    { cle: "typeOuvrage", libelle: "Type d'ouvrage", type: "choix", options: {
+      logements: "Logements (immeuble ou maisons)", bureaux_commerces: "Bureaux ou commerces",
+      etablissement_public: "Hôpital, école ou bâtiment recevant du public", industriel: "Bâtiment industriel ou agricole",
+      route: "Route, pont ou ouvrage d'art", montage: "Montage d'équipements industriels", autre: "Autre",
+    } },
+    { cle: "construction", libelle: "Travaux", type: "choix", options: { neuf: "Construction neuve", rehabilitation: "Réhabilitation, extension ou rénovation" } },
     { cle: "montantTravaux", libelle: "Montant des travaux", type: "nombre", min: 1, max: MONTANT_MAX, unite: "F CFA" },
+    { cle: "dateDebut", libelle: "Date d'ouverture du chantier", type: "date" },
     { cle: "dureeMois", libelle: "Durée du chantier", type: "nombre", min: 1, max: 240, unite: "mois" },
+    { cle: "etages", libelle: "Nombre d'étages au-dessus du rez-de-chaussée", type: "nombre", min: 0, max: 200 },
+    { cle: "bureauControle", libelle: "Bureau de contrôle désigné", type: "choix", options: OUI_NON },
+    { cle: "milieuUrbain", libelle: "Chantier en ville, au milieu d'autres constructions", type: "choix", options: OUI_NON },
     { cle: "maitreOuvrage", libelle: "Maître d'ouvrage", type: "texte", max: 120 },
     { cle: "lieu", libelle: "Lieu du chantier", type: "texte", max: 120 },
+    // Les deux responsabilités civiles portent sur l'entreprise, pas sur un chantier
+    { cle: "chiffreAffaires", libelle: "Chiffre d'affaires annuel de l'entreprise", type: "nombre", min: 1, max: MONTANT_MAX, unite: "F CFA", si: { cle: "produits", valeurs: ["rc_travaux", "rc_bureau_etudes"] } },
+    { cle: "employes", libelle: "Nombre d'employés", type: "nombre", min: 0, max: 100_000, si: { cle: "produits", valeurs: ["rc_travaux", "rc_bureau_etudes"] } },
+    { cle: "corpsEtat", libelle: "Corps d'état ou missions exercés", type: "texte", max: 120, exemple: "Gros œuvre, électricité, études de structure…", si: { cle: "produits", valeurs: ["rc_travaux", "rc_bureau_etudes"] } },
+    { cle: "partSousTraitee", libelle: "Part des travaux sous-traitée", type: "nombre", min: 0, max: 100, unite: "%", si: { cle: "produits", valeurs: ["rc_travaux", "rc_bureau_etudes"] } },
+    { cle: "travauxRisque", libelle: "Travaux à risque", type: "plusieurs", si: { cle: "produits", valeurs: ["rc_travaux", "rc_bureau_etudes"] }, options: {
+      demolition: "Démolition", explosifs: "Explosifs", soudure: "Soudure ou travaux par point chaud",
+      souterrains: "Travaux souterrains", maritimes: "Travaux maritimes ou fluviaux",
+    } },
+    ASSUREUR_ACTUEL,
+    ECHEANCE_ACTUELLE,
   ],
   industrie_bris_de_machines: [
+    { cle: "produits", libelle: "Assurance recherchée", type: "plusieurs", options: {
+      multirisque_pme: "Multirisque des PME et PMI (locaux, matériel, marchandises)",
+      immeuble: "Multirisque immeuble (propriétaire, copropriété, syndic)", bris_machines: "Bris de machines",
+      rc_industrielle: "Responsabilité civile d'exploitation, après travaux ou après livraison",
+      globale_banque: "Globale de banque (banques et établissements financiers)", conseil: CONSEIL,
+    } },
     { cle: "activite", libelle: "Activité", type: "texte", max: 120, exemple: "Boulangerie industrielle, imprimerie…", obligatoire: true },
+    { cle: "statutLocaux", libelle: "Vos locaux", type: "choix", options: { proprietaire: "Vous en êtes propriétaire", locataire: "Vous êtes locataire" } },
     { cle: "valeurBatiments", libelle: "Valeur des bâtiments", type: "nombre", min: 1, max: MONTANT_MAX, unite: "F CFA" },
     { cle: "valeurMachines", libelle: "Valeur des machines", type: "nombre", min: 1, max: MONTANT_MAX, unite: "F CFA" },
     { cle: "valeurStock", libelle: "Valeur du stock", type: "nombre", min: 1, max: MONTANT_MAX, unite: "F CFA" },
+    { cle: "chiffreAffaires", libelle: "Chiffre d'affaires annuel", type: "nombre", min: 1, max: MONTANT_MAX, unite: "F CFA" },
+    { cle: "employes", libelle: "Nombre d'employés", type: "nombre", min: 0, max: 100_000 },
+    { cle: "entretienMachines", libelle: "Contrat d'entretien des machines", type: "choix", options: OUI_NON },
+    ASSUREUR_ACTUEL,
+    ECHEANCE_ACTUELLE,
   ],
   agricole: [
     { cle: "culture", libelle: "Culture", type: "texte", max: 80, exemple: "Cacao, hévéa, anacarde, palmier…", obligatoire: true },
-    { cle: "superficie", libelle: "Superficie", type: "nombre", min: 1, max: 1_000_000, unite: "hectares" },
+    { cle: "risques", libelle: "Risques à couvrir", type: "plusieurs", options: {
+      incendie: "Incendie et foudre", tempete: "Tempête", inondation: "Inondation", grele: "Grêle", gel: "Gel", conseil: CONSEIL,
+    } },
+    { cle: "superficie", libelle: "Superficie totale", type: "nombre", min: 1, max: 1_000_000, unite: "hectares" },
+    { cle: "superficieCultivee", libelle: "Superficie cultivée", type: "nombre", min: 1, max: 1_000_000, unite: "hectares" },
+    { cle: "anneePlantation", libelle: "Année de mise en place des plants", type: "nombre", min: 1900, max: 2100 },
+    { cle: "irrigation", libelle: "Plantation irriguée", type: "choix", options: OUI_NON },
+    { cle: "productionAnnuelle", libelle: "Production annuelle", type: "nombre", min: 1, max: 10_000_000, unite: "tonnes" },
+    { cle: "sommeAssuree", libelle: "Somme à assurer", type: "nombre", min: 1, max: MONTANT_MAX, unite: "F CFA" },
     { cle: "localisation", libelle: "Localisation de la plantation", type: "texte", max: 120 },
+    ASSUREUR_ACTUEL,
   ],
   evenementiel: [
     { cle: "evenement", libelle: "Type d'événement", type: "texte", max: 120, exemple: "Concert, salon, mariage, compétition…", obligatoire: true },
     { cle: "date", libelle: "Date de l'événement", type: "date" },
+    { cle: "jours", libelle: "Durée de l'événement", type: "nombre", min: 1, max: 365, unite: "jours" },
     { cle: "lieu", libelle: "Lieu", type: "texte", max: 120 },
     { cle: "participants", libelle: "Nombre de participants attendus", type: "nombre", min: 1, max: 10_000_000 },
+    { cle: "securite", libelle: "Mesures de sécurité prévues", type: "texte", max: 200, exemple: "Agents de sécurité, secouristes, pompiers, barrières…" },
+    { cle: "dejaAssure", libelle: "Déjà assuré pour ce type d'événement", type: "choix", options: OUI_NON },
   ],
   autre: [],
 };
@@ -145,7 +243,8 @@ export const QUESTIONNAIRES: Record<string, readonly Question[]> = {
 /** Ce que le visiteur peut joindre */
 export const NATURES_PIECE = [
   "carte_grise", "attestation_precedente", "liste_vehicules", "carte_transport", "registre_commerce",
-  "photos_bien", "devis_travaux", "liste_materiel", "liste_personnes", "cahier_des_charges", "autre",
+  "photos_bien", "devis_travaux", "liste_materiel", "liste_personnes", "cahier_des_charges", "questionnaire_compagnie",
+  "rapport_sol_controle", "planning_plans", "plan_plantation", "autre",
 ] as const;
 export type NaturePiece = (typeof NATURES_PIECE)[number];
 
@@ -160,6 +259,10 @@ export const LIBELLES_NATURE: Record<NaturePiece, string> = {
   liste_materiel: "Liste du matériel, avec sa valeur",
   liste_personnes: "Liste des personnes à couvrir",
   cahier_des_charges: "Cahier des charges",
+  questionnaire_compagnie: "Questionnaire de la compagnie, rempli",
+  rapport_sol_controle: "Rapport de sol ou du bureau de contrôle",
+  planning_plans: "Planning et plans du chantier",
+  plan_plantation: "Carte ou plan de la plantation",
   autre: "Autre document utile",
 };
 
@@ -172,9 +275,13 @@ export const AIDES_NATURE: Record<NaturePiece, string> = {
   registre_commerce: "L'activité exacte et la raison sociale, telles qu'elles figureront sur le contrat.",
   photos_bien: "Quelques photos de l'intérieur et de l'extérieur.",
   devis_travaux: "Le montant et la durée des travaux fixent la prime du chantier.",
-  liste_materiel: "Un tableau Excel (.xlsx), une photo ou un PDF : chaque machine, son année et sa valeur.",
+  liste_materiel: "Un tableau Excel (.xlsx), une photo ou un PDF : pour chaque machine, la marque, les caractéristiques, l'année, la valeur d'achat et la valeur actuelle.",
   liste_personnes: "Un tableau Excel (.xlsx), une photo ou un PDF : nom, date de naissance et fonction de chacun.",
   cahier_des_charges: "La clause « assurances » dit ce que le maître d'ouvrage exige.",
+  questionnaire_compagnie: "Si nous vous l'avons déjà envoyé : une photo ou un PDF des pages remplies et signées.",
+  rapport_sol_controle: "Le rapport géotechnique, ou le rapport initial du contrôleur technique, s'ils existent.",
+  planning_plans: "Le planning des travaux et le plan d'ensemble (plans et coupes pour une garantie décennale).",
+  plan_plantation: "Une carte, un plan ou une capture d'écran avec les coordonnées GPS des parcelles.",
   autre: "Tout ce qui vous semble utile : ancien devis, plan, procès-verbal…",
 };
 
@@ -187,15 +294,17 @@ export const PIECES_PAR_BRANCHE: Record<string, readonly NaturePiece[]> = {
   deux_roues: ["carte_grise", "attestation_precedente"],
   flotte: ["liste_vehicules", "carte_grise", "attestation_precedente", "registre_commerce", "carte_transport"],
   habitation: ["photos_bien", "attestation_precedente"],
-  multirisque_professionnelle: ["registre_commerce", "photos_bien", "attestation_precedente"],
-  incendie_risques_divers: ["photos_bien", "registre_commerce", "attestation_precedente"],
-  responsabilite_civile: ["registre_commerce", "attestation_precedente"],
+  multirisque_professionnelle: ["registre_commerce", "photos_bien", "attestation_precedente", "questionnaire_compagnie"],
+  incendie_risques_divers: ["photos_bien", "registre_commerce", "attestation_precedente", "questionnaire_compagnie"],
+  responsabilite_civile: ["registre_commerce", "attestation_precedente", "questionnaire_compagnie"],
   individuelle_accident: ["liste_personnes", "attestation_precedente"],
   transport_marchandises: ["carte_transport", "registre_commerce", "attestation_precedente"],
-  chantier_construction: ["devis_travaux", "cahier_des_charges", "registre_commerce"],
-  industrie_bris_de_machines: ["liste_materiel", "photos_bien", "registre_commerce"],
-  agricole: ["photos_bien", "autre"],
-  evenementiel: ["autre"],
+  chantier_construction: [
+    "devis_travaux", "cahier_des_charges", "planning_plans", "rapport_sol_controle", "questionnaire_compagnie", "registre_commerce",
+  ],
+  industrie_bris_de_machines: ["liste_materiel", "photos_bien", "registre_commerce", "attestation_precedente", "questionnaire_compagnie"],
+  agricole: ["plan_plantation", "photos_bien", "questionnaire_compagnie", "autre"],
+  evenementiel: ["questionnaire_compagnie", "autre"],
   autre: ["autre"],
 };
 

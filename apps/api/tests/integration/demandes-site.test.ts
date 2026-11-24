@@ -229,6 +229,34 @@ describe("devis adapté à l'assurance : réponses et documents", () => {
       + "Zones de circulation : Abidjan, Pays voisins (CEDEAO).\nAssureur actuel : Autre Assureur.\nRenouvellement en mars");
   });
 
+  it("un chantier : produits recherchés, questions de l'entreprise pour une responsabilité civile, questionnaire et rapport de sol", async () => {
+    const recue = await envoyerDemande(demande({
+      assurance: "chantier_construction", profil: "entreprise", nom: "BTP Test",
+      details: {
+        produits: ["trc_batiment", "rc_travaux"], natureTravaux: "Immeuble R+4", typeOuvrage: "logements", dateDebut: "2027-02-01",
+        bureauControle: "oui", chiffreAffaires: 900_000_000, travauxRisque: ["soudure"], assureurActuel: "Autre Assureur",
+      },
+      pieces: [
+        { nature: "questionnaire_compagnie", type: "application/pdf", contenu: Buffer.from("%PDF-1.4\nquestionnaire\n%%EOF\n").toString("base64") },
+        { nature: "rapport_sol_controle", type: "image/png", contenu: PNG.toString("base64") },
+      ],
+    }));
+    expect(recue.statusCode).toBe(201);
+    const id = await idDe(recue.json().numero as number);
+    const vue = (await envoyer(ctx, { url: `/demandes-site/${id}`, cookie: cookies.commercial })).json();
+    expect(vue.demande.details).toEqual([
+      { libelle: "Assurance recherchée", valeur: "Tous risques chantier : bâtiment, Responsabilité civile de l'entreprise de travaux" },
+      { libelle: "Nature des travaux", valeur: "Immeuble R+4" },
+      { libelle: "Type d'ouvrage", valeur: "Logements (immeuble ou maisons)" },
+      { libelle: "Date d'ouverture du chantier", valeur: "01/02/2027" },
+      { libelle: "Bureau de contrôle désigné", valeur: "Oui" },
+      { libelle: "Chiffre d'affaires annuel de l'entreprise", valeur: "900 000 000 F CFA" },
+      { libelle: "Travaux à risque", valeur: "Soudure ou travaux par point chaud" },
+      { libelle: "Assureur actuel", valeur: "Autre Assureur" },
+    ]);
+    expect(vue.pieces.map((p: { libelle: string }) => p.libelle)).toEqual(["Questionnaire de la compagnie, rempli", "Rapport de sol ou du bureau de contrôle"]);
+  });
+
   it("refuse une réponse inattendue, mal formée ou obligatoire oubliée, avec un message pour le visiteur", async () => {
     const reponses = async (details: Record<string, unknown>, assurance = "flotte") => {
       const reponse = await envoyerDemande(flotte({ assurance, details, pieces: undefined }));
