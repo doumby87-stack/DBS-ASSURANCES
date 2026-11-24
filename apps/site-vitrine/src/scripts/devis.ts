@@ -9,7 +9,7 @@
 // Sans JavaScript, le formulaire est remplacé par les coordonnées de l'agence (public/styles/sans-js.css).
 
 import {
-  LIBELLES_NATURE, NATURES_AVEC_CLASSEUR, PIECES_MAX, PIECES_PAR_BRANCHE, QUESTIONNAIRES, TAILLE_CLASSEUR_MAX,
+  LIBELLES_NATURE, NATURES_AVEC_CLASSEUR, PIECES_MAX, PIECES_PAR_BRANCHE, questionPosee, QUESTIONNAIRES, TAILLE_CLASSEUR_MAX,
   TAILLE_PIECE_MAX, TAILLE_PIECES_TOTAL_MAX, TYPE_CLASSEUR, type NaturePiece, type Question,
 } from "../donnees/devis-par-assurance";
 
@@ -151,6 +151,7 @@ function initialiser(form: HTMLFormElement): void {
   function majEtape2(): void {
     const id = assurance();
     for (const bloc of form.querySelectorAll<HTMLElement>("[data-questionnaire]")) bloc.hidden = bloc.dataset.questionnaire !== id;
+    majQuestionsPosees();
     const avecQuestions = questions().length > 0;
     if (libelleBesoin) libelleBesoin.textContent = avecQuestions ? "Autres précisions" : "Votre besoin";
     if (aideBesoin) {
@@ -179,10 +180,14 @@ function initialiser(form: HTMLFormElement): void {
     }
   }
 
-  /** Réponses aux questions de l'assurance choisie (les réponses vides ne sont pas gardées) */
+  /**
+   * Réponses aux questions de l'assurance choisie (les réponses vides ne sont pas gardées), dans l'ordre du
+   * formulaire : une question soumise à condition (le loyer, pour un locataire) n'est lue que si elle est posée.
+   */
   function reponses(): Record<string, string | number | string[]> {
     const resultat: Record<string, string | number | string[]> = {};
     for (const q of questions()) {
+      if (!questionPosee(q, resultat)) continue;
       const champs = champsQuestion(q);
       if (q.type === "plusieurs") {
         const coches = champs.filter((c) => c.checked).map((c) => c.value);
@@ -208,10 +213,24 @@ function initialiser(form: HTMLFormElement): void {
     return !message;
   }
 
+  /** Questions posées, au vu des réponses données jusqu'ici */
+  const questionsPosees = (donnees = reponses()): Question[] => questions().filter((q) => questionPosee(q, donnees));
+
+  /** Affiche les questions soumises à condition quand elles sont posées, cache les autres (sans effacer la saisie) */
+  function majQuestionsPosees(): void {
+    const posees = new Set(questionsPosees().map((q) => q.cle));
+    for (const q of questions()) {
+      const bloc = questionnaire()?.querySelector<HTMLElement>(`[data-question="${q.cle}"]`);
+      if (!bloc || !q.si) continue;
+      bloc.hidden = !posees.has(q.cle);
+      if (bloc.hidden) signalerQuestion(q, "");
+    }
+  }
+
   function questionsValides(): boolean {
     const donnees = reponses();
     let premiere: HTMLInputElement | undefined;
-    for (const q of questions()) {
+    for (const q of questionsPosees(donnees)) {
       const champ = champsQuestion(q)[0];
       const valeur = donnees[q.cle];
       let message = "";
@@ -395,6 +414,7 @@ function initialiser(form: HTMLFormElement): void {
       const cle = champ.closest<HTMLElement>("[data-question]")?.dataset.question;
       const q = questions().find((question) => question.cle === cle);
       if (q && champ.getAttribute("aria-invalid") === "true") signalerQuestion(q, "");
+      if (q && questions().some((question) => question.si?.cle === q.cle)) majQuestionsPosees();
     });
   }
   for (const [champ, idErreur] of [

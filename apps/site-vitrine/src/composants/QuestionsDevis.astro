@@ -1,7 +1,8 @@
 ---
 // Questions propres à chaque assurance, à l'étape 2 du devis (src/donnees/devis-par-assurance.ts). Tous les
 // questionnaires sont rendus cachés ; le script du formulaire (scripts/devis.ts) n'affiche que celui de
-// l'assurance choisie, et ne lit que ses réponses.
+// l'assurance choisie, et ne lit que ses réponses. Une question soumise à condition (le loyer, pour un locataire)
+// reste cachée tant que la réponse qui la déclenche n'est pas donnée.
 import { QUESTIONNAIRES, type Question } from "../donnees/devis-par-assurance";
 
 const id = (branche: string, q: Question) => `q-${branche}-${q.cle}`;
@@ -10,7 +11,7 @@ const libelle = (q: Question) => `${q.libelle}${q.type === "nombre" && q.unite ?
 {Object.entries(QUESTIONNAIRES).filter(([, questions]) => questions.length > 0).map(([branche, questions]) => (
   <div class="questionnaire" data-questionnaire={branche} hidden>
     {questions.map((q) => (q.type === "choix" || q.type === "plusieurs") ? (
-      <fieldset class="champ groupe groupe--serre" data-question={q.cle} data-type={q.type} data-obligatoire={q.obligatoire ? "" : undefined} aria-describedby={`erreur-${id(branche, q)}`}>
+      <fieldset class="champ groupe groupe--serre" hidden={q.si ? true : undefined} data-question={q.cle} data-type={q.type} data-obligatoire={q.obligatoire ? "" : undefined} aria-describedby={`erreur-${id(branche, q)}`}>
         <legend class="champ__libelle">{libelle(q)}{q.obligatoire ? " *" : <span class="champ__facultatif"> (facultatif)</span>}</legend>
         <ul class:list={["cases", { "cases--grille": Object.keys(q.options).length > 3 }]} role="list">
           {Object.entries(q.options).map(([valeur, texte]) => (
@@ -20,7 +21,7 @@ const libelle = (q: Question) => `${q.libelle}${q.type === "nombre" && q.unite ?
         <p class="champ__erreur" id={`erreur-${id(branche, q)}`}></p>
       </fieldset>
     ) : (
-      <div class="champ" data-question={q.cle} data-type={q.type} data-obligatoire={q.obligatoire ? "" : undefined}>
+      <div class="champ" hidden={q.si ? true : undefined} data-question={q.cle} data-type={q.type} data-obligatoire={q.obligatoire ? "" : undefined}>
         <label for={id(branche, q)}>{libelle(q)}{q.obligatoire ? " *" : <span class="champ__facultatif"> (facultatif)</span>}</label>
         {q.type === "texte" && (
           <input class="saisie" id={id(branche, q)} name={id(branche, q)} type="text" maxlength={q.max} placeholder={q.exemple} aria-describedby={`erreur-${id(branche, q)}`} />

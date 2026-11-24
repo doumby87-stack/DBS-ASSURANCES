@@ -43,6 +43,18 @@ Le formulaire posait les mêmes questions à tous et ne prenait qu'une carte gri
 3. **La base garantit le vocabulaire et les limites** (natures, types, nombre, poids total) ; l'API choisit les documents permis pour chaque assurance. L'ancienne signature de `app.enregistrer_demande_site` (une carte grise) passe par la nouvelle, et l'ancien champ `piece` du formulaire reste accepté.
 4. **Sans enregistrement par le site** (`URL_API` absente), les questions restent posées et entrent dans le message WhatsApp ou l'e-mail, qui indique les documents que le visiteur peut envoyer ensuite.
 
+## Complément (novembre 2026) : d'après les questionnaires des compagnies
+
+La comparaison des questionnaires de souscription des compagnies avec le formulaire (`docs/audit/2026-11-questionnaires-des-compagnies.md`) a montré que l'agence ne savait pas toujours quel questionnaire envoyer, ni de quoi dépend le prix. Le formulaire ne recopie pas ces questionnaires : il pose seulement les questions qui servent à les choisir et à donner un ordre de prix.
+
+1. **Le produit recherché** pour les assurances qui en regroupent plusieurs : chantier (tous risques chantier bâtiment ou routes, montage-essais, décennale, responsabilité civile de l'entreprise de travaux ou du bureau d'études) et industrie (multirisque PME/PMI, immeuble, bris de machines, responsabilité civile industrielle, globale de banque), avec « Je ne sais pas, conseillez-moi ».
+2. **L'assureur actuel et l'échéance** pour toutes les assurances professionnelles, comme pour l'automobile et la flotte.
+3. **Les questions qui fixent le prix** : loyer ou valeur du bâtiment, chiffre d'affaires, effectif et garanties à ajouter (multirisque professionnelle) ; type d'ouvrage, date d'ouverture, étages, bureau de contrôle (chantier) ; type de responsabilité civile professionnelle et zone d'activité ; risques à couvrir, somme à assurer, âge de la plantation, irrigation (agricole) ; durée, mesures de sécurité, assurance précédente (événementiel) ; émeutes, terrorisme et violence politique (incendie et risques divers).
+4. **Des questions posées selon une réponse précédente** (`si` dans `devis-par-assurance.ts`) : le loyer pour un locataire, la valeur du bâtiment pour un propriétaire, les questions sur l'entreprise pour une responsabilité civile. Le site ne les montre qu'à ce moment-là ; l'API retire la réponse à une question qui n'est pas posée, et ne l'exige pas même si elle est obligatoire.
+5. **Quatre documents de plus** (migration 0019) : le questionnaire de la compagnie déjà rempli, le rapport de sol ou du bureau de contrôle, le planning et les plans du chantier, la carte ou le plan de la plantation.
+
+Restent dans le questionnaire que l'agence envoie ensuite : déclarations et signatures, tableaux de sinistres, détail des mesures de sécurité, globale de banque.
+
 ## Options écartées
 
 - **Netlify Forms ou un service de formulaires** : les demandes et les cartes grises seraient stockées chez un tiers, hors de l'outil de l'agence, avec un transfert de données de plus à déclarer.

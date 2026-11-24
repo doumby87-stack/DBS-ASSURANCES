@@ -167,7 +167,7 @@ test.describe("formulaire de devis", () => {
     await expect(page.locator("#erreur-q-agricole-culture")).toHaveText("Répondez à cette question.");
     await expect(page.getByLabel(/^Culture/)).toBeFocused();
     await page.getByLabel(/^Culture/).fill("Cacao");
-    await page.getByLabel(/Superficie/).fill("12");
+    await page.getByLabel(/Superficie totale/).fill("12");
     await page.locator('[data-etape="2"] [data-suivant]').click();
     await expect(page.locator("[data-recapitulatif]")).toContainText("12 hectares");
     await page.getByRole("button", { name: "Modifier" }).click();
@@ -177,6 +177,42 @@ test.describe("formulaire de devis", () => {
     await expect(page.getByLabel(/^Culture/)).toHaveValue("Cacao");
     await page.locator('[data-etape="2"] [data-precedent]').click();
     await expect(page.locator('[data-etape="1"]')).toBeVisible();
+  });
+});
+
+test.describe("questions selon les réponses", () => {
+  test("multirisque professionnelle : le loyer pour un locataire, la valeur du bâtiment pour un propriétaire", async ({ page }) => {
+    await page.goto("/devis/?assurance=multirisque_professionnelle");
+    await page.locator('[data-etape="1"] [data-suivant]').click();
+    const questions = page.locator("[data-questionnaire]:visible");
+    await questions.getByLabel(/^Activité/).fill("Pharmacie");
+    await expect(questions.getByLabel(/Loyer mensuel/)).toBeHidden();
+    await expect(questions.getByLabel(/Valeur du bâtiment/)).toBeHidden();
+
+    await questions.getByText("Vous êtes locataire").click();
+    await expect(questions.getByLabel(/Loyer mensuel/)).toBeVisible();
+    await questions.getByLabel(/Loyer mensuel/).fill("350000");
+    await questions.getByText("Vous en êtes propriétaire").click();
+    await expect(questions.getByLabel(/Loyer mensuel/)).toBeHidden();
+    await questions.getByLabel(/Valeur du bâtiment/).fill("80000000");
+    await page.locator('[data-etape="2"] [data-suivant]').click();
+
+    // Seule la réponse à la question posée compte
+    const recapitulatif = page.locator("[data-recapitulatif]");
+    await expect(recapitulatif).toContainText("Valeur du bâtiment");
+    await expect(recapitulatif).not.toContainText("Loyer mensuel");
+  });
+
+  test("chantier : les questions sur l'entreprise ne viennent qu'avec une responsabilité civile", async ({ page }) => {
+    await page.goto("/devis/?assurance=chantier_construction");
+    await page.locator('[data-etape="1"] [data-suivant]').click();
+    const questions = page.locator("[data-questionnaire]:visible");
+    await expect(questions.getByLabel(/Part des travaux sous-traitée/)).toBeHidden();
+    await questions.getByText("Garantie décennale").click();
+    await expect(questions.getByLabel(/Part des travaux sous-traitée/)).toBeHidden();
+    await questions.getByText("Responsabilité civile de l'entreprise de travaux").click();
+    await expect(questions.getByLabel(/Part des travaux sous-traitée/)).toBeVisible();
+    await expect(questions.getByLabel(/Chiffre d'affaires annuel de l'entreprise/)).toBeVisible();
   });
 });
 
