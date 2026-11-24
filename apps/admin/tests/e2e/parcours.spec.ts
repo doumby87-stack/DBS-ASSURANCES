@@ -362,6 +362,21 @@ test("parcours du gérant, de la première connexion à la caisse et au reversem
   await expect(page.getByRole("button", { name: "Détacher 7003 FE 01 du contrat" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /^Détacher / })).toHaveCount(2);
   await page.getByRole("link", { name: "Paiements" }).click();
+
+  // Paiement en plusieurs fois : la prime découpée en 3 (la première échéance à la date d'effet, déjà due),
+  // puis retour au paiement en une fois, permis tant que rien n'est encaissé
+  await page.getByRole("button", { name: "Découper la prime" }).click();
+  const echeancier = page.getByRole("form", { name: "Échéancier de paiement" });
+  await echeancier.getByRole("button", { name: "3 fois" }).click();
+  await expect(echeancier.getByLabel(/^Montant de l'échéance/)).toHaveCount(3);
+  await expect(echeancier.getByLabel("Montant de l'échéance 1")).toHaveValue("300000");
+  await expect(echeancier.getByLabel("Date de l'échéance 1")).toHaveValue(dans(-100));
+  await echeancier.getByRole("button", { name: "Enregistrer l'échéancier" }).click();
+  await expect(page.getByText(/À payer maintenant : 300\s000\sF CFA/)).toBeVisible();
+  await page.getByRole("button", { name: "Modifier l'échéancier" }).click();
+  await page.getByRole("button", { name: "Revenir au paiement en une fois" }).click();
+  await expect(page.getByRole("button", { name: "Découper la prime" })).toBeVisible();
+
   await page.getByLabel("Mode de paiement").selectOption("virement");
   await page.getByLabel("Référence").fill("VIR-FLT-0007");
   await page.getByRole("button", { name: "Encaisser et imprimer le reçu" }).click();
